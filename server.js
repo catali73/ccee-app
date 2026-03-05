@@ -374,6 +374,22 @@ app.get('/api/informes/:id', requireAuth(), async (req, res) => {
   }
 })
 
+// Eliminar informe (coordinador · resetea el servicio a pendiente)
+app.delete('/api/informes/:id', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const r = await pool.query('SELECT servicio_id FROM informes WHERE id = $1', [req.params.id])
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Informe no encontrado' })
+    const { servicio_id } = r.rows[0]
+    await pool.query('DELETE FROM informes WHERE id = $1', [req.params.id])
+    if (servicio_id) {
+      await pool.query("UPDATE servicios SET status = 'pendiente' WHERE id = $1", [servicio_id])
+    }
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // Stats para dashboard (solo coordinador)
 app.get('/api/stats', requireAuth(['coordinador']), async (req, res) => {
   try {

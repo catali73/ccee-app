@@ -47,16 +47,165 @@ function Header({ user, onLogout, view, setView }) {
   );
 }
 
+/* ── INFORME MODAL ─────────────────────────────────────────── */
+const STATUS_COLOR = { OK:'#16a34a', G:'#dc2626', L:'#d97706', '—':'#71717a' };
+const STATUS_BG    = { OK:'#f0fdf4', G:'#fef2f2', L:'#fffbeb', '—':'#f4f4f5' };
+
+function InformeModal({ informe, onClose, onDeleted }) {
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!confirm(`¿Eliminar el informe de "${informe.encuentro}"? El servicio volverá a estado pendiente.`)) return;
+    setDeleting(true);
+    await apiFetch(`/api/informes/${informe.id}`, { method:'DELETE' });
+    setDeleting(false);
+    onDeleted();
+  };
+
+  const ops = informe.operadores || {};
+  const log = informe.logistica || {};
+  const logItems = log.items || {};
+  const camData  = informe.cam_data || {};
+  const activeCams = Object.entries(CAMERA_CATALOG).filter(([id]) => camData[id]);
+
+  return (
+    <div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:200,display:'flex',alignItems:'flex-start',justifyContent:'center',overflowY:'auto',padding:'40px 20px'}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:12,width:'100%',maxWidth:760,boxShadow:'0 20px 60px rgba(0,0,0,0.2)',marginBottom:40}}>
+
+        {/* Header */}
+        <div style={{display:'flex',alignItems:'center',gap:12,padding:'18px 20px',borderBottom:'1px solid #e4e4e7',position:'sticky',top:0,background:'#fff',borderRadius:'12px 12px 0 0',zIndex:1}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:15,fontWeight:600}}>{informe.encuentro||'Informe'}</div>
+            <div style={{fontSize:11,color:'#71717a',marginTop:2,fontFamily:"'Geist Mono',monospace"}}>{informe.jornada} · {fmt(informe.fecha)}</div>
+          </div>
+          <div style={{display:'flex',gap:4}}>
+            {informe.incidencias_graves>0&&<Badge variant="grave">⚠ {informe.incidencias_graves}G</Badge>}
+            {informe.incidencias_leves>0&&<Badge variant="leve">↓ {informe.incidencias_leves}L</Badge>}
+            {!informe.incidencias_graves&&!informe.incidencias_leves&&<Badge variant="ok">✓ Sin incidencias</Badge>}
+          </div>
+          <button onClick={handleDelete} disabled={deleting}
+            style={{padding:'0 12px',height:30,borderRadius:6,border:'1px solid #fecaca',background:'#fef2f2',color:'#dc2626',fontSize:12,cursor:'pointer',fontWeight:500,opacity:deleting?0.6:1}}>
+            {deleting?'Eliminando…':'🗑 Eliminar'}
+          </button>
+          <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',color:'#71717a',fontSize:20,lineHeight:1,padding:'0 4px'}}>✕</button>
+        </div>
+
+        <div style={{padding:'20px'}}>
+
+          {/* Datos del partido */}
+          <div style={{marginBottom:6,fontSize:10,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.08em'}}>Partido</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:16}}>
+            {[['Jornada',informe.jornada],['Encuentro',informe.encuentro],['Fecha',fmt(informe.fecha)],
+              ['Hora partido',informe.hora_partido],['Hora citación',informe.hora_citacion],['Horario MD-1',informe.horario_md1]
+            ].map(([k,v])=>(
+              <div key={k} style={{padding:'8px 10px',background:'#fafafa',borderRadius:8,border:'1px solid #e4e4e7'}}>
+                <div style={{fontSize:9,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:2}}>{k}</div>
+                <div style={{fontSize:12,fontWeight:500}}>{v||'—'}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Equipo técnico */}
+          <div style={{marginBottom:6,fontSize:10,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.08em'}}>Equipo técnico</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:16}}>
+            {[['Responsable CCEE',informe.responsable],['Unidad Móvil',informe.um],['J. Técnico UM',informe.jefe_tecnico],
+              ['Realizador',informe.realizador],['Productor',informe.productor]
+            ].map(([k,v])=>(
+              <div key={k} style={{padding:'8px 10px',background:'#fafafa',borderRadius:8,border:'1px solid #e4e4e7'}}>
+                <div style={{fontSize:9,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:2}}>{k}</div>
+                <div style={{fontSize:12,fontWeight:500}}>{v||'—'}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Operadores */}
+          {Object.values(ops).some(v=>v)&&(
+            <>
+              <div style={{marginBottom:6,fontSize:10,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.08em'}}>Operadores</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:16}}>
+                {OPERATOR_GROUPS.map(g=>g.roles.map(r=>{ const v=ops[r.key]; if(!v) return null; return (
+                  <div key={r.key} style={{display:'flex',gap:8,padding:'6px 10px',background:'#fafafa',borderRadius:8,border:'1px solid #e4e4e7',fontSize:12}}>
+                    <span style={{color:'#71717a',minWidth:100,flexShrink:0}}>{r.label}</span>
+                    <span style={{fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{v}</span>
+                  </div>
+                );}))}
+              </div>
+            </>
+          )}
+
+          {/* Logística */}
+          {Object.keys(logItems).length>0&&(
+            <>
+              <div style={{marginBottom:6,fontSize:10,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.08em'}}>Logística</div>
+              <div style={{border:'1px solid #e4e4e7',borderRadius:8,overflow:'hidden',marginBottom:16}}>
+                {LOGISTICA_ITEMS.map((item,i)=>{
+                  const v = logItems[item]||'—';
+                  return (
+                    <div key={item} style={{display:'flex',alignItems:'center',gap:12,padding:'8px 12px',background:i%2===0?'#fff':'#fafafa',borderBottom:i<LOGISTICA_ITEMS.length-1?'1px solid #e4e4e7':'none'}}>
+                      <div style={{flex:1,fontSize:12}}>{item}</div>
+                      <span style={{fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:4,background:STATUS_BG[v]||'#f4f4f5',color:STATUS_COLOR[v]||'#71717a'}}>{v}</span>
+                    </div>
+                  );
+                })}
+                {log.incidencias&&<div style={{padding:'8px 12px',borderTop:'1px solid #e4e4e7',fontSize:12,color:'#71717a'}}>{log.incidencias}</div>}
+              </div>
+            </>
+          )}
+
+          {/* Cámaras */}
+          {activeCams.length>0&&(
+            <>
+              <div style={{marginBottom:6,fontSize:10,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.08em'}}>Cámaras · {activeCams.length} activas</div>
+              <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:4}}>
+                {activeCams.map(([id,cam])=>{
+                  const d = camData[id]||{}; const items = d.items||{};
+                  const gv=Object.values(items).filter(v=>v==='G').length;
+                  const lv=Object.values(items).filter(v=>v==='L').length;
+                  return (
+                    <div key={id} style={{border:'1px solid #e4e4e7',borderRadius:8,overflow:'hidden'}}>
+                      <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',background:'#fafafa',borderBottom:Object.keys(items).length>0?'1px solid #e4e4e7':'none'}}>
+                        <span style={{fontSize:14}}>{cam.icon}</span>
+                        <span style={{fontSize:12,fontWeight:600,flex:1}}>{cam.label}</span>
+                        {d.equipo&&<span style={{fontSize:11,color:'#71717a',fontFamily:"'Geist Mono',monospace"}}>{d.equipo}</span>}
+                        <div style={{display:'flex',gap:3}}>
+                          {gv>0&&<Badge variant="grave">⚠{gv}</Badge>}
+                          {lv>0&&<Badge variant="leve">↓{lv}</Badge>}
+                          {gv===0&&lv===0&&<Badge variant="ok">✓</Badge>}
+                        </div>
+                      </div>
+                      {Object.keys(items).length>0&&(
+                        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))'}}>
+                          {Object.entries(items).map(([key,v],i)=>(
+                            <div key={key} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'5px 10px',borderRight:i%2===0?'1px solid #e4e4e7':'none',borderBottom:'1px solid #e4e4e7'}}>
+                              <span style={{fontSize:11,color:'#52525b'}}>{key}</span>
+                              <span style={{fontSize:10,fontWeight:600,padding:'1px 6px',borderRadius:3,background:STATUS_BG[v]||'#f4f4f5',color:STATUS_COLOR[v]||'#71717a'}}>{v||'—'}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {d.incidencias&&<div style={{padding:'6px 12px',borderTop:'1px solid #e4e4e7',fontSize:11,color:'#71717a'}}>{d.incidencias}</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── DASHBOARD ─────────────────────────────────────────────── */
 function CoordDashboard({ onNewServicio, onManageUsers }) {
   const [stats,setStats] = useState(null);
   const [servicios,setServicios] = useState([]);
   const [informes,setInformes] = useState([]);
   const [loading,setLoading] = useState(true);
-  const [selInforme,setSelInforme] = useState(null);
-  const [detailInforme,setDetailInforme] = useState(null);
+  const [modalInforme,setModalInforme] = useState(null);
 
-  useEffect(()=>{
+  const load = () => {
     Promise.all([
       apiFetch('/api/stats').then(r=>r.json()).catch(()=>null),
       apiFetch('/api/servicios').then(r=>r.json()).catch(()=>[]),
@@ -65,20 +214,25 @@ function CoordDashboard({ onNewServicio, onManageUsers }) {
       setStats(st); setServicios(Array.isArray(sv)?sv:[]); setInformes(Array.isArray(inf)?inf:[]);
       setLoading(false);
     });
-  },[]);
+  };
 
-  const loadDetailInforme = async (id) => {
+  useEffect(()=>{ load(); },[]);
+
+  const openInforme = async (id) => {
     const r = await apiFetch(`/api/informes/${id}`);
-    setDetailInforme(await r.json()); setSelInforme(id);
+    setModalInforme(await r.json());
   };
 
   if (loading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',fontSize:13,color:'#71717a'}}>Cargando...</div>;
 
   const pendientes = servicios.filter(s=>s.status==='pendiente');
-  const completados = servicios.filter(s=>s.status==='completado');
 
   return (
     <div style={{maxWidth:1000,margin:'0 auto',padding:'24px 20px 80px'}}>
+      {modalInforme&&(
+        <InformeModal informe={modalInforme} onClose={()=>setModalInforme(null)} onDeleted={()=>{ setModalInforme(null); load(); }} />
+      )}
+
       <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:24}}>
         <div>
           <h1 style={{fontSize:22,fontWeight:600,margin:0,marginBottom:4}}>Dashboard</h1>
@@ -140,73 +294,33 @@ function CoordDashboard({ onNewServicio, onManageUsers }) {
         </Card>
       ):(
         informes.length>0&&(
-          <div style={{display:'grid',gridTemplateColumns:selInforme?'1fr 1fr':'1fr',gap:16,alignItems:'start'}}>
-            <Card style={{padding:0,overflow:'hidden'}}>
-              <div style={{padding:'14px 16px',borderBottom:'1px solid #e4e4e7'}}>
-                <SecTitle style={{margin:0}}>Informes completados · {informes.length}</SecTitle>
+          <Card style={{padding:0,overflow:'hidden'}}>
+            <div style={{padding:'14px 16px',borderBottom:'1px solid #e4e4e7'}}>
+              <SecTitle style={{margin:0}}>Informes completados · {informes.length}</SecTitle>
+            </div>
+            {informes.map((inf,i)=>(
+              <div key={inf.id} onClick={()=>openInforme(inf.id)}
+                style={{padding:'12px 16px',cursor:'pointer',background:'#fff',borderBottom:i<informes.length-1?'1px solid #e4e4e7':'none',transition:'background 0.1s'}}
+                onMouseEnter={e=>e.currentTarget.style.background='#fafafa'}
+                onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                <div style={{display:'flex',alignItems:'center',gap:10}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:500}}>{inf.encuentro||'—'}</div>
+                    <div style={{fontSize:11,color:'#71717a',marginTop:2}}>
+                      <span style={{fontFamily:"'Geist Mono',monospace"}}>{inf.jornada}</span>
+                      {' · '}{fmt(inf.fecha)}
+                    </div>
+                  </div>
+                  <div style={{display:'flex',gap:4,alignItems:'center'}}>
+                    {inf.incidencias_graves>0&&<Badge variant="grave">⚠ {inf.incidencias_graves}G</Badge>}
+                    {inf.incidencias_leves>0&&<Badge variant="leve">↓ {inf.incidencias_leves}L</Badge>}
+                    {inf.incidencias_graves===0&&inf.incidencias_leves===0&&<Badge variant="ok">✓ OK</Badge>}
+                    <span style={{color:'#71717a',fontSize:16}}>›</span>
+                  </div>
+                </div>
               </div>
-              {informes.map((inf,i)=>(
-                <div key={inf.id} onClick={()=>loadDetailInforme(inf.id)}
-                  style={{padding:'12px 16px',cursor:'pointer',background:selInforme===inf.id?'#f4f4f5':'#fff',borderBottom:i<informes.length-1?'1px solid #e4e4e7':'none',transition:'background 0.1s'}}
-                  onMouseEnter={e=>{if(selInforme!==inf.id)e.currentTarget.style.background='#fafafa';}}
-                  onMouseLeave={e=>{if(selInforme!==inf.id)e.currentTarget.style.background='#fff';}}>
-                  <div style={{display:'flex',alignItems:'center',gap:10}}>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:13,fontWeight:500}}>{inf.encuentro||'—'}</div>
-                      <div style={{fontSize:11,color:'#71717a',marginTop:2}}>
-                        <span style={{fontFamily:"'Geist Mono',monospace"}}>{inf.jornada}</span>
-                        {' · '}{fmt(inf.fecha)}
-                      </div>
-                    </div>
-                    <div style={{display:'flex',gap:4}}>
-                      {inf.incidencias_graves>0&&<Badge variant="grave">⚠ {inf.incidencias_graves}G</Badge>}
-                      {inf.incidencias_leves>0&&<Badge variant="leve">↓ {inf.incidencias_leves}L</Badge>}
-                      {inf.incidencias_graves===0&&inf.incidencias_leves===0&&<Badge variant="ok">✓ OK</Badge>}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </Card>
-
-            {selInforme&&detailInforme&&(
-              <Card style={{position:'sticky',top:80}}>
-                <div style={{display:'flex',alignItems:'center',marginBottom:16}}>
-                  <div style={{fontSize:14,fontWeight:600,flex:1}}>{detailInforme.encuentro}</div>
-                  <button onClick={()=>{setSelInforme(null);setDetailInforme(null);}} style={{background:'none',border:'none',cursor:'pointer',color:'#71717a',fontSize:16,padding:4}}>✕</button>
-                </div>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
-                  {[['Jornada',detailInforme.jornada],['Fecha',fmt(detailInforme.fecha)],['Hora',detailInforme.hora_partido||'—'],['Responsable',detailInforme.responsable]].map(([k,v])=>(
-                    <div key={k} style={{padding:'8px 10px',background:'#fafafa',borderRadius:8,border:'1px solid #e4e4e7'}}>
-                      <div style={{fontSize:10,fontWeight:500,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:2}}>{k}</div>
-                      <div style={{fontSize:12,fontWeight:500}}>{v||'—'}</div>
-                    </div>
-                  ))}
-                </div>
-                {detailInforme.cam_data&&(
-                  <div style={{border:'1px solid #e4e4e7',borderRadius:8,overflow:'hidden'}}>
-                    {Object.entries(detailInforme.cam_data).map(([id,d],i,arr)=>{
-                      const cam=CAMERA_CATALOG[id]; if(!cam||!d) return null;
-                      const items=d.items||{};
-                      const gv=Object.values(items).filter(v=>v==='G').length;
-                      const lv=Object.values(items).filter(v=>v==='L').length;
-                      return (
-                        <div key={id} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',borderBottom:i<arr.length-1?'1px solid #e4e4e7':'none',background:i%2===0?'#fff':'#fafafa'}}>
-                          <span style={{fontSize:13}}>{cam.icon}</span>
-                          <div style={{flex:1,fontSize:12}}>{cam.label}</div>
-                          {d.equipo&&<span style={{fontSize:11,color:'#71717a',fontFamily:"'Geist Mono',monospace"}}>{d.equipo}</span>}
-                          <div style={{display:'flex',gap:3}}>
-                            {gv>0&&<Badge variant="grave">⚠{gv}</Badge>}
-                            {lv>0&&<Badge variant="leve">↓{lv}</Badge>}
-                            {gv===0&&lv===0&&<Badge variant="ok">✓</Badge>}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </Card>
-            )}
-          </div>
+            ))}
+          </Card>
         )
       )}
     </div>
