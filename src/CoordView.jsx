@@ -603,8 +603,6 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
   return (
     <div style={{maxWidth:760,margin:'0 auto',padding:'28px 20px 80px'}}>
 
-      {isEdit&&<DocumentosSection servicioId={servicioId} />}
-
       {/* ── STEP 1 ── */}
       {step===1&&(
         <>
@@ -672,6 +670,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
               <Field label="Productor"><Input value={match.productor} onChange={e=>setMatch({...match,productor:e.target.value})} /></Field>
             </div>
           </Card>
+          {isEdit&&<DocumentosSection servicioId={servicioId} />}
           <div style={{display:'flex',justifyContent:'space-between'}}>
             <BtnO onClick={onCancel}>← Cancelar</BtnO>
             <BtnP onClick={()=>setStep(2)}>Seleccionar cámaras →</BtnP>
