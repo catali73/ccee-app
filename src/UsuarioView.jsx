@@ -8,6 +8,112 @@ import {
 /* ── helpers ── */
 const fmt = (d) => d ? new Date(d).toLocaleDateString('es-ES') : '—';
 
+/* ── PDF HOJA DE SERVICIO (para técnicos) ──────────────────── */
+function generateServicioPDF(servicio) {
+  const fmtD = (d) => d ? new Date(d).toLocaleDateString('es-ES') : '—';
+  const ops = servicio.operadores || {};
+  const activeCams = servicio.camaras_activas
+    ? Object.entries(CAMERA_CATALOG).filter(([id]) => servicio.camaras_activas[id])
+    : [];
+  const cell = (label,val) => `<div class="cell"><div class="cl">${label}</div><div class="cv">${val||'—'}</div></div>`;
+  const opRows = OPERATOR_GROUPS.flatMap(g => g.roles.filter(r=>ops[r.key]).map(r=>
+    `<tr><td>${r.label}</td><td><strong>${ops[r.key]}</strong></td></tr>`
+  )).join('');
+  const camList = activeCams.map(([id,cam])=>
+    `<div class="cam-item">${cam.icon} <strong>${cam.label}</strong></div>`
+  ).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>Hoja de servicio · ${servicio.encuentro||''}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#1a1a1a;padding:28px 32px}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #111}
+.title{font-size:20px;font-weight:700;margin-bottom:3px}.sub{font-size:12px;color:#555}
+.brand{font-size:11px;font-weight:700;text-align:right;color:#555}
+h2{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#888;border-bottom:1px solid #e0e0e0;padding-bottom:4px;margin:16px 0 8px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.cell{background:#f7f7f7;border:1px solid #e5e5e5;border-radius:4px;padding:6px 9px}
+.cl{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#999;margin-bottom:2px}
+.cv{font-size:11px;font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:12px}
+td{border:1px solid #e5e5e5;padding:5px 9px}tr:nth-child(even) td{background:#fafafa}
+.cam-grid{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.cam-item{background:#f0f0f0;border:1px solid #ddd;border-radius:4px;padding:5px 10px;font-size:12px}
+.ftr{margin-top:24px;padding-top:10px;border-top:1px solid #e0e0e0;font-size:10px;color:#aaa;display:flex;justify-content:space-between}
+@media print{body{padding:16px 20px}}
+</style></head><body>
+<div class="hdr">
+  <div>
+    <div class="title">${servicio.encuentro||'—'}</div>
+    <div class="sub">${servicio.jornada||''} · ${fmtD(servicio.fecha)}</div>
+  </div>
+  <div class="brand">MEDIAPRO · CCEE<br><span style="font-weight:400">Hoja de servicio · Temporada 25/26</span></div>
+</div>
+<h2>Datos del servicio</h2>
+<div class="grid">
+  ${[['Jornada',servicio.jornada],['Encuentro',servicio.encuentro],['Fecha',fmtD(servicio.fecha)],
+    ['Hora partido',servicio.hora_partido],['Hora citación',servicio.hora_citacion],['Horario MD-1',servicio.horario_md1]
+  ].map(([k,v])=>cell(k,v)).join('')}
+</div>
+<h2>Equipo técnico</h2>
+<div class="grid">
+  ${[['Responsable CCEE',servicio.responsable],['Unidad Móvil',servicio.um],['J. Técnico UM',servicio.jefe_tecnico],
+    ['Realizador',servicio.realizador],['Productor',servicio.productor]
+  ].map(([k,v])=>cell(k,v)).join('')}
+</div>
+${activeCams.length>0?`<h2>Cámaras activas · ${activeCams.length}</h2><div class="cam-grid">${camList}</div>`:''}
+${opRows?`<h2>Operadores asignados</h2><table><tbody>${opRows}</tbody></table>`:''}
+<div class="ftr">
+  <span>MEDIAPRO · Cámaras Especiales · Hoja de servicio</span>
+  <span>Generado: ${new Date().toLocaleString('es-ES')}</span>
+</div>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+  const win = window.open('','_blank','width=900,height=750');
+  if (win) { win.document.write(html); win.document.close(); }
+}
+
+/* ── DOCUMENTOS USUARIO (solo lectura) ─────────────────────── */
+function DocumentosUsuario({ servicioId }) {
+  const [docs,setDocs] = useState([]);
+  const [loading,setLoading] = useState(true);
+
+  useEffect(()=>{
+    apiFetch(`/api/servicios/${servicioId}/documentos`).then(r=>r.json()).then(data=>{
+      setDocs(Array.isArray(data)?data:[]); setLoading(false);
+    }).catch(()=>setLoading(false));
+  },[servicioId]);
+
+  const fileIcon = (tipo) => tipo?.startsWith('image/')?'🖼️':tipo==='application/pdf'?'📄':'📎';
+
+  const handleOpen = async (doc) => {
+    const r = await apiFetch(`/api/documentos/${doc.id}`);
+    const data = await r.json();
+    if (data.datos){ const a=document.createElement('a'); a.href=data.datos; a.target='_blank'; a.click(); }
+  };
+
+  if (loading||docs.length===0) return null;
+
+  return (
+    <Card>
+      <SecTitle>Documentos del servicio · {docs.length}</SecTitle>
+      <div style={{display:'flex',flexDirection:'column',gap:8}}>
+        {docs.map(doc=>(
+          <div key={doc.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:'#fafafa',borderRadius:8,border:'1px solid #e4e4e7'}}>
+            <span style={{fontSize:20}}>{fileIcon(doc.tipo)}</span>
+            <div style={{flex:1}}>
+              <div style={{fontSize:13,fontWeight:500}}>{doc.descripcion}</div>
+              <div style={{fontSize:11,color:'#71717a',marginTop:1}}>{doc.nombre}</div>
+            </div>
+            <BtnO onClick={()=>handleOpen(doc)} style={{height:30,fontSize:12,padding:'0 12px'}}>Abrir</BtnO>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 /* ── HEADER ────────────────────────────────────────────────── */
 function Header({ user, onLogout }) {
   return (
@@ -251,9 +357,14 @@ function FillReport({ servicioId, onBack }) {
             </Card>
           )}
 
-          <div style={{display:'flex',justifyContent:'space-between'}}>
+          <DocumentosUsuario servicioId={servicioId} />
+
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
             <BtnO onClick={onBack}>← Mis servicios</BtnO>
-            <BtnP onClick={()=>setStep(2)}>Iniciar informe técnico →</BtnP>
+            <div style={{display:'flex',gap:8}}>
+              <BtnO onClick={()=>generateServicioPDF(servicio)}>📄 Hoja de servicio</BtnO>
+              <BtnP onClick={()=>setStep(2)}>Iniciar informe técnico →</BtnP>
+            </div>
           </div>
         </>
       )}

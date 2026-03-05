@@ -299,6 +299,95 @@ function InformeModal({ informe, onClose, onDeleted }) {
   );
 }
 
+/* ── DOCUMENTOS SECTION (solo coordinador, solo en edición) ── */
+function DocumentosSection({ servicioId }) {
+  const [docs,setDocs] = useState([]);
+  const [loading,setLoading] = useState(true);
+  const [desc,setDesc] = useState('');
+  const [file,setFile] = useState(null);
+  const [uploading,setUploading] = useState(false);
+  const [error,setError] = useState(null);
+  const fileRef = useRef(null);
+
+  const load = async () => {
+    const r = await apiFetch(`/api/servicios/${servicioId}/documentos`);
+    const data = await r.json();
+    setDocs(Array.isArray(data)?data:[]); setLoading(false);
+  };
+  useEffect(()=>{ load(); },[servicioId]);
+
+  const fileIcon = (tipo) => tipo?.startsWith('image/')?'🖼️':tipo==='application/pdf'?'📄':'📎';
+
+  const handleUpload = async () => {
+    if (!file||!desc.trim()){setError('Añade descripción y selecciona archivo');return;}
+    if (file.size > 8*1024*1024){setError('El archivo no puede superar 8 MB');return;}
+    setUploading(true); setError(null);
+    try {
+      const base64 = await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=e=>res(e.target.result); r.onerror=rej; r.readAsDataURL(file); });
+      const resp = await apiFetch(`/api/servicios/${servicioId}/documentos`,{
+        method:'POST',
+        body:JSON.stringify({descripcion:desc.trim(),nombre:file.name,tipo:file.type,datos:base64,tamano:file.size})
+      });
+      const data = await resp.json();
+      if (data.ok){ setDesc(''); setFile(null); if(fileRef.current)fileRef.current.value=''; load(); }
+      else setError(data.error||'Error al subir');
+    } catch { setError('Error de conexión'); }
+    finally { setUploading(false); }
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm('¿Eliminar este documento?')) return;
+    await apiFetch(`/api/documentos/${id}`,{method:'DELETE'}); load();
+  };
+
+  const handleOpen = async (doc) => {
+    const r = await apiFetch(`/api/documentos/${doc.id}`);
+    const data = await r.json();
+    if (data.datos){ const a=document.createElement('a'); a.href=data.datos; a.target='_blank'; a.click(); }
+  };
+
+  return (
+    <Card style={{marginBottom:20}}>
+      <SecTitle>Documentos del servicio</SecTitle>
+      <div style={{display:'flex',gap:8,marginBottom:10,alignItems:'flex-end',flexWrap:'wrap'}}>
+        <Field label="Descripción" style={{flex:1,minWidth:180,marginBottom:0}}>
+          <Input value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Ej: Plano de cámaras, Mapa de conexiones…" />
+        </Field>
+        <div>
+          <Label>Archivo (PDF / JPG / PNG)</Label>
+          <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png"
+            onChange={e=>setFile(e.target.files[0]||null)}
+            style={{display:'block',fontSize:12,marginTop:5,padding:'2px 0'}} />
+        </div>
+        <BtnP onClick={handleUpload} disabled={uploading||!file||!desc.trim()}
+          style={{opacity:(uploading||!file||!desc.trim())?0.5:1,height:36,whiteSpace:'nowrap'}}>
+          {uploading?'Subiendo…':'↑ Subir'}
+        </BtnP>
+      </div>
+      {error&&<div style={{fontSize:12,color:'#dc2626',background:'#fef2f2',padding:'6px 10px',borderRadius:6,border:'1px solid #fecaca',marginBottom:10}}>{error}</div>}
+      {loading?(
+        <div style={{fontSize:12,color:'#71717a',padding:'8px 0'}}>Cargando…</div>
+      ):docs.length===0?(
+        <div style={{fontSize:12,color:'#71717a',textAlign:'center',padding:'12px 0'}}>Sin documentos adjuntos.</div>
+      ):(
+        <div style={{border:'1px solid #e4e4e7',borderRadius:8,overflow:'hidden'}}>
+          {docs.map((doc,i)=>(
+            <div key={doc.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:i%2===0?'#fff':'#fafafa',borderBottom:i<docs.length-1?'1px solid #e4e4e7':'none'}}>
+              <span style={{fontSize:18}}>{fileIcon(doc.tipo)}</span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:500}}>{doc.descripcion}</div>
+                <div style={{fontSize:11,color:'#71717a',marginTop:1}}>{doc.nombre} · {(doc.tamano/1024).toFixed(0)} KB</div>
+              </div>
+              <BtnO onClick={()=>handleOpen(doc)} style={{height:28,fontSize:11,padding:'0 10px'}}>Abrir</BtnO>
+              <BtnO onClick={()=>handleDelete(doc.id)} style={{height:28,fontSize:11,padding:'0 10px',color:'#dc2626',borderColor:'#fecaca'}}>✕</BtnO>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 /* ── DASHBOARD ─────────────────────────────────────────────── */
 function CoordDashboard({ onNewServicio, onManageUsers, onEditServicio }) {
   const [stats,setStats] = useState(null);
@@ -513,6 +602,8 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
 
   return (
     <div style={{maxWidth:760,margin:'0 auto',padding:'28px 20px 80px'}}>
+
+      {isEdit&&<DocumentosSection servicioId={servicioId} />}
 
       {/* ── STEP 1 ── */}
       {step===1&&(

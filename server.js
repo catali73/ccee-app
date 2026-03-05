@@ -105,6 +105,20 @@ async function initDB() {
     )
   `)
 
+  // Tabla de documentos adjuntos a servicios
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS documentos (
+      id          SERIAL PRIMARY KEY,
+      servicio_id INTEGER REFERENCES servicios(id) ON DELETE CASCADE,
+      descripcion VARCHAR(200) NOT NULL,
+      nombre      VARCHAR(255),
+      tipo        VARCHAR(100),
+      datos       TEXT,
+      tamano      INTEGER DEFAULT 0,
+      created_at  TIMESTAMP DEFAULT NOW()
+    )
+  `)
+
   // Añadir columnas a informes si no existen (sin romper datos existentes)
   await pool.query(`ALTER TABLE informes ADD COLUMN IF NOT EXISTS servicio_id  INTEGER REFERENCES servicios(id)`)
   await pool.query(`ALTER TABLE informes ADD COLUMN IF NOT EXISTS submitted_by INTEGER REFERENCES users(id)`)
@@ -398,6 +412,50 @@ app.put('/api/servicios/:id', requireAuth(['coordinador']), async (req, res) => 
     console.error(err)
     res.status(500).json({ error: err.message })
   }
+})
+
+// ── DOCUMENTOS ROUTES ──────────────────────────────────────
+
+// Subir documento a un servicio (coordinador)
+app.post('/api/servicios/:id/documentos', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const { descripcion, nombre, tipo, datos, tamano } = req.body
+    if (!descripcion || !datos) return res.status(400).json({ error: 'Faltan campos obligatorios' })
+    const r = await pool.query(
+      `INSERT INTO documentos (servicio_id, descripcion, nombre, tipo, datos, tamano)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+      [req.params.id, descripcion, nombre || '', tipo || '', datos, tamano || 0]
+    )
+    res.json({ ok: true, id: r.rows[0].id })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Listar documentos de un servicio — solo metadatos, sin datos binarios (autenticado)
+app.get('/api/servicios/:id/documentos', requireAuth(), async (req, res) => {
+  try {
+    const r = await pool.query(
+      'SELECT id, descripcion, nombre, tipo, tamano, created_at FROM documentos WHERE servicio_id=$1 ORDER BY created_at ASC',
+      [req.params.id]
+    )
+    res.json(r.rows)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Obtener documento completo con datos (autenticado)
+app.get('/api/documentos/:id', requireAuth(), async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM documentos WHERE id=$1', [req.params.id])
+    if (r.rows.length === 0) return res.status(404).json({ error: 'No encontrado' })
+    res.json(r.rows[0])
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Eliminar documento (coordinador)
+app.delete('/api/documentos/:id', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    await pool.query('DELETE FROM documentos WHERE id=$1', [req.params.id])
+    res.json({ ok: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
 // Eliminar informe (coordinador · resetea el servicio a pendiente)
