@@ -1,4 +1,6 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, lazy, Suspense } from "react";
+const CoordView = lazy(() => import('./CoordView.jsx'));
+const UsuarioView = lazy(() => import('./UsuarioView.jsx'));
 
 const fontLink = document.createElement("link");
 fontLink.rel = "stylesheet";
@@ -336,365 +338,107 @@ function Dashboard({ onNewReport }) {
   );
 }
 
-/* ─── MAIN APP ────────────────────────────────────────────── */
-export default function App() {
-  const [view,setView] = useState('form');
-  const [step,setStep] = useState(1);  // 1=Servicio 2=Cámaras 3=Operadores 4=Informe 5=Resumen
-  const [tipoServicio,setTipoServicio] = useState('liga');
-  const [match,setMatch] = useState({jornada:"",encuentro:"",fecha:"",hora_partido:"",hora_citacion:"",responsable:"",um:"",jefe_tecnico:"",realizador:"",productor:"",horario_md1:""});
-  const [ligaJornada,setLigaJornada] = useState("");
-  const [ligaPartido,setLigaPartido] = useState("");
-  const [selectedCams,setSelectedCams] = useState({});
-  const [operators,setOperators] = useState(initOperators());
-  const [logistica,setLogistica] = useState({items:initItems(LOGISTICA_ITEMS),incidencias:""});
-  const [camData,setCamData] = useState({});
-  const [sent,setSent] = useState(false);
-  const [saving,setSaving] = useState(false);
-  const [saveError,setSaveError] = useState(null);
+/* ─── AUTH HELPERS ────────────────────────────────────────── */
+const TOKEN_KEY = 'ccee_token';
+export const getToken = () => localStorage.getItem(TOKEN_KEY);
+export const setToken = (t) => localStorage.setItem(TOKEN_KEY, t);
+export const clearToken = () => localStorage.removeItem(TOKEN_KEY);
 
-  useEffect(()=>{ if(tipoServicio==='liga'&&ligaJornada&&ligaPartido) setMatch(p=>({...p,jornada:ligaJornada,encuentro:ligaPartido})); },[ligaJornada,ligaPartido,tipoServicio]);
-  useEffect(()=>{ if(tipoServicio!=='liga'){ setLigaJornada(""); setLigaPartido(""); setMatch(p=>({...p,jornada:"",encuentro:""})); } },[tipoServicio]);
+export async function apiFetch(path, options = {}) {
+  const token = getToken();
+  const res = await fetch(path, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    },
+  });
+  if (res.status === 401) { clearToken(); window.location.reload(); }
+  return res;
+}
 
-  const toggleCam = useCallback((id)=>setSelectedCams(p=>({...p,[id]:!p[id]})),[]);
-  const updateCamData = useCallback((camId,field,sub,val)=>{
-    setCamData(prev=>{ const c=prev[camId]||{equipo:"",items:initItems(CAMERA_CATALOG[camId].items),incidencias:""}; if(field==="equipo") return {...prev,[camId]:{...c,equipo:sub}}; if(field==="item") return {...prev,[camId]:{...c,items:{...c.items,[sub]:val}}}; if(field==="incidencias") return {...prev,[camId]:{...c,incidencias:sub}}; return prev; });
-  },[]);
-  const updateOp = useCallback((key,val)=>setOperators(p=>({...p,[key]:val})),[]);
+/* ─── NAMED EXPORTS (shared components / data) ────────────── */
+export { Input, Select, Textarea, Label, Card, SecTitle, BtnP, BtnO, Badge, Field, Sep, Steps, StatusToggle, CameraToggle, CameraSection, initItems, STATUS, CAMERA_CATALOG, OPERATOR_GROUPS, PERSONAL, TIPOS_SERVICIO, LIGA_PARTIDOS, LOGISTICA_ITEMS };
 
-  const activeCams = Object.entries(CAMERA_CATALOG).filter(([id])=>selectedCams[id]);
+/* ─── LOGIN PAGE ──────────────────────────────────────────── */
+function LoginPage({ onLogin }) {
+  const [email,setEmail] = useState('');
+  const [password,setPassword] = useState('');
+  const [error,setError] = useState(null);
+  const [loading,setLoading] = useState(false);
 
-  // Grupos de operadores relevantes según cámaras seleccionadas
-  const activeOpGroups = OPERATOR_GROUPS.filter(g=>g.cams.some(c=>selectedCams[c]));
-
-  const countInc = () => {
-    let g=0,l=0;
-    Object.values(logistica.items).forEach(v=>{if(v==="G")g++;if(v==="L")l++;});
-    activeCams.forEach(([id])=>{ const d=camData[id]; if(!d?.items)return; Object.values(d.items).forEach(v=>{if(v==="G")g++;if(v==="L")l++;}); });
-    return {g,l};
-  };
-  const {g,l} = countInc();
-
-  const resetForm = () => {
-    setStep(1); setTipoServicio('liga'); setLigaJornada(""); setLigaPartido("");
-    setMatch({jornada:"",encuentro:"",fecha:"",hora_partido:"",hora_citacion:"",responsable:"",um:"",jefe_tecnico:"",realizador:"",productor:"",horario_md1:""});
-    setSelectedCams({}); setOperators(initOperators());
-    setLogistica({items:initItems(LOGISTICA_ITEMS),incidencias:""}); setCamData({});
-    setSent(false); setSaveError(null);
-  };
-
-  const handleSave = async () => {
-    setSaving(true); setSaveError(null);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true); setError(null);
     try {
-      const res=await fetch('/api/informes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({match,operators,selectedCams,logistica,camData,incidenciasGraves:g,incidenciasLeves:l})});
-      const data=await res.json();
-      if(data.ok) setSent(true); else setSaveError(data.error||'Error al guardar');
-    } catch { setSaveError('Error de conexión'); }
-    finally { setSaving(false); }
+      const res = await fetch('/api/auth/login', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Error al iniciar sesión'); return; }
+      setToken(data.token);
+      onLogin(data.user);
+    } catch { setError('Error de conexión'); }
+    finally { setLoading(false); }
   };
 
-  const STEPS = ["Servicio","Cámaras","Operadores","Informe","Resumen"];
-  const tipoActual = TIPOS_SERVICIO.find(tp=>tp.id===tipoServicio);
-
-  if(sent) return (
-    <div style={{minHeight:"100vh",background:"#fff",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:12}}>
-      <div style={{width:48,height:48,borderRadius:"50%",background:"#f0fdf4",border:"1px solid #bbf7d0",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>✓</div>
-      <div style={{fontSize:18,fontWeight:600}}>Informe guardado</div>
-      <div style={{fontSize:13,color:"#71717a"}}>{match.encuentro} · {match.jornada}</div>
-      <div style={{display:"flex",gap:6,marginTop:4}}>
-        {g>0&&<Badge variant="grave">⚠ {g} graves</Badge>}
-        {l>0&&<Badge variant="leve">↓ {l} leves</Badge>}
-        {g===0&&l===0&&<Badge variant="ok">Sin incidencias</Badge>}
-      </div>
-      <div style={{display:"flex",gap:8,marginTop:12}}>
-        <BtnO onClick={()=>{resetForm();setView('dashboard');}}>Ver dashboard</BtnO>
-        <BtnP onClick={resetForm}>+ Nuevo informe</BtnP>
+  return (
+    <div style={{minHeight:'100vh',background:'#fafafa',display:'flex',alignItems:'center',justifyContent:'center'}}>
+      <div style={{width:360,background:'#fff',border:'1px solid #e4e4e7',borderRadius:12,padding:32,boxShadow:'0 1px 3px 0 rgba(0,0,0,0.07)'}}>
+        <div style={{textAlign:'center',marginBottom:28}}>
+          <div style={{width:44,height:44,borderRadius:10,background:'#18181b',display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:22,marginBottom:12}}>📷</div>
+          <div style={{fontSize:16,fontWeight:600}}>MEDIAPRO · CCEE</div>
+          <div style={{fontSize:12,color:'#71717a',marginTop:3}}>Cámaras Especiales</div>
+        </div>
+        <form onSubmit={handleSubmit} style={{display:'flex',flexDirection:'column',gap:14}}>
+          <Field label="Email">
+            <Input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@email.com" required autoFocus />
+          </Field>
+          <Field label="Contraseña">
+            <Input type="password" value={password} onChange={e=>setPassword(e.target.value)} required />
+          </Field>
+          {error&&<div style={{fontSize:12,color:'#dc2626',background:'#fef2f2',padding:'8px 12px',borderRadius:6,border:'1px solid #fecaca'}}>{error}</div>}
+          <BtnP type="submit" style={{width:'100%',justifyContent:'center',marginTop:4}} disabled={loading}>
+            {loading?'Iniciando sesión...':'Iniciar sesión'}
+          </BtnP>
+        </form>
       </div>
     </div>
   );
+}
+
+/* ─── ROOT APP ────────────────────────────────────────────── */
+export default function App() {
+  const [user,setUser] = useState(null);
+  const [loading,setLoading] = useState(true);
+
+  useEffect(()=>{
+    const token = getToken();
+    if (!token) { setLoading(false); return; }
+    apiFetch('/api/auth/me')
+      .then(r => r.ok ? r.json() : null)
+      .then(u => { if (u) setUser(u); })
+      .finally(() => setLoading(false));
+  },[]);
+
+  const handleLogout = () => { clearToken(); setUser(null); };
+
+  if (loading) return (
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,color:'#71717a'}}>
+      Cargando...
+    </div>
+  );
+
+  if (!user) return <LoginPage onLogin={setUser} />;
 
   return (
-    <div style={{minHeight:"100vh",background:"#fafafa"}}>
-
-      {/* HEADER */}
-      <header style={{background:"#fff",borderBottom:"1px solid #e4e4e7",position:"sticky",top:0,zIndex:100}}>
-        <div style={{maxWidth:1100,margin:"0 auto",padding:"0 20px",height:56,display:"flex",alignItems:"center",gap:20}}>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <div style={{width:28,height:28,borderRadius:6,background:"#18181b",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>📷</div>
-            <div>
-              <div style={{fontSize:13,fontWeight:600,lineHeight:1.2}}>MEDIAPRO · CCEE</div>
-              <div style={{fontSize:10,color:"#71717a",lineHeight:1.2}}>Cámaras Especiales</div>
-            </div>
-          </div>
-          <div style={{flex:1}} />
-          <nav style={{display:"flex",gap:2}}>
-            {[{id:'form',label:'Nuevo informe'},{id:'dashboard',label:'Dashboard'}].map(n=>(
-              <button key={n.id} onClick={()=>setView(n.id)} style={{padding:"0 12px",height:32,borderRadius:"8px",fontSize:12,fontWeight:500,cursor:"pointer",border:"none",background:view===n.id?"#f4f4f5":"transparent",color:view===n.id?"#09090b":"#71717a",transition:"all 0.12s"}}>{n.label}</button>
-            ))}
-          </nav>
-          {view==='form'&&<><div style={{width:1,height:20,background:"#e4e4e7"}} /><Steps current={step} steps={STEPS} /></>}
-        </div>
-      </header>
-
-      {view==='dashboard'&&<Dashboard onNewReport={()=>{resetForm();setView('form');}} />}
-
-      {view==='form'&&(
-        <div style={{maxWidth:760,margin:"0 auto",padding:"28px 20px 80px"}}>
-
-          {/* ── STEP 1: SERVICIO ── */}
-          {step===1&&(
-            <>
-              <div style={{marginBottom:20}}>
-                <h2 style={{fontSize:18,fontWeight:600,margin:0,marginBottom:4}}>Datos del servicio</h2>
-                <p style={{fontSize:13,color:"#71717a",margin:0}}>Tipo, partido y equipo técnico</p>
-              </div>
-
-              <Card>
-                <SecTitle>Tipo de servicio</SecTitle>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
-                  {TIPOS_SERVICIO.map(tp=>(
-                    <button key={tp.id} onClick={()=>setTipoServicio(tp.id)} style={{padding:"12px 8px",borderRadius:"8px",border:`1px solid ${tipoServicio===tp.id?"#18181b":"#e4e4e7"}`,background:tipoServicio===tp.id?"#18181b":"#fff",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:6,transition:"all 0.15s"}}>
-                      <span style={{fontSize:20}}>{tp.icon}</span>
-                      <span style={{fontSize:10,fontWeight:500,color:tipoServicio===tp.id?"#fafafa":"#71717a",lineHeight:1.3,textAlign:"center"}}>{tp.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </Card>
-
-              <Card>
-                <SecTitle>Identificación · {tipoActual?.icon} {tipoActual?.label}</SecTitle>
-                {tipoServicio==='liga'?(
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
-                    <Field label="Jornada">
-                      <Select value={ligaJornada} onChange={e=>{setLigaJornada(e.target.value);setLigaPartido("");}}>
-                        <option value="">— Selecciona jornada —</option>
-                        {Object.keys(LIGA_PARTIDOS).map(j=><option key={j} value={j}>{j}</option>)}
-                      </Select>
-                    </Field>
-                    <Field label="Partido">
-                      <Select value={ligaPartido} onChange={e=>setLigaPartido(e.target.value)} disabled={!ligaJornada}>
-                        <option value="">— Selecciona partido —</option>
-                        {ligaJornada&&LIGA_PARTIDOS[ligaJornada]?.map(p=><option key={p} value={p}>{p}</option>)}
-                      </Select>
-                    </Field>
-                  </div>
-                ):(
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
-                    <Field label={tipoServicio==='programa'?"Nombre del programa":"Competición / Evento"}>
-                      <Input placeholder="Descripción del evento" value={match.encuentro} onChange={e=>setMatch({...match,encuentro:e.target.value})} />
-                    </Field>
-                    <Field label="Referencia / Código">
-                      <Input placeholder="Ej: UCL-J6, COPA-SF..." value={match.jornada} onChange={e=>setMatch({...match,jornada:e.target.value})} />
-                    </Field>
-                  </div>
-                )}
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-                  <Field label="Fecha"><Input type="date" value={match.fecha} onChange={e=>setMatch({...match,fecha:e.target.value})} /></Field>
-                  <Field label="Hora partido"><Input type="time" value={match.hora_partido} onChange={e=>setMatch({...match,hora_partido:e.target.value})} /></Field>
-                  <Field label="Hora citación"><Input placeholder="12:00 HLE" value={match.hora_citacion} onChange={e=>setMatch({...match,hora_citacion:e.target.value})} /></Field>
-                  <Field label="Horario MD-1"><Input placeholder="10:00 a 22:00" value={match.horario_md1} onChange={e=>setMatch({...match,horario_md1:e.target.value})} /></Field>
-                </div>
-              </Card>
-
-              <Card>
-                <SecTitle>Equipo técnico</SecTitle>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-                  {/* FIX 1: Responsable CCEE = lista jefes técnicos */}
-                  <Field label="Responsable CCEE">
-                    <Select value={match.responsable} onChange={e=>setMatch({...match,responsable:e.target.value})}>
-                      <option value="">— Seleccionar —</option>
-                      {PERSONAL.RESP_CCEE.map(p=><option key={p} value={p}>{p}</option>)}
-                    </Select>
-                  </Field>
-                  <Field label="Unidad Móvil"><Input value={match.um} onChange={e=>setMatch({...match,um:e.target.value})} /></Field>
-                  <Field label="J. Técnico UM"><Input value={match.jefe_tecnico} onChange={e=>setMatch({...match,jefe_tecnico:e.target.value})} /></Field>
-                  <Field label="Realizador"><Input value={match.realizador} onChange={e=>setMatch({...match,realizador:e.target.value})} /></Field>
-                  <Field label="Productor"><Input value={match.productor} onChange={e=>setMatch({...match,productor:e.target.value})} /></Field>
-                </div>
-              </Card>
-
-              {tipoServicio==='liga'&&ligaJornada&&ligaPartido&&(
-                <div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:"8px",padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
-                  <span>✓</span>
-                  <div>
-                    <div style={{fontSize:13,fontWeight:500,color:"#15803d"}}>{ligaPartido}</div>
-                    <div style={{fontSize:11,color:"#16a34a",fontFamily:"'Geist Mono',monospace"}}>{ligaJornada} · LaLiga 25/26</div>
-                  </div>
-                </div>
-              )}
-
-              <div style={{display:"flex",justifyContent:"flex-end"}}>
-                <BtnP onClick={()=>setStep(2)}>Seleccionar cámaras →</BtnP>
-              </div>
-            </>
-          )}
-
-          {/* ── STEP 2: CÁMARAS ── */}
-          {step===2&&(
-            <>
-              <div style={{marginBottom:20}}>
-                <h2 style={{fontSize:18,fontWeight:600,margin:0,marginBottom:4}}>Cámaras desplegadas</h2>
-                <p style={{fontSize:13,color:"#71717a",margin:0}}>Activas en <strong>{match.encuentro||"este servicio"}</strong></p>
-              </div>
-              <Card>
-                <SecTitle>Activa / desactiva cada equipo</SecTitle>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(100px,1fr))",gap:8}}>
-                  {Object.entries(CAMERA_CATALOG).map(([id,cam])=><CameraToggle key={id} id={id} cam={cam} selected={!!selectedCams[id]} onToggle={toggleCam} />)}
-                </div>
-                {activeCams.length>0&&<><Sep /><div style={{display:"flex",flexWrap:"wrap",gap:6}}>{activeCams.map(([id,cam])=><Badge key={id} style={{borderColor:`${cam.color}44`,color:cam.color,background:`${cam.color}0d`}}>{cam.icon} {cam.label}</Badge>)}</div></>}
-              </Card>
-              <div style={{display:"flex",justifyContent:"space-between"}}>
-                <BtnO onClick={()=>setStep(1)}>← Atrás</BtnO>
-                <BtnP style={{opacity:activeCams.length===0?0.45:1}} onClick={()=>activeCams.length>0&&setStep(3)}>
-                  Asignar operadores →
-                </BtnP>
-              </div>
-            </>
-          )}
-
-          {/* ── STEP 3: OPERADORES (filtrados por cámaras) ── */}
-          {step===3&&(
-            <>
-              <div style={{marginBottom:20}}>
-                <h2 style={{fontSize:18,fontWeight:600,margin:0,marginBottom:4}}>Operadores asignados</h2>
-                <p style={{fontSize:13,color:"#71717a",margin:0}}>Solo para los equipos seleccionados · {activeCams.length} cámaras activas</p>
-              </div>
-
-              {activeOpGroups.length===0?(
-                <Card style={{textAlign:"center",padding:32,color:"#71717a",fontSize:13}}>
-                  No hay grupos de operadores para las cámaras seleccionadas.
-                </Card>
-              ):(
-                <Card>
-                  <div style={{display:"flex",flexDirection:"column",gap:16}}>
-                    {activeOpGroups.map(group=>(
-                      <div key={group.id}>
-                        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10,paddingBottom:6,borderBottom:"1px solid #e4e4e7"}}>
-                          <span style={{fontSize:13}}>{group.icon}</span>
-                          <span style={{fontSize:11,fontWeight:600,color:"#71717a",textTransform:"uppercase",letterSpacing:"0.06em"}}>{group.label}</span>
-                        </div>
-                        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(210px,1fr))",gap:12}}>
-                          {group.roles.map(role=>(
-                            <Field key={role.key} label={role.label}>
-                              <Select value={operators[role.key]||""} onChange={e=>updateOp(role.key,e.target.value)}>
-                                <option value="">— Sin asignar —</option>
-                                {(PERSONAL[role.pool]||[]).map(p=><option key={p} value={p}>{p}</option>)}
-                              </Select>
-                            </Field>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              )}
-
-              <div style={{display:"flex",justifyContent:"space-between"}}>
-                <BtnO onClick={()=>setStep(2)}>← Atrás</BtnO>
-                <BtnP onClick={()=>setStep(4)}>Rellenar informe →</BtnP>
-              </div>
-            </>
-          )}
-
-          {/* ── STEP 4: INFORME ── */}
-          {step===4&&(
-            <>
-              <div style={{marginBottom:16,display:"flex",alignItems:"center",gap:12}}>
-                <div>
-                  <h2 style={{fontSize:18,fontWeight:600,margin:0,marginBottom:4}}>Informe técnico</h2>
-                  <p style={{fontSize:13,color:"#71717a",margin:0}}>{match.encuentro} · {match.jornada}</p>
-                </div>
-                <div style={{marginLeft:"auto",display:"flex",gap:4}}>
-                  {g>0&&<Badge variant="grave">⚠ {g}G</Badge>}
-                  {l>0&&<Badge variant="leve">↓ {l}L</Badge>}
-                  {g===0&&l===0&&<Badge variant="ok">Sin incidencias</Badge>}
-                </div>
-              </div>
-              <Card style={{borderLeft:"3px solid #f59e0b"}}>
-                <SecTitle>Logística</SecTitle>
-                <div style={{border:"1px solid #e4e4e7",borderRadius:"8px",overflow:"hidden",marginBottom:12}}>
-                  {LOGISTICA_ITEMS.map((item,i)=>(
-                    <div key={item} style={{display:"flex",alignItems:"center",gap:12,padding:"9px 12px",background:i%2===0?"#fff":"#fafafa",borderBottom:i<LOGISTICA_ITEMS.length-1?"1px solid #e4e4e7":"none"}}>
-                      <div style={{flex:1,fontSize:12}}>{item}</div>
-                      <StatusToggle value={logistica.items[item]} onChange={v=>setLogistica({...logistica,items:{...logistica.items,[item]:v}})} />
-                    </div>
-                  ))}
-                </div>
-                <Label>Descripción de incidencias</Label>
-                <Textarea placeholder="Sin incidencias..." value={logistica.incidencias} onChange={e=>setLogistica({...logistica,incidencias:e.target.value})} />
-              </Card>
-              {activeCams.map(([id,cam])=><CameraSection key={id} camId={id} cam={cam} data={camData[id]||{equipo:"",items:initItems(cam.items),incidencias:""}} onChange={updateCamData} />)}
-              <div style={{display:"flex",justifyContent:"space-between"}}>
-                <BtnO onClick={()=>setStep(3)}>← Atrás</BtnO>
-                <BtnP onClick={()=>setStep(5)}>Ver resumen →</BtnP>
-              </div>
-            </>
-          )}
-
-          {/* ── STEP 5: RESUMEN ── */}
-          {step===5&&(
-            <>
-              <div style={{marginBottom:20}}>
-                <h2 style={{fontSize:18,fontWeight:600,margin:0,marginBottom:4}}>Resumen del informe</h2>
-                <p style={{fontSize:13,color:"#71717a",margin:0}}>Revisa antes de guardar</p>
-              </div>
-              <Card>
-                <SecTitle>Datos del servicio</SecTitle>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
-                  {[["Tipo",tipoActual?.label],["Jornada",match.jornada],["Encuentro",match.encuentro],["Fecha",match.fecha],["Hora",match.hora_partido],["Responsable CCEE",match.responsable]].map(([k,v])=>(
-                    <div key={k} style={{padding:"10px 12px",background:"#fafafa",borderRadius:"8px",border:"1px solid #e4e4e7"}}>
-                      <div style={{fontSize:10,fontWeight:500,color:"#71717a",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:3}}>{k}</div>
-                      <div style={{fontSize:13,fontWeight:500,fontFamily:"'Geist Mono',monospace"}}>{v||"—"}</div>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-
-              {Object.values(operators).some(v=>v)&&(
-                <Card>
-                  <SecTitle>Operadores</SecTitle>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-                    {activeOpGroups.map(g=>g.roles.map(r=>{ const v=operators[r.key]; if(!v) return null; return <div key={r.key} style={{display:"flex",gap:8,padding:"6px 10px",background:"#fafafa",borderRadius:"8px",fontSize:12}}><span style={{color:"#71717a",minWidth:90}}>{r.label}</span><span style={{fontWeight:500}}>{v}</span></div>; }))}
-                  </div>
-                </Card>
-              )}
-
-              <Card>
-                <SecTitle>Estado general</SecTitle>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:16}}>
-                  <div style={{padding:"14px",background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:"8px",textAlign:"center"}}>
-                    <div style={{fontSize:22,fontWeight:600,color:"#16a34a",fontFamily:"'Geist Mono',monospace"}}>{activeCams.length+1}</div>
-                    <div style={{fontSize:11,color:"#16a34a",marginTop:2}}>Secciones</div>
-                  </div>
-                  <div style={{padding:"14px",background:g>0?"#fef2f2":"#fafafa",border:`1px solid ${g>0?"#fecaca":"#e4e4e7"}`,borderRadius:"8px",textAlign:"center"}}>
-                    <div style={{fontSize:22,fontWeight:600,color:g>0?"#dc2626":"#a1a1aa",fontFamily:"'Geist Mono',monospace"}}>{g}</div>
-                    <div style={{fontSize:11,color:g>0?"#dc2626":"#a1a1aa",marginTop:2}}>Graves</div>
-                  </div>
-                  <div style={{padding:"14px",background:l>0?"#fffbeb":"#fafafa",border:`1px solid ${l>0?"#fde68a":"#e4e4e7"}`,borderRadius:"8px",textAlign:"center"}}>
-                    <div style={{fontSize:22,fontWeight:600,color:l>0?"#d97706":"#a1a1aa",fontFamily:"'Geist Mono',monospace"}}>{l}</div>
-                    <div style={{fontSize:11,color:l>0?"#d97706":"#a1a1aa",marginTop:2}}>Leves</div>
-                  </div>
-                </div>
-                <div style={{border:"1px solid #e4e4e7",borderRadius:"8px",overflow:"hidden"}}>
-                  {activeCams.map(([id,cam],i)=>{ const d=camData[id]; const items=d?.items||{}; const gv=Object.values(items).filter(v=>v==="G").length; const lv=Object.values(items).filter(v=>v==="L").length; return (
-                    <div key={id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",background:i%2===0?"#fff":"#fafafa",borderBottom:i<activeCams.length-1?"1px solid #e4e4e7":"none"}}>
-                      <span style={{fontSize:14}}>{cam.icon}</span>
-                      <div style={{flex:1,fontSize:12,fontWeight:500}}>{cam.label}</div>
-                      {d?.equipo&&<span style={{fontSize:11,color:"#71717a",fontFamily:"'Geist Mono',monospace"}}>{d.equipo}</span>}
-                      <div style={{display:"flex",gap:4}}>{gv>0&&<Badge variant="grave">⚠{gv}G</Badge>}{lv>0&&<Badge variant="leve">↓{lv}L</Badge>}{gv===0&&lv===0&&<Badge variant="ok">✓ OK</Badge>}</div>
-                    </div>
-                  ); })}
-                </div>
-              </Card>
-
-              {saveError&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:"8px",padding:"10px 14px",marginBottom:12,fontSize:13,color:"#dc2626"}}>{saveError}</div>}
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <BtnO onClick={()=>setStep(4)}>← Revisar</BtnO>
-                <BtnP onClick={handleSave} style={{opacity:saving?0.6:1}} disabled={saving}>{saving?"Guardando...":"Guardar informe"}</BtnP>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-    </div>
+    <Suspense fallback={<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,color:'#71717a'}}>Cargando...</div>}>
+      {user.role === 'coordinador'
+        ? <CoordView user={user} onLogout={handleLogout} />
+        : <UsuarioView user={user} onLogout={handleLogout} />
+      }
+    </Suspense>
   );
 }
