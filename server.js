@@ -374,6 +374,32 @@ app.get('/api/informes/:id', requireAuth(), async (req, res) => {
   }
 })
 
+// Actualizar servicio (coordinador)
+app.put('/api/servicios/:id', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const { match, selectedCams, operators, assigned_to, tipo_servicio } = req.body
+    await pool.query(`
+      UPDATE servicios SET
+        tipo_servicio=$1, jornada=$2, encuentro=$3, fecha=$4, hora_partido=$5,
+        hora_citacion=$6, responsable=$7, um=$8, jefe_tecnico=$9, realizador=$10,
+        productor=$11, horario_md1=$12, operadores=$13, camaras_activas=$14, assigned_to=$15
+      WHERE id=$16
+    `, [
+      tipo_servicio,
+      match.jornada, match.encuentro, match.fecha || null,
+      match.hora_partido, match.hora_citacion,
+      match.responsable, match.um, match.jefe_tecnico,
+      match.realizador, match.productor, match.horario_md1,
+      JSON.stringify(operators), JSON.stringify(selectedCams),
+      assigned_to, req.params.id
+    ])
+    res.json({ ok: true })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // Eliminar informe (coordinador · resetea el servicio a pendiente)
 app.delete('/api/informes/:id', requireAuth(['coordinador']), async (req, res) => {
   try {
