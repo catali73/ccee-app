@@ -89,10 +89,19 @@ function DocumentosUsuario({ servicioId }) {
 
   const handleOpen = async (doc) => {
     const win = window.open('about:blank', '_blank');
-    const r = await apiFetch(`/api/documentos/${doc.id}`);
-    const data = await r.json();
-    if (data.datos && win) win.location.href = data.datos;
-    else if (win) win.close();
+    try {
+      const r = await apiFetch(`/api/documentos/${doc.id}`);
+      const data = await r.json();
+      if (!data.datos || !win) { if (win) win.close(); return; }
+      // Convertir base64 → Blob → URL de objeto (navegadores bloquean data: URLs)
+      const [header, b64] = data.datos.split(',');
+      const mime = header.match(/:(.*?);/)[1];
+      const bytes = atob(b64);
+      const arr = new Uint8Array(bytes.length);
+      for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+      const blob = new Blob([arr], { type: mime });
+      win.location.href = URL.createObjectURL(blob);
+    } catch { if (win) win.close(); }
   };
 
   if (loading||docs.length===0) return null;
