@@ -88,9 +88,11 @@ function DocumentosUsuario({ servicioId }) {
   const fileIcon = (tipo) => tipo?.startsWith('image/')?'🖼️':tipo==='application/pdf'?'📄':'📎';
 
   const handleOpen = async (doc) => {
+    const win = window.open('about:blank', '_blank');
     const r = await apiFetch(`/api/documentos/${doc.id}`);
     const data = await r.json();
-    if (data.datos){ const a=document.createElement('a'); a.href=data.datos; a.target='_blank'; a.click(); }
+    if (data.datos && win) win.location.href = data.datos;
+    else if (win) win.close();
   };
 
   if (loading||docs.length===0) return null;
