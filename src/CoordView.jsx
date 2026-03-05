@@ -230,9 +230,12 @@ function NewServicioForm({ onCancel, onSaved }) {
   const [saveError,setSaveError] = useState(null);
   const [sent,setSent] = useState(false);
 
+  const [todosUsuarios,setTodosUsuarios] = useState([]);
   useEffect(()=>{
     apiFetch('/api/users').then(r=>r.json()).then(data=>{
-      setUsuarios(Array.isArray(data)?data.filter(u=>u.role==='usuario'&&u.active):[]);
+      const activos = Array.isArray(data)?data.filter(u=>u.active):[];
+      setTodosUsuarios(activos);
+      setUsuarios(activos.filter(u=>u.role==='usuario'));
     }).catch(()=>{});
   },[]);
 
@@ -333,7 +336,7 @@ function NewServicioForm({ onCancel, onSaved }) {
               <Field label="Responsable CCEE">
                 <Select value={match.responsable} onChange={e=>setMatch({...match,responsable:e.target.value})}>
                   <option value="">— Seleccionar —</option>
-                  {PERSONAL.RESP_CCEE.map(p=><option key={p} value={p}>{p}</option>)}
+                  {todosUsuarios.map(u=><option key={u.id} value={u.name}>{u.name}</option>)}
                 </Select>
               </Field>
               <Field label="Unidad Móvil"><Input value={match.um} onChange={e=>setMatch({...match,um:e.target.value})} /></Field>
