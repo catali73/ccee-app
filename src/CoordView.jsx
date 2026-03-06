@@ -557,6 +557,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
   const [saving,setSaving] = useState(false);
   const [saveError,setSaveError] = useState(null);
   const [sent,setSent] = useState(false);
+  const [createdId,setCreatedId] = useState(null);
 
   // Prevent reactive effects from firing on first render (needed for edit mode pre-fill)
   const firstRender = useRef(true);
@@ -593,7 +594,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
         body: JSON.stringify({ match, selectedCams, operators, assigned_to: parseInt(assignedTo), tipo_servicio: tipoServicio })
       });
       const data = await res.json();
-      if (data.ok) setSent(true);
+      if (data.ok) { setSent(true); if (!isEdit && data.id) setCreatedId(data.id); }
       else setSaveError(data.error||'Error al guardar');
     } catch { setSaveError('Error de conexión'); }
     finally { setSaving(false); }
@@ -606,7 +607,8 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
       <div style={{fontSize:13,color:'#71717a'}}>{match.encuentro} · {match.jornada}</div>
       <div style={{display:'flex',gap:8,marginTop:12}}>
         <BtnO onClick={onCancel}>Ver dashboard</BtnO>
-        {!isEdit&&<BtnP onClick={()=>{ setStep(1); setTipoServicio('liga'); setLigaJornada(''); setLigaPartido(''); setMatch({jornada:'',encuentro:'',fecha:'',hora_partido:'',hora_citacion:'',responsable:'',um:'',jefe_tecnico:'',realizador:'',productor:'',horario_md1:''}); setSelectedCams({}); setOperators(initOperators()); setAssignedTo(''); setSaveError(null); setSent(false); }}>+ Otro servicio</BtnP>}
+        {!isEdit&&createdId&&<BtnO onClick={()=>onSaved(createdId)}>📎 Añadir documentos</BtnO>}
+        {!isEdit&&<BtnP onClick={()=>{ setStep(1); setTipoServicio('liga'); setLigaJornada(''); setLigaPartido(''); setMatch({jornada:'',encuentro:'',fecha:'',hora_partido:'',hora_citacion:'',responsable:'',um:'',jefe_tecnico:'',realizador:'',productor:'',horario_md1:''}); setSelectedCams({}); setOperators(initOperators()); setAssignedTo(''); setSaveError(null); setSent(false); setCreatedId(null); }}>+ Otro servicio</BtnP>}
       </div>
     </div>
   );
@@ -938,7 +940,7 @@ export default function CoordView({ user, onLogout }) {
         />
       )}
       {view==='new-servicio'&&(
-        <NewServicioForm onCancel={goToDashboard} onSaved={goToDashboard} />
+        <NewServicioForm onCancel={goToDashboard} onSaved={(id)=>id?handleEditServicio(id):goToDashboard()} />
       )}
       {view==='edit-servicio'&&(
         loadingEdit
