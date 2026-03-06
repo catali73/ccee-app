@@ -4,6 +4,7 @@ import { dirname, join } from 'path'
 import pg from 'pg'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
+import PDFDocument from 'pdfkit'
 
 const { Pool } = pg
 const app = express()
@@ -317,6 +318,138 @@ app.get('/api/servicios/:id', requireAuth(), async (req, res) => {
     res.json(servicio)
   } catch (err) {
     res.status(500).json({ error: err.message })
+  }
+})
+
+// Hoja de servicio en PDF (descarga directa)
+app.get('/api/servicios/:id/hoja-pdf', requireAuth(), async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT s.*, u.name as assigned_to_name
+      FROM servicios s LEFT JOIN users u ON s.assigned_to = u.id
+      WHERE s.id = $1
+    `, [req.params.id])
+    if (r.rows.length === 0) return res.status(404).json({ error: 'No encontrado' })
+    const sv = r.rows[0]
+    if (req.user.role === 'usuario' && sv.assigned_to !== req.user.id) {
+      return res.status(403).json({ error: 'Sin permisos' })
+    }
+
+    const fmtD = (d) => d ? new Date(d).toLocaleDateString('es-ES') : '—'
+    const ops = sv.operadores || {}
+    const camModels = sv.cam_models || {}
+    const activeCams = sv.camaras_activas ? Object.entries(sv.camaras_activas).filter(([,v])=>v) : []
+
+    // Importar CAMERA_CATALOG y OPERATOR_GROUPS desde datos estáticos
+    // (usamos datos básicos sin importar el módulo frontend)
+    const filename = `hoja-servicio-${sv.id}.pdf`
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+
+    const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true })
+    doc.pipe(res)
+
+    const PW = doc.page.width
+    const M = 50
+    const CW = PW - 2 * M
+
+    // ── HEADER ──
+    doc.fontSize(20).font('Helvetica-Bold').fillColor('#111111')
+      .text(sv.encuentro || '—', M, 50)
+    doc.fontSize(11).font('Helvetica').fillColor('#666666')
+      .text(`${sv.jornada || ''} · ${fmtD(sv.fecha)}`, M, 74)
+    doc.fontSize(9).fillColor('#999999')
+      .text('MEDIAPRO · CCEE', PW - M, 50, { align: 'right', width: CW })
+      .text('Hoja de servicio · Temporada 25/26', PW - M, 62, { align: 'right', width: CW })
+    doc.fillColor('#000000')
+    doc.moveTo(M, 95).lineTo(PW - M, 95).strokeColor('#cccccc').stroke()
+
+    let y = 110
+
+    // ── SECTION TITLE ──
+    const sec = (title) => {
+      doc.fontSize(8).font('Helvetica-Bold').fillColor('#888888')
+        .text(title.toUpperCase(), M, y)
+      doc.moveTo(M, y + 12).lineTo(PW - M, y + 12).strokeColor('#dddddd').stroke()
+      y += 20; doc.fillColor('#000000')
+    }
+
+    // ── 3-COL GRID OF CELLS ──
+    const grid = (items) => {
+      const CW3 = (CW - 10) / 3
+      const RH = 36
+      items.forEach(([label, val], i) => {
+        const col = i % 3, row = Math.floor(i / 3)
+        const cx = M + col * (CW3 + 5), cy = y + row * RH
+        doc.rect(cx, cy, CW3, RH - 4).fillAndStroke('#f7f7f7', '#e8e8e8')
+        doc.fontSize(7).font('Helvetica-Bold').fillColor('#aaaaaa')
+          .text((label || '').toUpperCase(), cx + 6, cy + 5, { width: CW3 - 12 })
+        doc.fontSize(9).font('Helvetica-Bold').fillColor('#111111')
+          .text(String(val || '—').substring(0, 32), cx + 6, cy + 17, { width: CW3 - 12 })
+      })
+      y += Math.ceil(items.length / 3) * RH + 8
+      doc.fillColor('#000000')
+    }
+
+    // ── DATOS DEL SERVICIO ──
+    sec('Datos del servicio')
+    grid([
+      ['Jornada', sv.jornada], ['Encuentro', sv.encuentro], ['Fecha', fmtD(sv.fecha)],
+      ['Hora partido', sv.hora_partido], ['Hora citación', sv.hora_citacion],
+      ['Horario citación MD-1', sv.horario_md1],
+    ])
+
+    // ── EQUIPO TÉCNICO ──
+    sec('Equipo técnico')
+    grid([
+      ['Responsable CCEE', sv.responsable], ['Unidad Móvil', sv.um], ['', ''],
+      ['J. Técnico UM', sv.jefe_tecnico], ['Teléfono', sv.tel_jefe_tecnico || '—'], ['', ''],
+      ['Realizador', sv.realizador], ['Teléfono', sv.tel_realizador || '—'], ['', ''],
+      ['Productor', sv.productor], ['Teléfono', sv.tel_productor || '—'], ['', ''],
+    ])
+
+    // ── CÁMARAS Y MODELOS ──
+    if (activeCams.length > 0) {
+      sec(`Cámaras activas · ${activeCams.length}`)
+      activeCams.forEach(([id]) => {
+        const models = camModels[id]
+        const modelStr = models ? Object.values(models).filter(Boolean).join(' · ') : ''
+        doc.rect(M, y, CW, 20).fillAndStroke('#f0f0f0', '#dddddd')
+        doc.fontSize(10).font('Helvetica-Bold').fillColor('#111111')
+          .text(id, M + 6, y + 6, { width: CW / 2 })
+        if (modelStr) {
+          doc.fontSize(9).font('Helvetica').fillColor('#555555')
+            .text(modelStr, M + CW / 2, y + 7, { width: CW / 2 - 6, align: 'right' })
+        }
+        doc.fillColor('#000000'); y += 22
+      })
+      y += 6
+    }
+
+    // ── OPERADORES ──
+    const opEntries = Object.entries(ops).filter(([, v]) => v)
+    if (opEntries.length > 0) {
+      sec('Operadores asignados')
+      opEntries.forEach(([key, name], i) => {
+        if (i % 2 === 0) doc.rect(M, y, CW, 18).fill('#fafafa')
+        doc.fontSize(9).font('Helvetica').fillColor('#777777')
+          .text(key, M + 6, y + 5, { width: 160 })
+        doc.font('Helvetica-Bold').fillColor('#111111')
+          .text(String(name), M + 170, y + 5, { width: CW - 180 })
+        doc.moveTo(M, y + 18).lineTo(PW - M, y + 18).strokeColor('#eeeeee').stroke()
+        doc.fillColor('#000000'); y += 18
+      })
+    }
+
+    // ── FOOTER ──
+    doc.fontSize(8).font('Helvetica').fillColor('#bbbbbb')
+      .text('MEDIAPRO · Cámaras Especiales · Hoja de servicio', M, 780)
+      .text(`Generado: ${new Date().toLocaleString('es-ES')}`, PW - M, 780, { align: 'right', width: CW })
+
+    doc.end()
+  } catch (err) {
+    console.error(err)
+    if (!res.headersSent) res.status(500).json({ error: err.message })
   }
 })
 

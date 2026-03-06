@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect } from "react";
-import jsPDF from "jspdf";
 import {
   apiFetch, Input, Select, Textarea, Label, Card, SecTitle, BtnP, BtnO, Badge,
   Field, Sep, StatusToggle, CameraSection, initItems, STATUS,
@@ -9,9 +8,23 @@ import {
 /* ── helpers ── */
 const fmt = (d) => d ? new Date(d).toLocaleDateString('es-ES') : '—';
 
-/* ── PDF HOJA DE SERVICIO (para técnicos) — descarga directa ── */
-function generateServicioPDF(servicio) {
-  const fmtD = (d) => d ? new Date(d).toLocaleDateString('es-ES') : '—';
+/* ── PDF HOJA DE SERVICIO (descarga directa desde servidor) ─── */
+async function generateServicioPDF(servicio) {
+  try {
+    const res = await apiFetch(`/api/servicios/${servicio.id}/hoja-pdf`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `hoja-servicio-${(servicio.encuentro||'servicio').replace(/[^\w]/g,'-')}.pdf`;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 500);
+  } catch(e) { alert('Error generando PDF'); }
+}
+
+/* ── (eliminado: generador jsPDF inline) ──────────────────── */
+function _obsolete(servicio) {
   const ops = servicio.operadores || {};
   const activeCams = servicio.camaras_activas
     ? Object.entries(CAMERA_CATALOG).filter(([id]) => servicio.camaras_activas[id])
@@ -118,7 +131,7 @@ function generateServicioPDF(servicio) {
   doc.text(`Generado: ${new Date().toLocaleString('es-ES')}`, PW-M, PH-10, {align:'right'});
 
   const filename = `hoja-servicio-${(servicio.encuentro||'servicio').replace(/[^\w]/g,'-')}.pdf`;
-  doc.save(filename);
+  // _obsolete — no longer used
 }
 
 /* ── DOCUMENTOS USUARIO (solo lectura) ─────────────────────── */
