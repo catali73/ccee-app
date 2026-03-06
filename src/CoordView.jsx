@@ -85,7 +85,7 @@ tr:nth-child(even) td{background:#fafafa}
 </div>
 <h2>Datos del partido</h2>
 <div class="grid">
-  ${[['Jornada',informe.jornada],['Encuentro',informe.encuentro],['Fecha',fmtD(informe.fecha)],['Hora partido',informe.hora_partido],['Hora citación',informe.hora_citacion],['Horario MD-1',informe.horario_md1]].map(([k,v])=>cell(k,v)).join('')}
+  ${[['Jornada',informe.jornada],['Encuentro',informe.encuentro],['Fecha',fmtD(informe.fecha)],['Hora partido',informe.hora_partido],['Hora citación',informe.hora_citacion],['Horario citación MD-1',informe.horario_md1]].map(([k,v])=>cell(k,v)).join('')}
 </div>
 <h2>Equipo técnico</h2>
 <div class="grid">
@@ -198,7 +198,7 @@ function InformeModal({ informe, onClose, onDeleted }) {
           <div style={{marginBottom:6,fontSize:10,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.08em'}}>Partido</div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:16}}>
             {[['Jornada',informe.jornada],['Encuentro',informe.encuentro],['Fecha',fmt(informe.fecha)],
-              ['Hora partido',informe.hora_partido],['Hora citación',informe.hora_citacion],['Horario MD-1',informe.horario_md1]
+              ['Hora partido',informe.hora_partido],['Hora citación',informe.hora_citacion],['Horario citación MD-1',informe.horario_md1]
             ].map(([k,v])=>(
               <div key={k} style={{padding:'8px 10px',background:'#fafafa',borderRadius:8,border:'1px solid #e4e4e7'}}>
                 <div style={{fontSize:9,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:2}}>{k}</div>
@@ -545,14 +545,27 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
     fecha:initialData.fecha?initialData.fecha.slice(0,10):'',
     hora_partido:initialData.hora_partido||'', hora_citacion:initialData.hora_citacion||'',
     responsable:initialData.responsable||'', um:initialData.um||'',
-    jefe_tecnico:initialData.jefe_tecnico||'', realizador:initialData.realizador||'',
-    productor:initialData.productor||'', horario_md1:initialData.horario_md1||'',
-  } : {jornada:"",encuentro:"",fecha:"",hora_partido:"",hora_citacion:"",responsable:"",um:"",jefe_tecnico:"",realizador:"",productor:"",horario_md1:""});
+    jefe_tecnico:initialData.jefe_tecnico||'', tel_jefe_tecnico:initialData.tel_jefe_tecnico||'',
+    realizador:initialData.realizador||'', tel_realizador:initialData.tel_realizador||'',
+    productor:initialData.productor||'', tel_productor:initialData.tel_productor||'',
+    horario_md1:initialData.horario_md1||'',
+  } : {jornada:"",encuentro:"",fecha:"",hora_partido:"",hora_citacion:"",responsable:"",um:"",jefe_tecnico:"",tel_jefe_tecnico:"",realizador:"",tel_realizador:"",productor:"",tel_productor:"",horario_md1:""});
   const [ligaJornada,setLigaJornada] = useState(initialData?.tipo_servicio==='liga'?initialData.jornada||'':"");
   const [ligaPartido,setLigaPartido] = useState(initialData?.tipo_servicio==='liga'?initialData.encuentro||'':"");
   const [selectedCams,setSelectedCams] = useState(initialData?.camaras_activas||{});
   const [camModels,setCamModels] = useState(initialData?.cam_models||{});
   const [operators,setOperators] = useState({...initOperators(),...(initialData?.operadores||{})});
+  // Operadores en modo "nuevo" (entrada libre): rkey→boolean
+  const [customOps,setCustomOps] = useState(()=>{
+    const m={};
+    if(initialData?.operadores){
+      OPERATOR_GROUPS.forEach(g=>g.roles.forEach(r=>{
+        const v=initialData.operadores[r.key];
+        if(v&&!(PERSONAL[r.pool]||[]).includes(v)) m[r.key]=true;
+      }));
+    }
+    return m;
+  });
   const [assignedTo,setAssignedTo] = useState(initialData?.assigned_to?String(initialData.assigned_to):'');
   const [usuarios,setUsuarios] = useState([]);
   const [saving,setSaving] = useState(false);
@@ -634,7 +647,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
       <div style={{fontSize:13,color:'#71717a'}}>{match.encuentro} · {match.jornada}</div>
       <div style={{display:'flex',gap:8,marginTop:12}}>
         <BtnO onClick={onCancel}>Ver dashboard</BtnO>
-        {!isEdit&&<BtnP onClick={()=>{ setStep(1); setTipoServicio('liga'); setLigaJornada(''); setLigaPartido(''); setMatch({jornada:'',encuentro:'',fecha:'',hora_partido:'',hora_citacion:'',responsable:'',um:'',jefe_tecnico:'',realizador:'',productor:'',horario_md1:''}); setSelectedCams({}); setOperators(initOperators()); setAssignedTo(''); setSaveError(null); setSent(false); setPendingDocs([]); }}>+ Otro servicio</BtnP>}
+        {!isEdit&&<BtnP onClick={()=>{ setStep(1); setTipoServicio('liga'); setLigaJornada(''); setLigaPartido(''); setMatch({jornada:'',encuentro:'',fecha:'',hora_partido:'',hora_citacion:'',responsable:'',um:'',jefe_tecnico:'',tel_jefe_tecnico:'',realizador:'',tel_realizador:'',productor:'',tel_productor:'',horario_md1:''}); setSelectedCams({}); setOperators(initOperators()); setCustomOps({}); setAssignedTo(''); setSaveError(null); setSent(false); setPendingDocs([]); }}>+ Otro servicio</BtnP>}
       </div>
     </div>
   );
@@ -691,7 +704,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
               <Field label="Fecha"><Input type="date" value={match.fecha} onChange={e=>setMatch({...match,fecha:e.target.value})} /></Field>
               <Field label="Hora partido"><Input type="time" value={match.hora_partido} onChange={e=>setMatch({...match,hora_partido:e.target.value})} /></Field>
               <Field label="Hora citación"><Input placeholder="12:00 HLE" value={match.hora_citacion} onChange={e=>setMatch({...match,hora_citacion:e.target.value})} /></Field>
-              <Field label="Horario MD-1"><Input placeholder="10:00 a 22:00" value={match.horario_md1} onChange={e=>setMatch({...match,horario_md1:e.target.value})} /></Field>
+              <Field label="Horario citación MD-1"><Input placeholder="10:00 a 22:00" value={match.horario_md1} onChange={e=>setMatch({...match,horario_md1:e.target.value})} /></Field>
             </div>
           </Card>
           <Card>
@@ -705,8 +718,11 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
               </Field>
               <Field label="Unidad Móvil"><Input value={match.um} onChange={e=>setMatch({...match,um:e.target.value})} /></Field>
               <Field label="J. Técnico UM"><Input value={match.jefe_tecnico} onChange={e=>setMatch({...match,jefe_tecnico:e.target.value})} /></Field>
+              <Field label="Teléfono J. Técnico UM"><Input type="tel" placeholder="Ej: 612 345 678" value={match.tel_jefe_tecnico} onChange={e=>setMatch({...match,tel_jefe_tecnico:e.target.value})} /></Field>
               <Field label="Realizador"><Input value={match.realizador} onChange={e=>setMatch({...match,realizador:e.target.value})} /></Field>
+              <Field label="Teléfono Realizador"><Input type="tel" placeholder="Ej: 612 345 678" value={match.tel_realizador} onChange={e=>setMatch({...match,tel_realizador:e.target.value})} /></Field>
               <Field label="Productor"><Input value={match.productor} onChange={e=>setMatch({...match,productor:e.target.value})} /></Field>
+              <Field label="Teléfono Productor"><Input type="tel" placeholder="Ej: 612 345 678" value={match.tel_productor} onChange={e=>setMatch({...match,tel_productor:e.target.value})} /></Field>
             </div>
           </Card>
           {isEdit&&<DocumentosSection servicioId={servicioId} />}
@@ -794,14 +810,28 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
                         <span style={{fontSize:11,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.06em'}}>{group.label}</span>
                       </div>
                       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(210px,1fr))',gap:12}}>
-                        {visibleRoles.map(role=>(
+                        {visibleRoles.map(role=>{
+                          const isCustom=!!customOps[role.key];
+                          return (
                           <Field key={role.key} label={role.label}>
-                            <Select value={operators[role.key]||''} onChange={e=>updateOp(role.key,e.target.value)}>
-                              <option value="">— Sin asignar —</option>
-                              {(PERSONAL[role.pool]||[]).map(p=><option key={p} value={p}>{p}</option>)}
-                            </Select>
+                            {isCustom?(
+                              <div style={{display:'flex',gap:4}}>
+                                <Input value={operators[role.key]||''} onChange={e=>updateOp(role.key,e.target.value)} placeholder="Nombre del operador" style={{flex:1}} />
+                                <button onClick={()=>{setCustomOps(p=>({...p,[role.key]:false}));updateOp(role.key,'');}} style={{padding:'0 8px',border:'1px solid #e4e4e7',borderRadius:6,cursor:'pointer',background:'#fff',fontSize:12,color:'#71717a'}}>✕</button>
+                              </div>
+                            ):(
+                              <Select value={operators[role.key]||''} onChange={e=>{
+                                if(e.target.value==='__nuevo__'){setCustomOps(p=>({...p,[role.key]:true}));updateOp(role.key,'');}
+                                else updateOp(role.key,e.target.value);
+                              }}>
+                                <option value="">— Sin asignar —</option>
+                                <option value="__nuevo__">✨ Nuevo operador...</option>
+                                {(PERSONAL[role.pool]||[]).map(p=><option key={p} value={p}>{p}</option>)}
+                              </Select>
+                            )}
                           </Field>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   );

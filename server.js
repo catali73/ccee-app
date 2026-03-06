@@ -128,6 +128,11 @@ async function initDB() {
   // cam_models: modelos de equipo seleccionados por el coordinador
   await pool.query(`ALTER TABLE servicios ADD COLUMN IF NOT EXISTS cam_models JSONB DEFAULT '{}'::jsonb`)
 
+  // Teléfonos de contacto del equipo técnico
+  await pool.query(`ALTER TABLE servicios ADD COLUMN IF NOT EXISTS tel_jefe_tecnico VARCHAR(50) DEFAULT ''`)
+  await pool.query(`ALTER TABLE servicios ADD COLUMN IF NOT EXISTS tel_realizador VARCHAR(50) DEFAULT ''`)
+  await pool.query(`ALTER TABLE servicios ADD COLUMN IF NOT EXISTS tel_productor VARCHAR(50) DEFAULT ''`)
+
   console.log('✓ Base de datos lista')
 
   // Bootstrap: crear coordinador inicial si no hay usuarios
@@ -242,16 +247,18 @@ app.post('/api/servicios', requireAuth(['coordinador']), async (req, res) => {
     const r = await pool.query(`
       INSERT INTO servicios (
         tipo_servicio, jornada, encuentro, fecha, hora_partido, hora_citacion,
-        responsable, um, jefe_tecnico, realizador, productor, horario_md1,
+        responsable, um, jefe_tecnico, tel_jefe_tecnico, realizador, tel_realizador,
+        productor, tel_productor, horario_md1,
         operadores, camaras_activas, cam_models, assigned_to, created_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
       RETURNING id
     `, [
       tipo_servicio,
       match.jornada, match.encuentro, match.fecha || null,
       match.hora_partido, match.hora_citacion,
-      match.responsable, match.um, match.jefe_tecnico,
-      match.realizador, match.productor, match.horario_md1,
+      match.responsable, match.um, match.jefe_tecnico, match.tel_jefe_tecnico||'',
+      match.realizador, match.tel_realizador||'',
+      match.productor, match.tel_productor||'', match.horario_md1,
       JSON.stringify(operators), JSON.stringify(selectedCams),
       JSON.stringify(cam_models || {}),
       assigned_to, req.user.id
@@ -430,16 +437,18 @@ app.put('/api/servicios/:id', requireAuth(['coordinador']), async (req, res) => 
     await pool.query(`
       UPDATE servicios SET
         tipo_servicio=$1, jornada=$2, encuentro=$3, fecha=$4, hora_partido=$5,
-        hora_citacion=$6, responsable=$7, um=$8, jefe_tecnico=$9, realizador=$10,
-        productor=$11, horario_md1=$12, operadores=$13, camaras_activas=$14,
-        cam_models=$15, assigned_to=$16
-      WHERE id=$17
+        hora_citacion=$6, responsable=$7, um=$8, jefe_tecnico=$9, tel_jefe_tecnico=$10,
+        realizador=$11, tel_realizador=$12, productor=$13, tel_productor=$14,
+        horario_md1=$15, operadores=$16, camaras_activas=$17,
+        cam_models=$18, assigned_to=$19
+      WHERE id=$20
     `, [
       tipo_servicio,
       match.jornada, match.encuentro, match.fecha || null,
       match.hora_partido, match.hora_citacion,
-      match.responsable, match.um, match.jefe_tecnico,
-      match.realizador, match.productor, match.horario_md1,
+      match.responsable, match.um, match.jefe_tecnico, match.tel_jefe_tecnico||'',
+      match.realizador, match.tel_realizador||'',
+      match.productor, match.tel_productor||'', match.horario_md1,
       JSON.stringify(operators), JSON.stringify(selectedCams),
       JSON.stringify(cam_models || {}),
       assigned_to, req.params.id

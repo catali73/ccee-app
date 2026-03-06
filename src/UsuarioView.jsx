@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import jsPDF from "jspdf";
 import {
   apiFetch, Input, Select, Textarea, Label, Card, SecTitle, BtnP, BtnO, Badge,
   Field, Sep, StatusToggle, CameraSection, initItems, STATUS,
@@ -8,70 +9,116 @@ import {
 /* ── helpers ── */
 const fmt = (d) => d ? new Date(d).toLocaleDateString('es-ES') : '—';
 
-/* ── PDF HOJA DE SERVICIO (para técnicos) ──────────────────── */
+/* ── PDF HOJA DE SERVICIO (para técnicos) — descarga directa ── */
 function generateServicioPDF(servicio) {
   const fmtD = (d) => d ? new Date(d).toLocaleDateString('es-ES') : '—';
   const ops = servicio.operadores || {};
   const activeCams = servicio.camaras_activas
     ? Object.entries(CAMERA_CATALOG).filter(([id]) => servicio.camaras_activas[id])
     : [];
-  const cell = (label,val) => `<div class="cell"><div class="cl">${label}</div><div class="cv">${val||'—'}</div></div>`;
-  const opRows = OPERATOR_GROUPS.flatMap(g => g.roles.filter(r=>ops[r.key]).map(r=>
-    `<tr><td>${r.label}</td><td><strong>${ops[r.key]}</strong></td></tr>`
-  )).join('');
-  const camList = activeCams.map(([id,cam])=>
-    `<div class="cam-item">${cam.icon} <strong>${cam.label}</strong></div>`
-  ).join('');
+  const camModels = servicio.cam_models || {};
 
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-<title>Hoja de servicio · ${servicio.encuentro||''}</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#1a1a1a;padding:28px 32px}
-.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #111}
-.title{font-size:20px;font-weight:700;margin-bottom:3px}.sub{font-size:12px;color:#555}
-.brand{font-size:11px;font-weight:700;text-align:right;color:#555}
-h2{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#888;border-bottom:1px solid #e0e0e0;padding-bottom:4px;margin:16px 0 8px}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
-.cell{background:#f7f7f7;border:1px solid #e5e5e5;border-radius:4px;padding:6px 9px}
-.cl{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#999;margin-bottom:2px}
-.cv{font-size:11px;font-weight:600}
-table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:12px}
-td{border:1px solid #e5e5e5;padding:5px 9px}tr:nth-child(even) td{background:#fafafa}
-.cam-grid{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
-.cam-item{background:#f0f0f0;border:1px solid #ddd;border-radius:4px;padding:5px 10px;font-size:12px}
-.ftr{margin-top:24px;padding-top:10px;border-top:1px solid #e0e0e0;font-size:10px;color:#aaa;display:flex;justify-content:space-between}
-@media print{body{padding:16px 20px}}
-</style></head><body>
-<div class="hdr">
-  <div>
-    <div class="title">${servicio.encuentro||'—'}</div>
-    <div class="sub">${servicio.jornada||''} · ${fmtD(servicio.fecha)}</div>
-  </div>
-  <div class="brand">MEDIAPRO · CCEE<br><span style="font-weight:400">Hoja de servicio · Temporada 25/26</span></div>
-</div>
-<h2>Datos del servicio</h2>
-<div class="grid">
-  ${[['Jornada',servicio.jornada],['Encuentro',servicio.encuentro],['Fecha',fmtD(servicio.fecha)],
-    ['Hora partido',servicio.hora_partido],['Hora citación',servicio.hora_citacion],['Horario MD-1',servicio.horario_md1]
-  ].map(([k,v])=>cell(k,v)).join('')}
-</div>
-<h2>Equipo técnico</h2>
-<div class="grid">
-  ${[['Responsable CCEE',servicio.responsable],['Unidad Móvil',servicio.um],['J. Técnico UM',servicio.jefe_tecnico],
-    ['Realizador',servicio.realizador],['Productor',servicio.productor]
-  ].map(([k,v])=>cell(k,v)).join('')}
-</div>
-${activeCams.length>0?`<h2>Cámaras activas · ${activeCams.length}</h2><div class="cam-grid">${camList}</div>`:''}
-${opRows?`<h2>Operadores asignados</h2><table><tbody>${opRows}</tbody></table>`:''}
-<div class="ftr">
-  <span>MEDIAPRO · Cámaras Especiales · Hoja de servicio</span>
-  <span>Generado: ${new Date().toLocaleString('es-ES')}</span>
-</div>
-<script>window.onload=function(){window.print();}<\/script>
-</body></html>`;
-  const win = window.open('','_blank','width=900,height=750');
-  if (win) { win.document.write(html); win.document.close(); }
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const PW = 210, PH = 297, M = 18, CW = PW - 2 * M;
+  let y = 18;
+
+  // ── header ──
+  doc.setFontSize(18); doc.setFont('helvetica','bold'); doc.setTextColor(15);
+  doc.text(servicio.encuentro||'—', M, y);
+  doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(80);
+  doc.text(`${servicio.jornada||''} · ${fmtD(servicio.fecha)}`, M, y+7);
+  doc.setFontSize(9); doc.setTextColor(100);
+  doc.text('MEDIAPRO · CCEE', PW-M, y, {align:'right'});
+  doc.text('Hoja de servicio · Temporada 25/26', PW-M, y+5, {align:'right'});
+  doc.setTextColor(0);
+  y += 14;
+  doc.setDrawColor(180); doc.line(M, y, PW-M, y); y += 6;
+
+  // ── section title ──
+  const sec = (title) => {
+    doc.setFontSize(7.5); doc.setFont('helvetica','bold'); doc.setTextColor(130);
+    doc.text(title.toUpperCase(), M, y);
+    doc.setTextColor(0); doc.setDrawColor(210); doc.line(M, y+1.5, PW-M, y+1.5); y += 7;
+  };
+
+  // ── 3-column grid of cells ──
+  const grid = (items) => {
+    const CW3 = (CW-6)/3, RH = 14;
+    items.forEach(([label,val],i) => {
+      const col=i%3, row=Math.floor(i/3);
+      const cx=M+col*(CW3+3), cy=y+row*RH;
+      doc.setFillColor(247,247,247); doc.setDrawColor(225,225,225);
+      doc.rect(cx,cy,CW3,RH-2,'FD');
+      doc.setFontSize(6.5); doc.setFont('helvetica','bold'); doc.setTextColor(140);
+      doc.text((label||'').toUpperCase(), cx+3, cy+4);
+      doc.setFontSize(8.5); doc.setFont('helvetica','bold'); doc.setTextColor(20);
+      const valStr = String(val||'—');
+      doc.text(valStr.length>28?valStr.slice(0,27)+'…':valStr, cx+3, cy+10);
+    });
+    y += Math.ceil(items.length/3)*RH + 3;
+    doc.setTextColor(0);
+  };
+
+  // ── Datos del servicio ──
+  sec('Datos del servicio');
+  grid([
+    ['Jornada',servicio.jornada],['Encuentro',servicio.encuentro],['Fecha',fmtD(servicio.fecha)],
+    ['Hora partido',servicio.hora_partido],['Hora citación',servicio.hora_citacion],
+    ['Horario citación MD-1',servicio.horario_md1],
+  ]);
+
+  // ── Equipo técnico ──
+  sec('Equipo técnico');
+  grid([
+    ['Responsable CCEE',servicio.responsable],['Unidad Móvil',servicio.um],['',''],
+    ['J. Técnico UM',servicio.jefe_tecnico],['Teléfono',servicio.tel_jefe_tecnico||'—'],['',''],
+    ['Realizador',servicio.realizador],['Teléfono',servicio.tel_realizador||'—'],['',''],
+    ['Productor',servicio.productor],['Teléfono',servicio.tel_productor||'—'],['',''],
+  ]);
+
+  // ── Cámaras y modelos ──
+  if (activeCams.length > 0) {
+    sec(`Cámaras activas · ${activeCams.length}`);
+    activeCams.forEach(([id,cam]) => {
+      const models = camModels[id];
+      const modelStr = models ? Object.values(models).filter(Boolean).join(' · ') : '';
+      doc.setFillColor(242,242,242); doc.setDrawColor(220,220,220);
+      doc.rect(M, y, CW, 9, 'FD');
+      doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(20);
+      doc.text(cam.label, M+3, y+6);
+      if (modelStr) {
+        doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(80);
+        doc.text(modelStr, PW-M-3, y+6, {align:'right'});
+      }
+      doc.setTextColor(0); y += 10;
+    });
+    y += 3;
+  }
+
+  // ── Operadores ──
+  const opList = OPERATOR_GROUPS.flatMap(g => g.roles.filter(r=>ops[r.key]).map(r=>[r.label,ops[r.key]]));
+  if (opList.length > 0) {
+    sec('Operadores asignados');
+    opList.forEach(([label,name],i) => {
+      const bg = i%2===0;
+      if (bg) { doc.setFillColor(248,248,248); doc.rect(M,y,CW,8,'F'); }
+      doc.setFontSize(8.5); doc.setFont('helvetica','normal'); doc.setTextColor(90);
+      doc.text(label, M+3, y+5.5);
+      doc.setFont('helvetica','bold'); doc.setTextColor(20);
+      doc.text(name, M+70, y+5.5);
+      doc.setDrawColor(230); doc.line(M, y+8, PW-M, y+8);
+      y += 8;
+    });
+    y += 3;
+  }
+
+  // ── footer ──
+  doc.setFontSize(7.5); doc.setFont('helvetica','normal'); doc.setTextColor(170);
+  doc.text('MEDIAPRO · Cámaras Especiales · Hoja de servicio', M, PH-10);
+  doc.text(`Generado: ${new Date().toLocaleString('es-ES')}`, PW-M, PH-10, {align:'right'});
+
+  const filename = `hoja-servicio-${(servicio.encuentro||'servicio').replace(/[^\w]/g,'-')}.pdf`;
+  doc.save(filename);
 }
 
 /* ── DOCUMENTOS USUARIO (solo lectura) ─────────────────────── */
@@ -177,27 +224,41 @@ function ServiciosList({ onSelect, onViewInforme }) {
   const enviados  = servicios.filter(s=>s.status==='completado');
   const total = servicios.length;
 
-  const ServiceRow = ({ s, onClick, badge, canClick=true, dim=false }) => (
-    <div onClick={canClick?onClick:undefined}
-      style={{padding:'14px 16px',cursor:canClick?'pointer':'default',background:'#fff',transition:'background 0.1s'}}
-      onMouseEnter={e=>{if(canClick)e.currentTarget.style.background='#fafafa';}}
-      onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
-      <div style={{display:'flex',alignItems:'center',gap:12,opacity:dim?0.7:1}}>
-        <div style={{flex:1}}>
-          <div style={{fontSize:14,fontWeight:500}}>{s.encuentro||'—'}</div>
-          <div style={{fontSize:11,color:'#71717a',marginTop:3}}>
-            <span style={{fontFamily:"'Geist Mono',monospace"}}>{s.jornada}</span>
-            {' · '}{fmt(s.fecha)}
-            {s.hora_partido&&<>{' · '}{s.hora_partido}</>}
+  const ServiceRow = ({ s, onClick, badge, canClick=true, dim=false }) => {
+    const [docsOpen,setDocsOpen] = useState(false);
+    return (
+      <div>
+        <div onClick={canClick?onClick:undefined}
+          style={{padding:'14px 16px',cursor:canClick?'pointer':'default',background:'#fff',transition:'background 0.1s'}}
+          onMouseEnter={e=>{if(canClick)e.currentTarget.style.background='#fafafa';}}
+          onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+          <div style={{display:'flex',alignItems:'center',gap:12,opacity:dim?0.7:1}}>
+            <div style={{flex:1}}>
+              <div style={{fontSize:14,fontWeight:500}}>{s.encuentro||'—'}</div>
+              <div style={{fontSize:11,color:'#71717a',marginTop:3}}>
+                <span style={{fontFamily:"'Geist Mono',monospace"}}>{s.jornada}</span>
+                {' · '}{fmt(s.fecha)}
+                {s.hora_partido&&<>{' · '}{s.hora_partido}</>}
+              </div>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              {badge}
+              <button onClick={e=>{e.stopPropagation();setDocsOpen(o=>!o);}}
+                style={{border:'1px solid #e4e4e7',borderRadius:6,background:'#fafafa',padding:'3px 8px',fontSize:11,cursor:'pointer',color:'#71717a',lineHeight:1.4}}>
+                📎
+              </button>
+              {canClick&&<span style={{color:'#71717a',fontSize:18}}>›</span>}
+            </div>
           </div>
         </div>
-        <div style={{display:'flex',alignItems:'center',gap:8}}>
-          {badge}
-          {canClick&&<span style={{color:'#71717a',fontSize:18}}>›</span>}
-        </div>
+        {docsOpen&&(
+          <div style={{padding:'0 16px 12px',borderTop:'1px solid #f0f0f0',background:'#fafafa'}}>
+            <DocumentosUsuario servicioId={s.id} />
+          </div>
+        )}
       </div>
-    </div>
-  );
+    );
+  };
 
   const SectionHeader = ({label,count}) => (
     <div style={{fontSize:11,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10}}>{label} · {count}</div>
@@ -381,9 +442,14 @@ function FillReport({ servicioId, draftInformeId, onBack }) {
               {[
                 ['Jornada',servicio.jornada],['Encuentro',servicio.encuentro],
                 ['Fecha',fmt(servicio.fecha)],['Hora partido',servicio.hora_partido||'—'],
-                ['Hora citación',servicio.hora_citacion||'—'],['Horario MD-1',servicio.horario_md1||'—'],
+                ['Hora citación',servicio.hora_citacion||'—'],['Horario citación MD-1',servicio.horario_md1||'—'],
                 ['Responsable CCEE',servicio.responsable||'—'],['Unidad Móvil',servicio.um||'—'],
                 ['J. Técnico UM',servicio.jefe_tecnico||'—'],
+                ...(servicio.tel_jefe_tecnico?[['Tel. J. Técnico',servicio.tel_jefe_tecnico]]:[]),
+                ['Realizador',servicio.realizador||'—'],
+                ...(servicio.tel_realizador?[['Tel. Realizador',servicio.tel_realizador]]:[]),
+                ['Productor',servicio.productor||'—'],
+                ...(servicio.tel_productor?[['Tel. Productor',servicio.tel_productor]]:[]),
               ].map(([k,v])=>(
                 <div key={k} style={{padding:'10px 12px',background:'#fafafa',borderRadius:8,border:'1px solid #e4e4e7'}}>
                   <div style={{fontSize:10,fontWeight:500,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:3}}>{k}</div>
@@ -448,6 +514,16 @@ function FillReport({ servicioId, draftInformeId, onBack }) {
             </div>
           </div>
 
+          <Card style={{borderLeft:'3px solid #8b5cf6'}}>
+            <SecTitle>Horarios de jornada</SecTitle>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+              <Field label="Inicio MD-1"><Input type="time" value={logistica.inicio_md1||''} onChange={e=>setLogistica(l=>({...l,inicio_md1:e.target.value}))} /></Field>
+              <Field label="Fin MD-1"><Input type="time" value={logistica.fin_md1||''} onChange={e=>setLogistica(l=>({...l,fin_md1:e.target.value}))} /></Field>
+              <Field label="Inicio MD"><Input type="time" value={logistica.inicio_md||''} onChange={e=>setLogistica(l=>({...l,inicio_md:e.target.value}))} /></Field>
+              <Field label="Fin MD"><Input type="time" value={logistica.fin_md||''} onChange={e=>setLogistica(l=>({...l,fin_md:e.target.value}))} /></Field>
+            </div>
+          </Card>
+
           <Card style={{borderLeft:'3px solid #f59e0b'}}>
             <SecTitle>Logística</SecTitle>
             <div style={{border:'1px solid #e4e4e7',borderRadius:8,overflow:'hidden',marginBottom:12}}>
@@ -489,12 +565,17 @@ function FillReport({ servicioId, draftInformeId, onBack }) {
           <Card>
             <SecTitle>Datos del servicio</SecTitle>
             <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>
-              {[['Jornada',servicio.jornada],['Encuentro',servicio.encuentro],['Fecha',fmt(servicio.fecha)],['Hora',servicio.hora_partido||'—'],['Responsable',servicio.responsable||'—'],['Cámaras',`${activeCams.length} activas`]].map(([k,v])=>(
+              {[
+                ['Jornada',servicio.jornada],['Encuentro',servicio.encuentro],['Fecha',fmt(servicio.fecha)],
+                ['Hora',servicio.hora_partido||'—'],['Responsable',servicio.responsable||'—'],['Cámaras',`${activeCams.length} activas`],
+                ...(logistica.inicio_md1||logistica.fin_md1?[['Inicio MD-1',logistica.inicio_md1||'—'],['Fin MD-1',logistica.fin_md1||'—'],['','']]:[] ),
+                ...(logistica.inicio_md||logistica.fin_md?[['Inicio MD',logistica.inicio_md||'—'],['Fin MD',logistica.fin_md||'—'],['','']]:[] ),
+              ].map(([k,v])=>k?(
                 <div key={k} style={{padding:'10px 12px',background:'#fafafa',borderRadius:8,border:'1px solid #e4e4e7'}}>
                   <div style={{fontSize:10,fontWeight:500,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:3}}>{k}</div>
                   <div style={{fontSize:13,fontWeight:500,fontFamily:"'Geist Mono',monospace"}}>{v||'—'}</div>
                 </div>
-              ))}
+              ):<div key={Math.random()} />)}
             </div>
           </Card>
 
@@ -577,6 +658,21 @@ function InformeUsuarioView({ informeId, onBack }) {
         <h2 style={{fontSize:18,fontWeight:600,margin:0,marginBottom:4}}>{informe.encuentro||'Informe'}</h2>
         <p style={{fontSize:13,color:'#71717a',margin:0}}>{informe.jornada} · {fmt(informe.fecha)} · <Badge variant="ok">✓ Enviado</Badge></p>
       </div>
+
+      {/* Horarios de jornada */}
+      {(log.inicio_md1||log.fin_md1||log.inicio_md||log.fin_md)&&(
+        <Card style={{marginBottom:12}}>
+          <SecTitle>Horarios de jornada</SecTitle>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>
+            {[['Inicio MD-1',log.inicio_md1],['Fin MD-1',log.fin_md1],['Inicio MD',log.inicio_md],['Fin MD',log.fin_md]].filter(([,v])=>v).map(([k,v])=>(
+              <div key={k} style={{padding:'8px 10px',background:'#f5f3ff',borderRadius:8,border:'1px solid #ddd6fe'}}>
+                <div style={{fontSize:9,fontWeight:600,color:'#7c3aed',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:2}}>{k}</div>
+                <div style={{fontSize:14,fontWeight:600,fontFamily:"'Geist Mono',monospace"}}>{v}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* Resumen incidencias */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:16}}>
