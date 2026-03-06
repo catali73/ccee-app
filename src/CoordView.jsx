@@ -38,7 +38,7 @@ function generatePDF(informe) {
     ).join('');
     return `<div class="cam-block">
       <div class="cam-head">
-        <span>${cam.icon} ${cam.label}${d.equipo?` · <span style="font-family:monospace;font-weight:400">${d.equipo}</span>`:''}</span>
+        <span>${cam.icon} ${cam.label}${(()=>{const eq=d.equipos?Object.values(d.equipos).filter(Boolean).join(' · '):(d.equipo||'');return eq?` · <span style="font-family:monospace;font-weight:400">${eq}</span>`:''})()}</span>
         <span style="font-size:11px">${gv>0?`⚠ ${gv}G  `:''}${lv>0?`↓ ${lv}L`:''} ${gv===0&&lv===0?'✓ OK':''}</span>
       </div>
       ${itemCells?`<div class="ic-grid">${itemCells}</div>`:''}
@@ -268,7 +268,7 @@ function InformeModal({ informe, onClose, onDeleted }) {
                       <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',background:'#fafafa',borderBottom:Object.keys(items).length>0?'1px solid #e4e4e7':'none'}}>
                         <span style={{fontSize:14}}>{cam.icon}</span>
                         <span style={{fontSize:12,fontWeight:600,flex:1}}>{cam.label}</span>
-                        {d.equipo&&<span style={{fontSize:11,color:'#71717a',fontFamily:"'Geist Mono',monospace"}}>{d.equipo}</span>}
+                        {(()=>{const eq=d.equipos?Object.values(d.equipos).filter(Boolean).join(' · '):(d.equipo||'');return eq?<span style={{fontSize:11,color:'#71717a',fontFamily:"'Geist Mono',monospace"}}>{eq}</span>:null;})()}
                         <div style={{display:'flex',gap:3}}>
                           {gv>0&&<Badge variant="grave">⚠{gv}</Badge>}
                           {lv>0&&<Badge variant="leve">↓{lv}</Badge>}

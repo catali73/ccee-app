@@ -255,7 +255,9 @@ function FillReport({ servicioId, onBack }) {
         const initial = {};
         Object.entries(data.camaras_activas).forEach(([id,active])=>{
           if (active && CAMERA_CATALOG[id]) {
-            initial[id] = { equipo:"", items:initItems(CAMERA_CATALOG[id].items), incidencias:"" };
+            const cam = CAMERA_CATALOG[id];
+            const equipos = {}; (cam.equipos||[]).forEach(s=>{equipos[s.key]="";});
+            initial[id] = { equipos, items:initItems(cam.items), incidencias:"" };
           }
         });
         setCamData(initial);
@@ -266,8 +268,10 @@ function FillReport({ servicioId, onBack }) {
 
   const updateCamData = useCallback((camId,field,sub,val)=>{
     setCamData(prev=>{
-      const c = prev[camId]||{equipo:"",items:initItems(CAMERA_CATALOG[camId].items),incidencias:""};
-      if (field==="equipo") return {...prev,[camId]:{...c,equipo:sub}};
+      const cam = CAMERA_CATALOG[camId];
+      const eqInit = {}; (cam?.equipos||[]).forEach(s=>{eqInit[s.key]="";});
+      const c = prev[camId]||{equipos:eqInit,items:initItems(cam?.items||[]),incidencias:""};
+      if (field==="equipos") return {...prev,[camId]:{...c,equipos:{...c.equipos,[sub]:val}}};
       if (field==="item") return {...prev,[camId]:{...c,items:{...c.items,[sub]:val}}};
       if (field==="incidencias") return {...prev,[camId]:{...c,incidencias:sub}};
       return prev;
@@ -409,11 +413,16 @@ function FillReport({ servicioId, onBack }) {
             <Textarea placeholder="Sin incidencias..." value={logistica.incidencias} onChange={e=>setLogistica({...logistica,incidencias:e.target.value})} />
           </Card>
 
-          {activeCams.map(([id,cam])=>(
-            <CameraSection key={id} camId={id} cam={cam}
-              data={camData[id]||{equipo:"",items:initItems(cam.items),incidencias:""}}
-              onChange={updateCamData} />
-          ))}
+          {activeCams.map(([id,cam])=>{
+            const usedModels = new Set();
+            activeCams.forEach(([oid])=>{ if(oid===id) return; const od=camData[oid]; if(!od?.equipos) return; Object.values(od.equipos).forEach(m=>{if(m)usedModels.add(m);}); });
+            const eqInit={}; (cam.equipos||[]).forEach(s=>{eqInit[s.key]="";});
+            return (
+              <CameraSection key={id} camId={id} cam={cam}
+                data={camData[id]||{equipos:eqInit,items:initItems(cam.items),incidencias:""}}
+                onChange={updateCamData} usedModels={usedModels} />
+            );
+          })}
 
           <div style={{display:'flex',justifyContent:'space-between'}}>
             <BtnO onClick={()=>setStep(1)}>← Atrás</BtnO>
@@ -467,7 +476,7 @@ function FillReport({ servicioId, onBack }) {
                   <div key={id} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',background:i%2===0?'#fff':'#fafafa',borderBottom:i<activeCams.length-1?'1px solid #e4e4e7':'none'}}>
                     <span style={{fontSize:14}}>{cam.icon}</span>
                     <div style={{flex:1,fontSize:12,fontWeight:500}}>{cam.label}</div>
-                    {d?.equipo&&<span style={{fontSize:11,color:'#71717a',fontFamily:"'Geist Mono',monospace"}}>{d.equipo}</span>}
+                    {(()=>{const eq=d?.equipos?Object.values(d.equipos).filter(Boolean).join(' · '):(d?.equipo||''); return eq?<span style={{fontSize:11,color:'#71717a',fontFamily:"'Geist Mono',monospace"}}>{eq}</span>:null;})()}
                     <div style={{display:'flex',gap:4}}>
                       {gv>0&&<Badge variant="grave">⚠{gv}G</Badge>}
                       {lv>0&&<Badge variant="leve">↓{lv}L</Badge>}
