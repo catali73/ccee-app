@@ -1,10 +1,13 @@
 import express from 'express'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
+import { createRequire } from 'module'
 import pg from 'pg'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import PDFDocument from 'pdfkit'
+
+const require = createRequire(import.meta.url)
+const PDFDocument = require('pdfkit')
 
 const { Pool } = pg
 const app = express()
