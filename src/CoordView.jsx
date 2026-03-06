@@ -557,7 +557,13 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
   const [saving,setSaving] = useState(false);
   const [saveError,setSaveError] = useState(null);
   const [sent,setSent] = useState(false);
-  const [createdId,setCreatedId] = useState(null);
+
+  // Documentos pendientes — sólo en creación, se suben al guardar
+  const [pendingDocs,setPendingDocs] = useState([]);
+  const [pendingDesc,setPendingDesc] = useState('');
+  const [pendingFile,setPendingFile] = useState(null);
+  const [pendingErr,setPendingErr] = useState(null);
+  const pendingFileRef = useRef(null);
 
   // Prevent reactive effects from firing on first render (needed for edit mode pre-fill)
   const firstRender = useRef(true);
@@ -580,6 +586,19 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
   const toggleCam = useCallback((id)=>setSelectedCams(p=>({...p,[id]:!p[id]})),[]);
   const updateOp = useCallback((key,val)=>setOperators(p=>({...p,[key]:val})),[]);
 
+  const fileIcon = (tipo) => tipo?.startsWith('image/')?'🖼️':tipo==='application/pdf'?'📄':'📎';
+
+  const handleAddPendingDoc = async () => {
+    if (!pendingFile||!pendingDesc.trim()){setPendingErr('Añade descripción y selecciona archivo');return;}
+    if (pendingFile.size>8*1024*1024){setPendingErr('El archivo no puede superar 8 MB');return;}
+    setPendingErr(null);
+    const datos = await new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsDataURL(pendingFile);});
+    setPendingDocs(p=>[...p,{descripcion:pendingDesc.trim(),nombre:pendingFile.name,tipo:pendingFile.type,datos,tamano:pendingFile.size}]);
+    setPendingDesc(''); setPendingFile(null);
+    if(pendingFileRef.current) pendingFileRef.current.value='';
+  };
+  const removePendingDoc = (idx) => setPendingDocs(p=>p.filter((_,i)=>i!==idx));
+
   const activeCams = Object.entries(CAMERA_CATALOG).filter(([id])=>selectedCams[id]);
   const activeOpGroups = OPERATOR_GROUPS.filter(g=>g.cams.some(c=>selectedCams[c]));
   const tipoActual = TIPOS_SERVICIO.find(tp=>tp.id===tipoServicio);
@@ -594,8 +613,15 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
         body: JSON.stringify({ match, selectedCams, operators, assigned_to: parseInt(assignedTo), tipo_servicio: tipoServicio })
       });
       const data = await res.json();
-      if (data.ok) { setSent(true); if (!isEdit && data.id) setCreatedId(data.id); }
-      else setSaveError(data.error||'Error al guardar');
+      if (data.ok) {
+        // Subir documentos pendientes al servicio recién creado
+        if (!isEdit && data.id && pendingDocs.length>0) {
+          for (const doc of pendingDocs) {
+            await apiFetch(`/api/servicios/${data.id}/documentos`,{method:'POST',body:JSON.stringify(doc)});
+          }
+        }
+        setSent(true);
+      } else setSaveError(data.error||'Error al guardar');
     } catch { setSaveError('Error de conexión'); }
     finally { setSaving(false); }
   };
@@ -607,8 +633,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
       <div style={{fontSize:13,color:'#71717a'}}>{match.encuentro} · {match.jornada}</div>
       <div style={{display:'flex',gap:8,marginTop:12}}>
         <BtnO onClick={onCancel}>Ver dashboard</BtnO>
-        {!isEdit&&createdId&&<BtnO onClick={()=>onSaved(createdId)}>📎 Añadir documentos</BtnO>}
-        {!isEdit&&<BtnP onClick={()=>{ setStep(1); setTipoServicio('liga'); setLigaJornada(''); setLigaPartido(''); setMatch({jornada:'',encuentro:'',fecha:'',hora_partido:'',hora_citacion:'',responsable:'',um:'',jefe_tecnico:'',realizador:'',productor:'',horario_md1:''}); setSelectedCams({}); setOperators(initOperators()); setAssignedTo(''); setSaveError(null); setSent(false); setCreatedId(null); }}>+ Otro servicio</BtnP>}
+        {!isEdit&&<BtnP onClick={()=>{ setStep(1); setTipoServicio('liga'); setLigaJornada(''); setLigaPartido(''); setMatch({jornada:'',encuentro:'',fecha:'',hora_partido:'',hora_citacion:'',responsable:'',um:'',jefe_tecnico:'',realizador:'',productor:'',horario_md1:''}); setSelectedCams({}); setOperators(initOperators()); setAssignedTo(''); setSaveError(null); setSent(false); setPendingDocs([]); }}>+ Otro servicio</BtnP>}
       </div>
     </div>
   );
@@ -788,11 +813,50 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
             </div>
           </Card>
 
+          {/* Documentos opcionales — solo en creación */}
+          {!isEdit&&(
+            <Card>
+              <SecTitle>Documentos adjuntos <span style={{fontWeight:400,color:'#71717a'}}>(opcional)</span></SecTitle>
+              <div style={{display:'flex',gap:8,marginBottom:10,alignItems:'flex-end',flexWrap:'wrap'}}>
+                <Field label="Descripción" style={{flex:1,minWidth:180,marginBottom:0}}>
+                  <Input value={pendingDesc} onChange={e=>setPendingDesc(e.target.value)} placeholder="Ej: Plano de cámaras, Mapa de conexiones…" />
+                </Field>
+                <div>
+                  <Label>Archivo (PDF / JPG / PNG)</Label>
+                  <input ref={pendingFileRef} type="file" accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={e=>setPendingFile(e.target.files[0]||null)}
+                    style={{display:'block',fontSize:12,marginTop:5,padding:'2px 0'}} />
+                </div>
+                <BtnO onClick={handleAddPendingDoc} disabled={!pendingFile||!pendingDesc.trim()}
+                  style={{height:36,whiteSpace:'nowrap',opacity:(!pendingFile||!pendingDesc.trim())?0.5:1}}>
+                  + Añadir
+                </BtnO>
+              </div>
+              {pendingErr&&<div style={{fontSize:12,color:'#dc2626',background:'#fef2f2',padding:'6px 10px',borderRadius:6,border:'1px solid #fecaca',marginBottom:10}}>{pendingErr}</div>}
+              {pendingDocs.length===0?(
+                <div style={{fontSize:12,color:'#71717a',textAlign:'center',padding:'8px 0'}}>Sin documentos adjuntos todavía.</div>
+              ):(
+                <div style={{border:'1px solid #e4e4e7',borderRadius:8,overflow:'hidden'}}>
+                  {pendingDocs.map((doc,i)=>(
+                    <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:i%2===0?'#fff':'#fafafa',borderBottom:i<pendingDocs.length-1?'1px solid #e4e4e7':'none'}}>
+                      <span style={{fontSize:18}}>{fileIcon(doc.tipo)}</span>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:500}}>{doc.descripcion}</div>
+                        <div style={{fontSize:11,color:'#71717a',marginTop:1}}>{doc.nombre} · {(doc.tamano/1024).toFixed(0)} KB</div>
+                      </div>
+                      <BtnO onClick={()=>removePendingDoc(i)} style={{height:28,fontSize:11,padding:'0 10px',color:'#dc2626',borderColor:'#fecaca'}}>✕</BtnO>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          )}
+
           {saveError&&<div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,padding:'10px 14px',marginBottom:12,fontSize:13,color:'#dc2626'}}>{saveError}</div>}
           <div style={{display:'flex',justifyContent:'space-between'}}>
             <BtnO onClick={()=>setStep(3)}>← Atrás</BtnO>
             <BtnP onClick={handleSave} disabled={!assignedTo||saving} style={{opacity:(!assignedTo||saving)?0.5:1}}>
-              {saving?'Guardando...':isEdit?'Guardar cambios →':'Crear servicio →'}
+              {saving?(pendingDocs.length>0?'Guardando y subiendo…':'Guardando...'):isEdit?'Guardar cambios →':'Crear servicio →'}
             </BtnP>
           </div>
         </>
@@ -940,7 +1004,7 @@ export default function CoordView({ user, onLogout }) {
         />
       )}
       {view==='new-servicio'&&(
-        <NewServicioForm onCancel={goToDashboard} onSaved={(id)=>id?handleEditServicio(id):goToDashboard()} />
+        <NewServicioForm onCancel={goToDashboard} onSaved={goToDashboard} />
       )}
       {view==='edit-servicio'&&(
         loadingEdit
