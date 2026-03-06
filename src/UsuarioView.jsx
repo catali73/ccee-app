@@ -186,7 +186,7 @@ function DocumentosUsuario({ servicioId }) {
 }
 
 /* ── HEADER ────────────────────────────────────────────────── */
-function Header({ user, onLogout }) {
+function Header({ user, onLogout, onHome }) {
   return (
     <header style={{background:'#fff',borderBottom:'1px solid #e4e4e7',position:'sticky',top:0,zIndex:100}}>
       <div style={{maxWidth:1100,margin:'0 auto',padding:'0 20px',height:56,display:'flex',alignItems:'center',gap:16}}>
@@ -198,6 +198,7 @@ function Header({ user, onLogout }) {
           </div>
         </div>
         <div style={{flex:1}} />
+        {onHome&&<BtnO onClick={onHome} style={{height:28,fontSize:12,padding:'0 10px'}}>🏠 Mis servicios</BtnO>}
         <Badge>{user.name}</Badge>
         <span style={{fontSize:11,color:'#71717a'}}>Técnico</span>
         <BtnO onClick={onLogout} style={{height:28,fontSize:12,padding:'0 10px'}}>Salir</BtnO>
@@ -773,7 +774,7 @@ export default function UsuarioView({ user, onLogout }) {
 
   return (
     <div style={{minHeight:'100vh',background:'#fafafa'}}>
-      <Header user={user} onLogout={onLogout} />
+      <Header user={user} onLogout={onLogout} onHome={view!=='list'?handleBack:null} />
       {view==='list'&&<ServiciosList onSelect={handleSelect} onViewInforme={handleViewInforme} />}
       {view==='filling'&&selectedServicioId&&<FillReport servicioId={selectedServicioId} draftInformeId={draftInformeId} onBack={handleBack} />}
       {view==='view_informe'&&viewInformeId&&<InformeUsuarioView informeId={viewInformeId} onBack={handleBack} />}

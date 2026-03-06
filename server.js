@@ -9,6 +9,49 @@ import jwt from 'jsonwebtoken'
 const require = createRequire(import.meta.url)
 const PDFDocument = require('pdfkit')
 
+// ── LOOKUP TABLES FOR HOJA-PDF (mirror App.jsx CAMERA_CATALOG / OPERATOR_GROUPS) ──
+const CAMERA_ORDER = [
+  'OBVAN_CCEE','CAMARA_UHS','SKYCAM_4','AR_SKYCAM',
+  'STEADY_L','STEADY_R','STEADY_PERSO',
+  'RF_L','RF_R','RF_PERSO',
+  'POLECAM_L','POLECAM_R',
+  'MINICAM_L','MINICAM_R',
+  'KIT_CINEMA_L','KIT_CINEMA_R',
+  'DRONE','BODYCAM','PTZ_1','PTZ_2','OTROS'
+]
+const CAMERA_LABELS = {
+  OBVAN_CCEE:'OBVAN CCEE', CAMARA_UHS:'Cámara UHS', SKYCAM_4:'4SkyCam',
+  AR_SKYCAM:'AR Skycam', STEADY_L:'Steady L', STEADY_R:'Steady R',
+  STEADY_PERSO:'Steady Perso', RF_L:'RF L', RF_R:'RF R', RF_PERSO:'RF Perso',
+  POLECAM_L:'Polecam L', POLECAM_R:'Polecam R',
+  MINICAM_L:'Minicám. L', MINICAM_R:'Minicám. R',
+  KIT_CINEMA_L:'Cinema L', KIT_CINEMA_R:'Cinema R',
+  DRONE:'Drone', BODYCAM:'Bodycam', PTZ_1:'PTZ 1', PTZ_2:'PTZ 2', OTROS:'Otros'
+}
+const OPERATOR_ROLES_ORDERED = [
+  {key:'skycam_piloto',  label:'Piloto'},
+  {key:'skycam_operador',label:'Operador'},
+  {key:'skycam_auxiliar',label:'Auxiliar'},
+  {key:'ar_tec1',        label:'Técnico AR 1'},
+  {key:'ar_tec2',        label:'Técnico AR 2'},
+  {key:'steady_l',       label:'Steady L'},
+  {key:'steady_r',       label:'Steady R'},
+  {key:'steady_perso',   label:'Steady Perso'},
+  {key:'rf_l',           label:'RF L'},
+  {key:'rf_r',           label:'RF R'},
+  {key:'rf_perso',       label:'RF Perso'},
+  {key:'polecam_l',      label:'Polecam L'},
+  {key:'polecam_r',      label:'Polecam R'},
+  {key:'foquista_l',     label:'Foquista L'},
+  {key:'foquista_r',     label:'Foquista R'},
+  {key:'drone_piloto',   label:'Piloto (Drone)'},
+  {key:'drone_tec',      label:'Técnico (Drone)'},
+  {key:'bodycam',        label:'Operador (Bodycam)'},
+  {key:'minicams',       label:'Operador (Minicams)'},
+  {key:'ptz1_op',        label:'PTZ 1 Operador'},
+  {key:'ptz2_op',        label:'PTZ 2 Operador'},
+]
+
 const { Pool } = pg
 const app = express()
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -341,56 +384,88 @@ app.get('/api/servicios/:id/hoja-pdf', requireAuth(), async (req, res) => {
     const fmtD = (d) => d ? new Date(d).toLocaleDateString('es-ES') : '—'
     const ops = sv.operadores || {}
     const camModels = sv.cam_models || {}
-    const activeCams = sv.camaras_activas ? Object.entries(sv.camaras_activas).filter(([,v])=>v) : []
+    const camarasActivas = sv.camaras_activas || {}
 
-    // Importar CAMERA_CATALOG y OPERATOR_GROUPS desde datos estáticos
-    // (usamos datos básicos sin importar el módulo frontend)
+    // ── Sort cameras by catalog order, then filter active ones ──
+    const activeCamIds = CAMERA_ORDER.filter(id => camarasActivas[id])
+
+    // ── Build ordered operator list with proper labels ──
+    const opList = OPERATOR_ROLES_ORDERED.filter(r => ops[r.key])
+
     const filename = `hoja-servicio-${sv.id}.pdf`
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
 
-    const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true })
+    const doc = new PDFDocument({ margin: 0, size: 'A4' })
     doc.pipe(res)
 
-    const PW = doc.page.width
+    const PW = doc.page.width   // 595.28
+    const PH = doc.page.height  // 841.89
     const M = 50
     const CW = PW - 2 * M
+    const CONTENT_BOTTOM = PH - 55 // content must not go below this (footer lives at PH-40)
 
-    // ── HEADER ──
+    let y = 50
+
+    // ── FOOTER ──
+    const drawFooter = () => {
+      const fy = PH - 30
+      doc.fontSize(8).font('Helvetica').fillColor('#bbbbbb')
+        .text('MEDIAPRO · Cámaras Especiales · Hoja de servicio', M, fy, { width: CW * 0.55, lineBreak: false })
+      doc.fontSize(8).font('Helvetica').fillColor('#bbbbbb')
+        .text(`Generado: ${new Date().toLocaleString('es-ES')}`, M + CW * 0.45, fy, { width: CW * 0.55, align: 'right', lineBreak: false })
+    }
+
+    // ── PAGE BREAK: draw footer then open new page ──
+    const addPage = () => {
+      drawFooter()
+      doc.addPage()
+      y = M
+    }
+
+    // ── CHECK BREAK before drawing neededHeight points ──
+    const checkBreak = (neededHeight) => {
+      if (y + neededHeight > CONTENT_BOTTOM) addPage()
+    }
+
+    // ── HEADER (first page) ──
     doc.fontSize(20).font('Helvetica-Bold').fillColor('#111111')
-      .text(sv.encuentro || '—', M, 50)
+      .text(sv.encuentro || '—', M, y)
     doc.fontSize(11).font('Helvetica').fillColor('#666666')
-      .text(`${sv.jornada || ''} · ${fmtD(sv.fecha)}`, M, 74)
+      .text(`${sv.jornada || ''} · ${fmtD(sv.fecha)}`, M, y + 24)
     doc.fontSize(9).fillColor('#999999')
-      .text('MEDIAPRO · CCEE', PW - M, 50, { align: 'right', width: CW })
-      .text('Hoja de servicio · Temporada 25/26', PW - M, 62, { align: 'right', width: CW })
+      .text('MEDIAPRO · CCEE', M, y, { align: 'right', width: CW })
+      .text('Hoja de servicio · Temporada 25/26', M, y + 12, { align: 'right', width: CW })
     doc.fillColor('#000000')
-    doc.moveTo(M, 95).lineTo(PW - M, 95).strokeColor('#cccccc').stroke()
-
-    let y = 110
+    doc.moveTo(M, y + 45).lineTo(PW - M, y + 45).strokeColor('#cccccc').stroke()
+    y += 60
 
     // ── SECTION TITLE ──
     const sec = (title) => {
+      checkBreak(30)
       doc.fontSize(8).font('Helvetica-Bold').fillColor('#888888')
         .text(title.toUpperCase(), M, y)
       doc.moveTo(M, y + 12).lineTo(PW - M, y + 12).strokeColor('#dddddd').stroke()
-      y += 20; doc.fillColor('#000000')
+      y += 20
+      doc.fillColor('#000000')
     }
 
     // ── 3-COL GRID OF CELLS ──
     const grid = (items) => {
       const CW3 = (CW - 10) / 3
       const RH = 36
+      const rows = Math.ceil(items.length / 3)
+      checkBreak(rows * RH + 8)
       items.forEach(([label, val], i) => {
         const col = i % 3, row = Math.floor(i / 3)
         const cx = M + col * (CW3 + 5), cy = y + row * RH
         doc.rect(cx, cy, CW3, RH - 4).fillAndStroke('#f7f7f7', '#e8e8e8')
         doc.fontSize(7).font('Helvetica-Bold').fillColor('#aaaaaa')
-          .text((label || '').toUpperCase(), cx + 6, cy + 5, { width: CW3 - 12 })
+          .text((label || '').toUpperCase(), cx + 6, cy + 5, { width: CW3 - 12, lineBreak: false })
         doc.fontSize(9).font('Helvetica-Bold').fillColor('#111111')
-          .text(String(val || '—').substring(0, 32), cx + 6, cy + 17, { width: CW3 - 12 })
+          .text(String(val || '—').substring(0, 32), cx + 6, cy + 17, { width: CW3 - 12, lineBreak: false })
       })
-      y += Math.ceil(items.length / 3) * RH + 8
+      y += rows * RH + 8
       doc.fillColor('#000000')
     }
 
@@ -412,42 +487,44 @@ app.get('/api/servicios/:id/hoja-pdf', requireAuth(), async (req, res) => {
     ])
 
     // ── CÁMARAS Y MODELOS ──
-    if (activeCams.length > 0) {
-      sec(`Cámaras activas · ${activeCams.length}`)
-      activeCams.forEach(([id]) => {
+    if (activeCamIds.length > 0) {
+      sec(`Cámaras activas · ${activeCamIds.length}`)
+      activeCamIds.forEach(id => {
+        checkBreak(24)
+        const camLabel = CAMERA_LABELS[id] || id
         const models = camModels[id]
         const modelStr = models ? Object.values(models).filter(Boolean).join(' · ') : ''
         doc.rect(M, y, CW, 20).fillAndStroke('#f0f0f0', '#dddddd')
         doc.fontSize(10).font('Helvetica-Bold').fillColor('#111111')
-          .text(id, M + 6, y + 6, { width: CW / 2 })
+          .text(camLabel, M + 6, y + 6, { width: CW / 2, lineBreak: false })
         if (modelStr) {
           doc.fontSize(9).font('Helvetica').fillColor('#555555')
-            .text(modelStr, M + CW / 2, y + 7, { width: CW / 2 - 6, align: 'right' })
+            .text(modelStr, M + CW / 2, y + 7, { width: CW / 2 - 6, align: 'right', lineBreak: false })
         }
-        doc.fillColor('#000000'); y += 22
+        doc.fillColor('#000000')
+        y += 22
       })
-      y += 6
+      y += 4
     }
 
     // ── OPERADORES ──
-    const opEntries = Object.entries(ops).filter(([, v]) => v)
-    if (opEntries.length > 0) {
+    if (opList.length > 0) {
       sec('Operadores asignados')
-      opEntries.forEach(([key, name], i) => {
+      opList.forEach(({ key, label }, i) => {
+        checkBreak(20)
         if (i % 2 === 0) doc.rect(M, y, CW, 18).fill('#fafafa')
         doc.fontSize(9).font('Helvetica').fillColor('#777777')
-          .text(key, M + 6, y + 5, { width: 160 })
+          .text(label, M + 6, y + 5, { width: 160, lineBreak: false })
         doc.font('Helvetica-Bold').fillColor('#111111')
-          .text(String(name), M + 170, y + 5, { width: CW - 180 })
+          .text(String(ops[key]), M + 170, y + 5, { width: CW - 180, lineBreak: false })
         doc.moveTo(M, y + 18).lineTo(PW - M, y + 18).strokeColor('#eeeeee').stroke()
-        doc.fillColor('#000000'); y += 18
+        doc.fillColor('#000000')
+        y += 18
       })
     }
 
-    // ── FOOTER ──
-    doc.fontSize(8).font('Helvetica').fillColor('#bbbbbb')
-      .text('MEDIAPRO · Cámaras Especiales · Hoja de servicio', M, 780)
-      .text(`Generado: ${new Date().toLocaleString('es-ES')}`, PW - M, 780, { align: 'right', width: CW })
+    // ── FOOTER on last page ──
+    drawFooter()
 
     doc.end()
   } catch (err) {
@@ -592,6 +669,16 @@ app.put('/api/servicios/:id', requireAuth(['coordinador']), async (req, res) => 
     res.json({ ok: true })
   } catch (err) {
     console.error(err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Eliminar servicio (coordinador)
+app.delete('/api/servicios/:id', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    await pool.query('DELETE FROM servicios WHERE id = $1', [req.params.id])
+    res.json({ ok: true })
+  } catch (err) {
     res.status(500).json({ error: err.message })
   }
 })

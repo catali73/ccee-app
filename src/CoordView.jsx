@@ -425,6 +425,14 @@ function CoordDashboard({ onNewServicio, onManageUsers, onEditServicio }) {
     setModalInforme(await r.json());
   };
 
+  const handleDeleteServicio = async (id) => {
+    if (!confirm('¿Eliminar este servicio? Esta acción no se puede deshacer.')) return;
+    try {
+      await apiFetch(`/api/servicios/${id}`, { method: 'DELETE' });
+      load();
+    } catch { alert('Error al eliminar el servicio.'); }
+  };
+
   if (loading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',fontSize:13,color:'#71717a'}}>Cargando...</div>;
 
   const pendientes = servicios.filter(s=>s.status==='pendiente');
@@ -471,12 +479,12 @@ function CoordDashboard({ onNewServicio, onManageUsers, onEditServicio }) {
             <SecTitle style={{margin:0}}>Servicios pendientes · {pendientes.length}</SecTitle>
           </div>
           {pendientes.map((s,i)=>(
-            <div key={s.id} onClick={()=>onEditServicio(s.id)}
-              style={{padding:'12px 16px',cursor:'pointer',borderBottom:i<pendientes.length-1?'1px solid #e4e4e7':'none',background:'#fff',transition:'background 0.1s'}}
+            <div key={s.id}
+              style={{padding:'12px 16px',borderBottom:i<pendientes.length-1?'1px solid #e4e4e7':'none',background:'#fff',transition:'background 0.1s'}}
               onMouseEnter={e=>e.currentTarget.style.background='#fafafa'}
               onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
               <div style={{display:'flex',alignItems:'center',gap:10}}>
-                <div style={{flex:1}}>
+                <div style={{flex:1,cursor:'pointer'}} onClick={()=>onEditServicio(s.id)}>
                   <div style={{fontSize:13,fontWeight:500}}>{s.encuentro||'—'}</div>
                   <div style={{fontSize:11,color:'#71717a',marginTop:2}}>
                     <span style={{fontFamily:"'Geist Mono',monospace"}}>{s.jornada}</span>
@@ -485,7 +493,9 @@ function CoordDashboard({ onNewServicio, onManageUsers, onEditServicio }) {
                   </div>
                 </div>
                 <Badge style={{background:'#fffbeb',color:'#d97706',borderColor:'#fde68a'}}>⏳ Pendiente</Badge>
-                <span style={{color:'#71717a',fontSize:16}}>✏</span>
+                <span onClick={()=>onEditServicio(s.id)} style={{color:'#71717a',fontSize:16,cursor:'pointer'}}>✏</span>
+                <button onClick={e=>{e.stopPropagation();handleDeleteServicio(s.id);}}
+                  style={{border:'1px solid #fecaca',borderRadius:6,background:'#fff5f5',padding:'3px 8px',fontSize:11,cursor:'pointer',color:'#dc2626',lineHeight:1.4,flexShrink:0}}>✕</button>
               </div>
             </div>
           ))}
