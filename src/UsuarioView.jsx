@@ -147,21 +147,61 @@ function Header({ user, onLogout }) {
 }
 
 /* ── SERVICIOS LIST ────────────────────────────────────────── */
-function ServiciosList({ onSelect }) {
+function ServiciosList({ onSelect, onViewInforme }) {
   const [servicios,setServicios] = useState([]);
+  const [informeMap,setInformeMap] = useState({}); // servicioId → informe (más reciente)
   const [loading,setLoading] = useState(true);
 
-  useEffect(()=>{
-    apiFetch('/api/servicios').then(r=>r.json()).then(data=>{
-      setServicios(Array.isArray(data)?data:[]);
+  const load = () => {
+    Promise.all([
+      apiFetch('/api/servicios').then(r=>r.json()).catch(()=>[]),
+      apiFetch('/api/informes').then(r=>r.json()).catch(()=>[]),
+    ]).then(([svs,infs])=>{
+      setServicios(Array.isArray(svs)?svs:[]);
+      // Construir mapa servicioId→informe (prioridad: enviado > borrador)
+      const map={};
+      if(Array.isArray(infs)) infs.forEach(inf=>{
+        if(!map[inf.servicio_id]||inf.status==='enviado') map[inf.servicio_id]=inf;
+      });
+      setInformeMap(map);
       setLoading(false);
-    }).catch(()=>setLoading(false));
-  },[]);
+    });
+  };
+
+  useEffect(()=>{ load(); },[]);
 
   if (loading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',fontSize:13,color:'#71717a'}}>Cargando...</div>;
 
-  const pendientes = servicios.filter(s=>s.status==='pendiente');
-  const completados = servicios.filter(s=>s.status==='completado');
+  const sinIniciar = servicios.filter(s=>s.status==='pendiente'&&!informeMap[s.id]);
+  const enCurso   = servicios.filter(s=>s.status==='pendiente'&&informeMap[s.id]?.status==='borrador');
+  const enviados  = servicios.filter(s=>s.status==='completado');
+  const total = servicios.length;
+
+  const ServiceRow = ({ s, onClick, badge, canClick=true, dim=false }) => (
+    <div onClick={canClick?onClick:undefined}
+      style={{padding:'14px 16px',cursor:canClick?'pointer':'default',background:'#fff',transition:'background 0.1s'}}
+      onMouseEnter={e=>{if(canClick)e.currentTarget.style.background='#fafafa';}}
+      onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+      <div style={{display:'flex',alignItems:'center',gap:12,opacity:dim?0.7:1}}>
+        <div style={{flex:1}}>
+          <div style={{fontSize:14,fontWeight:500}}>{s.encuentro||'—'}</div>
+          <div style={{fontSize:11,color:'#71717a',marginTop:3}}>
+            <span style={{fontFamily:"'Geist Mono',monospace"}}>{s.jornada}</span>
+            {' · '}{fmt(s.fecha)}
+            {s.hora_partido&&<>{' · '}{s.hora_partido}</>}
+          </div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          {badge}
+          {canClick&&<span style={{color:'#71717a',fontSize:18}}>›</span>}
+        </div>
+      </div>
+    </div>
+  );
+
+  const SectionHeader = ({label,count}) => (
+    <div style={{fontSize:11,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10}}>{label} · {count}</div>
+  );
 
   return (
     <div style={{maxWidth:760,margin:'0 auto',padding:'24px 20px 80px'}}>
@@ -170,69 +210,61 @@ function ServiciosList({ onSelect }) {
         <p style={{fontSize:13,color:'#71717a',margin:0}}>Servicios asignados · Temporada 25/26</p>
       </div>
 
-      {pendientes.length===0&&completados.length===0&&(
+      {total===0&&(
         <Card style={{textAlign:'center',padding:'48px 20px'}}>
           <div style={{fontSize:13,color:'#71717a'}}>No tienes servicios asignados todavía.</div>
         </Card>
       )}
 
-      {pendientes.length>0&&(
-        <>
-          <div style={{fontSize:11,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10}}>Pendientes · {pendientes.length}</div>
-          <Card style={{padding:0,overflow:'hidden',marginBottom:20}}>
-            {pendientes.map((s,i)=>(
-              <div key={s.id}
-                onClick={()=>onSelect(s.id)}
-                style={{padding:'14px 16px',cursor:'pointer',borderBottom:i<pendientes.length-1?'1px solid #e4e4e7':'none',background:'#fff',transition:'background 0.1s'}}
-                onMouseEnter={e=>e.currentTarget.style.background='#fafafa'}
-                onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
-                <div style={{display:'flex',alignItems:'center',gap:12}}>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:14,fontWeight:500}}>{s.encuentro||'—'}</div>
-                    <div style={{fontSize:11,color:'#71717a',marginTop:3}}>
-                      <span style={{fontFamily:"'Geist Mono',monospace"}}>{s.jornada}</span>
-                      {' · '}{fmt(s.fecha)}
-                      {s.hora_partido&&<>{' · '}{s.hora_partido}</>}
-                    </div>
-                  </div>
-                  <div style={{display:'flex',alignItems:'center',gap:8}}>
-                    <Badge style={{background:'#fffbeb',color:'#d97706',borderColor:'#fde68a'}}>⏳ Pendiente</Badge>
-                    <span style={{color:'#71717a',fontSize:18}}>›</span>
-                  </div>
-                </div>
+      {sinIniciar.length>0&&(
+        <div style={{marginBottom:24}}>
+          <SectionHeader label="Pendientes de informe" count={sinIniciar.length} />
+          <Card style={{padding:0,overflow:'hidden'}}>
+            {sinIniciar.map((s,i)=>(
+              <div key={s.id} style={{borderBottom:i<sinIniciar.length-1?'1px solid #e4e4e7':'none'}}>
+                <ServiceRow s={s} onClick={()=>onSelect(s.id,null)}
+                  badge={<Badge style={{background:'#fffbeb',color:'#d97706',borderColor:'#fde68a'}}>⏳ Pendiente</Badge>} />
               </div>
             ))}
           </Card>
-        </>
+        </div>
       )}
 
-      {completados.length>0&&(
-        <>
-          <div style={{fontSize:11,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10}}>Completados · {completados.length}</div>
-          <Card style={{padding:0,overflow:'hidden',opacity:0.7}}>
-            {completados.map((s,i)=>(
-              <div key={s.id} style={{padding:'12px 16px',borderBottom:i<completados.length-1?'1px solid #e4e4e7':'none',background:'#fff'}}>
-                <div style={{display:'flex',alignItems:'center',gap:12}}>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:13,fontWeight:500}}>{s.encuentro||'—'}</div>
-                    <div style={{fontSize:11,color:'#71717a',marginTop:2}}>
-                      <span style={{fontFamily:"'Geist Mono',monospace"}}>{s.jornada}</span>
-                      {' · '}{fmt(s.fecha)}
-                    </div>
-                  </div>
-                  <Badge variant="ok">✓ Completado</Badge>
-                </div>
+      {enCurso.length>0&&(
+        <div style={{marginBottom:24}}>
+          <SectionHeader label="En curso" count={enCurso.length} />
+          <Card style={{padding:0,overflow:'hidden'}}>
+            {enCurso.map((s,i)=>(
+              <div key={s.id} style={{borderBottom:i<enCurso.length-1?'1px solid #e4e4e7':'none'}}>
+                <ServiceRow s={s} onClick={()=>onSelect(s.id,informeMap[s.id].id)}
+                  badge={<Badge style={{background:'#eff6ff',color:'#2563eb',borderColor:'#bfdbfe'}}>✏️ En curso</Badge>} />
               </div>
             ))}
           </Card>
-        </>
+        </div>
+      )}
+
+      {enviados.length>0&&(
+        <div style={{marginBottom:24}}>
+          <SectionHeader label="Enviados" count={enviados.length} />
+          <Card style={{padding:0,overflow:'hidden'}}>
+            {enviados.map((s,i)=>(
+              <div key={s.id} style={{borderBottom:i<enviados.length-1?'1px solid #e4e4e7':'none'}}>
+                <ServiceRow s={s}
+                  onClick={informeMap[s.id]?()=>onViewInforme(informeMap[s.id].id):undefined}
+                  canClick={!!informeMap[s.id]} dim
+                  badge={<Badge variant="ok">✓ Enviado</Badge>} />
+              </div>
+            ))}
+          </Card>
+        </div>
       )}
     </div>
   );
 }
 
 /* ── FILL REPORT ───────────────────────────────────────────── */
-function FillReport({ servicioId, onBack }) {
+function FillReport({ servicioId, draftInformeId, onBack }) {
   const [servicio,setServicio] = useState(null);
   const [loading,setLoading] = useState(true);
   const [step,setStep] = useState(1); // 1=info read-only, 2=informe, 3=resumen
@@ -241,30 +273,42 @@ function FillReport({ servicioId, onBack }) {
   const [camData,setCamData] = useState({});
   const [saving,setSaving] = useState(false);
   const [saveError,setSaveError] = useState(null);
-  const [sent,setSent] = useState(false);
+  const [sent,setSent] = useState(false);      // informe enviado definitivamente
+  const [savedDraft,setSavedDraft] = useState(false); // borrador guardado
 
   useEffect(()=>{
-    apiFetch(`/api/servicios/${servicioId}`).then(r=>r.json()).then(data=>{
+    Promise.all([
+      apiFetch(`/api/servicios/${servicioId}`).then(r=>r.json()),
+      draftInformeId ? apiFetch(`/api/informes/${draftInformeId}`).then(r=>r.json()) : Promise.resolve(null),
+    ]).then(([data, draft])=>{
       setServicio(data);
-      // Inicializar logística
-      const logItems = {};
-      LOGISTICA_ITEMS.forEach(item => { logItems[item] = STATUS.OK; });
-      setLogistica({items:logItems, incidencias:""});
-      // Inicializar camData para las cámaras activas
+      // Inicializar camData pre-rellenando equipos desde cam_models del coordinador
       if (data.camaras_activas) {
         const initial = {};
         Object.entries(data.camaras_activas).forEach(([id,active])=>{
           if (active && CAMERA_CATALOG[id]) {
             const cam = CAMERA_CATALOG[id];
-            const equipos = {}; (cam.equipos||[]).forEach(s=>{equipos[s.key]="";});
-            initial[id] = { equipos, items:initItems(cam.items), incidencias:"" };
+            // Equipos pre-asignados por el coordinador (read-only para el técnico)
+            const equipos = data.cam_models?.[id] || {};
+            if(cam.equipos) cam.equipos.forEach(s=>{ if(!equipos[s.key]) equipos[s.key]=""; });
+            const items = draft?.cam_data?.[id]?.items || initItems(cam.items);
+            const incidencias = draft?.cam_data?.[id]?.incidencias || "";
+            initial[id] = { equipos, items, incidencias };
           }
         });
         setCamData(initial);
       }
+      // Restaurar logística del borrador si existe
+      if (draft?.logistica) {
+        setLogistica(draft.logistica);
+      } else {
+        const logItems = {};
+        LOGISTICA_ITEMS.forEach(item => { logItems[item] = STATUS.OK; });
+        setLogistica({items:logItems, incidencias:""});
+      }
       setLoading(false);
     }).catch(()=>setLoading(false));
-  },[servicioId]);
+  },[servicioId,draftInformeId]);
 
   const updateCamData = useCallback((camId,field,sub,val)=>{
     setCamData(prev=>{
@@ -292,15 +336,15 @@ function FillReport({ servicioId, onBack }) {
   };
   const {g,l} = countInc();
 
-  const handleSave = async () => {
+  const handleSave = async (draft=false) => {
     setSaving(true); setSaveError(null);
     try {
       const res = await apiFetch('/api/informes',{
         method:'POST',
-        body: JSON.stringify({ servicio_id:servicioId, logistica, camData, incidenciasGraves:g, incidenciasLeves:l })
+        body: JSON.stringify({ servicio_id:servicioId, logistica, camData, incidenciasGraves:g, incidenciasLeves:l, draft })
       });
       const data = await res.json();
-      if (data.ok) setSent(true);
+      if (data.ok) { if(draft) setSavedDraft(true); else setSent(true); }
       else setSaveError(data.error||'Error al guardar');
     } catch { setSaveError('Error de conexión'); }
     finally { setSaving(false); }
@@ -309,7 +353,7 @@ function FillReport({ servicioId, onBack }) {
   if (sent) return (
     <div style={{maxWidth:760,margin:'0 auto',padding:'80px 20px',textAlign:'center',display:'flex',flexDirection:'column',alignItems:'center',gap:12}}>
       <div style={{width:48,height:48,borderRadius:'50%',background:'#f0fdf4',border:'1px solid #bbf7d0',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22}}>✓</div>
-      <div style={{fontSize:18,fontWeight:600}}>Informe guardado</div>
+      <div style={{fontSize:18,fontWeight:600}}>Informe enviado</div>
       <div style={{fontSize:13,color:'#71717a'}}>{servicio.encuentro} · {servicio.jornada}</div>
       <div style={{display:'flex',gap:6,marginTop:4}}>
         {g>0&&<Badge variant="grave">⚠ {g} graves</Badge>}
@@ -362,12 +406,17 @@ function FillReport({ servicioId, onBack }) {
             <Card>
               <SecTitle>Operadores asignados</SecTitle>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
-                {OPERATOR_GROUPS.map(g=>g.roles.map(r=>{ const v=servicio.operadores[r.key]; if(!v) return null; return (
-                  <div key={r.key} style={{display:'flex',gap:8,padding:'6px 10px',background:'#fafafa',borderRadius:8,fontSize:12}}>
-                    <span style={{color:'#71717a',minWidth:90}}>{r.label}</span>
-                    <span style={{fontWeight:500}}>{v}</span>
-                  </div>
-                ); }))}
+                {OPERATOR_GROUPS.map(g=>g.roles.map(r=>{
+                  // Filtrar por cámara activa si el rol tiene cam
+                  if(r.cam&&!servicio.camaras_activas?.[r.cam]) return null;
+                  const v=servicio.operadores[r.key]; if(!v) return null;
+                  return (
+                    <div key={r.key} style={{display:'flex',gap:8,padding:'6px 10px',background:'#fafafa',borderRadius:8,fontSize:12}}>
+                      <span style={{color:'#71717a',minWidth:90}}>{r.label}</span>
+                      <span style={{fontWeight:500}}>{v}</span>
+                    </div>
+                  );
+                }))}
               </div>
             </Card>
           )}
@@ -414,13 +463,11 @@ function FillReport({ servicioId, onBack }) {
           </Card>
 
           {activeCams.map(([id,cam])=>{
-            const usedModels = new Set();
-            activeCams.forEach(([oid])=>{ if(oid===id) return; const od=camData[oid]; if(!od?.equipos) return; Object.values(od.equipos).forEach(m=>{if(m)usedModels.add(m);}); });
             const eqInit={}; (cam.equipos||[]).forEach(s=>{eqInit[s.key]="";});
             return (
               <CameraSection key={id} camId={id} cam={cam}
                 data={camData[id]||{equipos:eqInit,items:initItems(cam.items),incidencias:""}}
-                onChange={updateCamData} usedModels={usedModels} />
+                onChange={updateCamData} readOnly={true} />
             );
           })}
 
@@ -489,11 +536,17 @@ function FillReport({ servicioId, onBack }) {
           </Card>
 
           {saveError&&<div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,padding:'10px 14px',marginBottom:12,fontSize:13,color:'#dc2626'}}>{saveError}</div>}
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          {savedDraft&&<div style={{background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:8,padding:'10px 14px',marginBottom:12,fontSize:13,color:'#2563eb'}}>✓ Borrador guardado. Puedes cerrar y continuar más tarde.</div>}
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,flexWrap:'wrap'}}>
             <BtnO onClick={()=>setStep(2)}>← Revisar</BtnO>
-            <BtnP onClick={handleSave} style={{opacity:saving?0.6:1}} disabled={saving}>
-              {saving?'Guardando...':'Guardar informe'}
-            </BtnP>
+            <div style={{display:'flex',gap:8}}>
+              <BtnO onClick={()=>handleSave(true)} style={{opacity:saving?0.6:1}} disabled={saving}>
+                {saving?'Guardando...':'💾 Guardar borrador'}
+              </BtnO>
+              <BtnP onClick={()=>handleSave(false)} style={{opacity:saving?0.6:1}} disabled={saving}>
+                {saving?'Enviando...':'Enviar informe →'}
+              </BtnP>
+            </div>
           </div>
         </>
       )}
@@ -501,19 +554,120 @@ function FillReport({ servicioId, onBack }) {
   );
 }
 
+/* ── INFORME USUARIO VIEW (read-only) ──────────────────────── */
+function InformeUsuarioView({ informeId, onBack }) {
+  const [informe,setInforme] = useState(null);
+  const [loading,setLoading] = useState(true);
+
+  useEffect(()=>{
+    apiFetch(`/api/informes/${informeId}`).then(r=>r.json()).then(data=>{
+      setInforme(data); setLoading(false);
+    }).catch(()=>setLoading(false));
+  },[informeId]);
+
+  if (loading||!informe) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',fontSize:13,color:'#71717a'}}>Cargando...</div>;
+
+  const camData = informe.cam_data||{};
+  const activeCams = Object.entries(CAMERA_CATALOG).filter(([id])=>camData[id]);
+  const log = informe.logistica||{};
+
+  return (
+    <div style={{maxWidth:760,margin:'0 auto',padding:'28px 20px 80px'}}>
+      <div style={{marginBottom:20}}>
+        <h2 style={{fontSize:18,fontWeight:600,margin:0,marginBottom:4}}>{informe.encuentro||'Informe'}</h2>
+        <p style={{fontSize:13,color:'#71717a',margin:0}}>{informe.jornada} · {fmt(informe.fecha)} · <Badge variant="ok">✓ Enviado</Badge></p>
+      </div>
+
+      {/* Resumen incidencias */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:16}}>
+        {[
+          {label:'Secciones',v:(activeCams.length+1)},
+          {label:'Graves',v:informe.incidencias_graves||0,red:true},
+          {label:'Leves',v:informe.incidencias_leves||0,yel:true},
+        ].map(s=>(
+          <Card key={s.label} style={{padding:'14px 16px',marginBottom:0,textAlign:'center'}}>
+            <div style={{fontSize:22,fontWeight:700,fontFamily:"'Geist Mono',monospace",color:s.red?'#dc2626':s.yel?'#d97706':'#09090b'}}>{s.v}</div>
+            <div style={{fontSize:11,color:'#71717a',marginTop:2}}>{s.label}</div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Logística */}
+      {log.items&&Object.keys(log.items).length>0&&(
+        <Card style={{marginBottom:12}}>
+          <SecTitle>Logística</SecTitle>
+          <div style={{border:'1px solid #e4e4e7',borderRadius:8,overflow:'hidden'}}>
+            {Object.entries(log.items).map(([item,val],i,arr)=>(
+              <div key={item} style={{display:'flex',alignItems:'center',padding:'8px 12px',background:i%2===0?'#fff':'#fafafa',borderBottom:i<arr.length-1?'1px solid #e4e4e7':'none'}}>
+                <span style={{flex:1,fontSize:12}}>{item}</span>
+                <Badge variant={val==='G'?'grave':val==='L'?'leve':'ok'}>{val||'OK'}</Badge>
+              </div>
+            ))}
+          </div>
+          {log.incidencias&&<div style={{marginTop:8,fontSize:12,color:'#52525b',padding:'8px 12px',background:'#fafafa',borderRadius:6,border:'1px solid #e4e4e7'}}>{log.incidencias}</div>}
+        </Card>
+      )}
+
+      {/* Por cámara */}
+      {activeCams.map(([id,cam])=>{
+        const d=camData[id]; const items=d?.items||{};
+        const gv=Object.values(items).filter(v=>v==='G').length;
+        const lv=Object.values(items).filter(v=>v==='L').length;
+        // Modelos (equipos)
+        const eq=d?.equipos?Object.values(d.equipos).filter(Boolean).join(' · '):(d?.equipo||'');
+        return (
+          <Card key={id} style={{borderLeft:`3px solid ${cam.color}`,marginBottom:10}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10,flexWrap:'wrap'}}>
+              <span style={{fontSize:15}}>{cam.icon}</span>
+              <span style={{fontWeight:600,fontSize:13,flex:1}}>{cam.label}</span>
+              {eq&&<span style={{fontSize:11,color:'#71717a',fontFamily:"'Geist Mono',monospace"}}>{eq}</span>}
+              {gv>0&&<Badge variant="grave">⚠{gv}G</Badge>}
+              {lv>0&&<Badge variant="leve">↓{lv}L</Badge>}
+              {gv===0&&lv===0&&<Badge variant="ok">✓</Badge>}
+            </div>
+            {Object.keys(items).length>0&&(
+              <div style={{border:'1px solid #e4e4e7',borderRadius:6,overflow:'hidden',marginBottom:d?.incidencias?8:0}}>
+                {Object.entries(items).map(([item,val],i,arr)=>(
+                  <div key={item} style={{display:'flex',alignItems:'center',padding:'6px 10px',background:i%2===0?'#fff':'#fafafa',borderBottom:i<arr.length-1?'1px solid #e4e4e7':'none'}}>
+                    <span style={{flex:1,fontSize:11}}>{item}</span>
+                    <Badge variant={val==='G'?'grave':val==='L'?'leve':'ok'} style={{fontSize:10}}>{val||'OK'}</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+            {d?.incidencias&&<div style={{fontSize:12,color:'#52525b',padding:'6px 10px',background:'#fafafa',borderRadius:5,border:'1px solid #e4e4e7'}}>{d.incidencias}</div>}
+          </Card>
+        );
+      })}
+
+      <div style={{marginTop:20}}>
+        <BtnO onClick={onBack}>← Volver a mis servicios</BtnO>
+      </div>
+    </div>
+  );
+}
+
 /* ── USUARIO VIEW ROOT ─────────────────────────────────────── */
 export default function UsuarioView({ user, onLogout }) {
-  const [view,setView] = useState('list'); // 'list' | 'filling'
+  const [view,setView] = useState('list'); // 'list' | 'filling' | 'view_informe'
   const [selectedServicioId,setSelectedServicioId] = useState(null);
+  const [draftInformeId,setDraftInformeId] = useState(null);
+  const [viewInformeId,setViewInformeId] = useState(null);
 
-  const handleSelect = (id) => { setSelectedServicioId(id); setView('filling'); };
-  const handleBack = () => { setSelectedServicioId(null); setView('list'); };
+  const handleSelect = (servicioId, draftId) => {
+    setSelectedServicioId(servicioId);
+    setDraftInformeId(draftId||null);
+    setView('filling');
+  };
+  const handleViewInforme = (informeId) => { setViewInformeId(informeId); setView('view_informe'); };
+  const handleBack = () => { setSelectedServicioId(null); setDraftInformeId(null); setViewInformeId(null); setView('list'); };
 
   return (
     <div style={{minHeight:'100vh',background:'#fafafa'}}>
       <Header user={user} onLogout={onLogout} />
-      {view==='list'&&<ServiciosList onSelect={handleSelect} />}
-      {view==='filling'&&selectedServicioId&&<FillReport servicioId={selectedServicioId} onBack={handleBack} />}
+      {view==='list'&&<ServiciosList onSelect={handleSelect} onViewInforme={handleViewInforme} />}
+      {view==='filling'&&selectedServicioId&&<FillReport servicioId={selectedServicioId} draftInformeId={draftInformeId} onBack={handleBack} />}
+      {view==='view_informe'&&viewInformeId&&<InformeUsuarioView informeId={viewInformeId} onBack={handleBack} />}
     </div>
   );
 }

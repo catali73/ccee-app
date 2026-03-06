@@ -551,6 +551,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
   const [ligaJornada,setLigaJornada] = useState(initialData?.tipo_servicio==='liga'?initialData.jornada||'':"");
   const [ligaPartido,setLigaPartido] = useState(initialData?.tipo_servicio==='liga'?initialData.encuentro||'':"");
   const [selectedCams,setSelectedCams] = useState(initialData?.camaras_activas||{});
+  const [camModels,setCamModels] = useState(initialData?.cam_models||{});
   const [operators,setOperators] = useState({...initOperators(),...(initialData?.operadores||{})});
   const [assignedTo,setAssignedTo] = useState(initialData?.assigned_to?String(initialData.assigned_to):'');
   const [usuarios,setUsuarios] = useState([]);
@@ -610,7 +611,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
       const method = isEdit ? 'PUT' : 'POST';
       const res = await apiFetch(url, {
         method,
-        body: JSON.stringify({ match, selectedCams, operators, assigned_to: parseInt(assignedTo), tipo_servicio: tipoServicio })
+        body: JSON.stringify({ match, selectedCams, cam_models: camModels, operators, assigned_to: parseInt(assignedTo), tipo_servicio: tipoServicio })
       });
       const data = await res.json();
       if (data.ok) {
@@ -730,6 +731,39 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
             </div>
             {activeCams.length>0&&<><Sep /><div style={{display:'flex',flexWrap:'wrap',gap:6}}>{activeCams.map(([id,cam])=><Badge key={id} style={{borderColor:`${cam.color}44`,color:cam.color,background:`${cam.color}0d`}}>{cam.icon} {cam.label}</Badge>)}</div></>}
           </Card>
+          {/* Modelos de equipo: selección por el coordinador */}
+          {activeCams.some(([,cam])=>cam.equipos?.length>0)&&(
+            <Card>
+              <SecTitle>Modelos de equipo asignados</SecTitle>
+              <div style={{display:'flex',flexDirection:'column',gap:12}}>
+                {activeCams.filter(([,cam])=>cam.equipos?.length>0).map(([id,cam])=>{
+                  // usedModels: modelos ya elegidos en OTRAS cámaras
+                  const used=new Set();
+                  activeCams.forEach(([oid])=>{if(oid===id)return;const m=camModels[oid];if(!m)return;Object.values(m).forEach(v=>{if(v)used.add(v);});});
+                  return (
+                    <div key={id} style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',padding:'8px 0',borderBottom:'1px solid #f0f0f0'}}>
+                      <span style={{fontSize:13,minWidth:28}}>{cam.icon}</span>
+                      <span style={{fontSize:13,fontWeight:500,minWidth:90}}>{cam.label}</span>
+                      {cam.equipos.map(slot=>{
+                        const selVal=camModels[id]?.[slot.key]||'';
+                        const opts=slot.models.filter(m=>m===selVal||!used.has(m));
+                        return (
+                          <div key={slot.key} style={{display:'flex',alignItems:'center',gap:5,flex:'1 1 160px'}}>
+                            <Label style={{marginBottom:0,whiteSpace:'nowrap',minWidth:40,fontSize:11,color:'#71717a'}}>{slot.label}</Label>
+                            <Select style={{height:30,fontSize:12}} value={selVal}
+                              onChange={e=>setCamModels(p=>({...p,[id]:{...(p[id]||{}),[slot.key]:e.target.value}}))}>
+                              <option value="">— Sin asignar —</option>
+                              {opts.map(m=><option key={m} value={m}>{m}</option>)}
+                            </Select>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
           <div style={{display:'flex',justifyContent:'space-between'}}>
             <BtnO onClick={()=>setStep(1)}>← Atrás</BtnO>
             <BtnP style={{opacity:activeCams.length===0?0.45:1}} onClick={()=>activeCams.length>0&&setStep(3)}>Asignar operadores →</BtnP>
@@ -749,24 +783,29 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
           ):(
             <Card>
               <div style={{display:'flex',flexDirection:'column',gap:16}}>
-                {activeOpGroups.map(group=>(
-                  <div key={group.id}>
-                    <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10,paddingBottom:6,borderBottom:'1px solid #e4e4e7'}}>
-                      <span style={{fontSize:13}}>{group.icon}</span>
-                      <span style={{fontSize:11,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.06em'}}>{group.label}</span>
+                {activeOpGroups.map(group=>{
+                  // Filtrar roles por cámara activa (si el rol tiene campo cam)
+                  const visibleRoles=group.roles.filter(r=>!r.cam||selectedCams[r.cam]);
+                  if(visibleRoles.length===0) return null;
+                  return (
+                    <div key={group.id}>
+                      <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10,paddingBottom:6,borderBottom:'1px solid #e4e4e7'}}>
+                        <span style={{fontSize:13}}>{group.icon}</span>
+                        <span style={{fontSize:11,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.06em'}}>{group.label}</span>
+                      </div>
+                      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(210px,1fr))',gap:12}}>
+                        {visibleRoles.map(role=>(
+                          <Field key={role.key} label={role.label}>
+                            <Select value={operators[role.key]||''} onChange={e=>updateOp(role.key,e.target.value)}>
+                              <option value="">— Sin asignar —</option>
+                              {(PERSONAL[role.pool]||[]).map(p=><option key={p} value={p}>{p}</option>)}
+                            </Select>
+                          </Field>
+                        ))}
+                      </div>
                     </div>
-                    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(210px,1fr))',gap:12}}>
-                      {group.roles.map(role=>(
-                        <Field key={role.key} label={role.label}>
-                          <Select value={operators[role.key]||''} onChange={e=>updateOp(role.key,e.target.value)}>
-                            <option value="">— Sin asignar —</option>
-                            {(PERSONAL[role.pool]||[]).map(p=><option key={p} value={p}>{p}</option>)}
-                          </Select>
-                        </Field>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </Card>
           )}

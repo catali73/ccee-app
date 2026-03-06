@@ -67,27 +67,46 @@ const PERSONAL = {
 };
 
 /* ─── OPERATOR GROUPS — cada grupo sabe a qué cámaras pertenece ── */
+// cam: cámara específica del rol → el rol solo aparece si esa cámara está activa
+// Sin cam: rol aparece si cualquier cámara del grupo está activa
 const OPERATOR_GROUPS = [
   { id:"skycam",  label:"4SkyCam",         icon:"🚁", cams:["SKYCAM_4"],
     roles:[{key:"skycam_piloto",label:"Piloto",pool:"OP_SKYCAM"},{key:"skycam_operador",label:"Operador",pool:"OP_SKYCAM"},{key:"skycam_auxiliar",label:"Auxiliar",pool:"TEC_SKYCAM"}] },
   { id:"ar",      label:"AR Skycam",        icon:"🔮", cams:["AR_SKYCAM"],
     roles:[{key:"ar_tec1",label:"Técnico AR 1",pool:"TEC_AR"},{key:"ar_tec2",label:"Técnico AR 2",pool:"TEC_AR"}] },
   { id:"steady",  label:"Steadycam",        icon:"🎬", cams:["STEADY_L","STEADY_R","STEADY_PERSO"],
-    roles:[{key:"steady_l",label:"Steady L",pool:"STEADYCAM"},{key:"steady_r",label:"Steady R",pool:"STEADYCAM"},{key:"steady_perso",label:"Steady Perso",pool:"STEADYCAM"}] },
+    roles:[
+      {key:"steady_l",    label:"Steady L",     pool:"STEADYCAM", cam:"STEADY_L"},
+      {key:"steady_r",    label:"Steady R",     pool:"STEADYCAM", cam:"STEADY_R"},
+      {key:"steady_perso",label:"Steady Perso", pool:"STEADYCAM", cam:"STEADY_PERSO"},
+    ]},
   { id:"rf",      label:"RF",               icon:"📡", cams:["RF_L","RF_R","RF_PERSO"],
-    roles:[{key:"rf_l",label:"RF L",pool:"TEC_RF"},{key:"rf_r",label:"RF R",pool:"TEC_RF"},{key:"rf_perso",label:"RF Perso",pool:"TEC_RF"}] },
+    roles:[
+      {key:"rf_l",    label:"RF L",     pool:"TEC_RF", cam:"RF_L"},
+      {key:"rf_r",    label:"RF R",     pool:"TEC_RF", cam:"RF_R"},
+      {key:"rf_perso",label:"RF Perso", pool:"TEC_RF", cam:"RF_PERSO"},
+    ]},
   { id:"polecam", label:"Polecam",          icon:"🎯", cams:["POLECAM_L","POLECAM_R"],
-    roles:[{key:"polecam_l",label:"Polecam L",pool:"POLECAM"},{key:"polecam_r",label:"Polecam R",pool:"POLECAM"}] },
+    roles:[
+      {key:"polecam_l",label:"Polecam L",pool:"POLECAM", cam:"POLECAM_L"},
+      {key:"polecam_r",label:"Polecam R",pool:"POLECAM", cam:"POLECAM_R"},
+    ]},
   { id:"cinema",  label:"Cine / Foquista",  icon:"🎞", cams:["KIT_CINEMA_L","KIT_CINEMA_R"],
-    roles:[{key:"foquista_l",label:"Foquista L",pool:"FOQUISTA"},{key:"foquista_r",label:"Foquista R",pool:"FOQUISTA"}] },
-  { id:"drone",   label:"Drone",            icon:"🛸", cams:["DRONE_L","DRONE_R"],
+    roles:[
+      {key:"foquista_l",label:"Foquista L",pool:"FOQUISTA", cam:"KIT_CINEMA_L"},
+      {key:"foquista_r",label:"Foquista R",pool:"FOQUISTA", cam:"KIT_CINEMA_R"},
+    ]},
+  { id:"drone",   label:"Drone",            icon:"🛸", cams:["DRONE"],
     roles:[{key:"drone_piloto",label:"Piloto",pool:"DRONE_PILOTO"},{key:"drone_tec",label:"Técnico",pool:"DRONE_TEC"}] },
   { id:"bodycam", label:"Bodycam",          icon:"👕", cams:["BODYCAM"],
     roles:[{key:"bodycam",label:"Operador",pool:"BODYCAM"}] },
   { id:"minicams",label:"Minicams",         icon:"🔭", cams:["MINICAM_L","MINICAM_R"],
     roles:[{key:"minicams",label:"Operador",pool:"MINICAMS"}] },
   { id:"ptz",     label:"PTZ",              icon:"📹", cams:["PTZ_1","PTZ_2"],
-    roles:[{key:"ptz1_op",label:"PTZ 1 Operador",pool:"TEC_PTZ"},{key:"ptz2_op",label:"PTZ 2 Operador",pool:"TEC_PTZ"}] },
+    roles:[
+      {key:"ptz1_op",label:"PTZ 1 Operador",pool:"TEC_PTZ", cam:"PTZ_1"},
+      {key:"ptz2_op",label:"PTZ 2 Operador",pool:"TEC_PTZ", cam:"PTZ_2"},
+    ]},
   // OBVAN_CCEE: vehículo sin personal asignado, no aparece en operadores
 ];
 
@@ -168,10 +187,7 @@ const CAMERA_CATALOG = {
   KIT_CINEMA_R: { label:"Cinema R",     icon:"🎞", color:"#ec4899",
                   equipos:[{key:"cinema",label:"Cinema",models:M.CINEMA}],
                   items:["CAMARA","VAXIS","CINEFADE","MICROFONO","MOTORES","MANDO FOCO/IRIS/FILTRO","REMOTO OCP"] },
-  DRONE_L:      { label:"Drone L",      icon:"🛸", color:"#64748b",
-                  equipos:[{key:"drone",label:"Drone",models:[]}],
-                  items:["DRONE","BATERIAS","CONTROLADOR","MONITOR FPV","FILTROS","ACCESORIOS","WALKIES","DOCUMENTACIÓN"] },
-  DRONE_R:      { label:"Drone R",      icon:"🛸", color:"#64748b",
+  DRONE:        { label:"Drone",        icon:"🛸", color:"#64748b",
                   equipos:[{key:"drone",label:"Drone",models:[]}],
                   items:["DRONE","BATERIAS","CONTROLADOR","MONITOR FPV","FILTROS","ACCESORIOS","WALKIES","DOCUMENTACIÓN"] },
   BODYCAM:      { label:"Bodycam",      icon:"👕", color:"#14b8a6",
@@ -270,15 +286,22 @@ function CameraToggle({ id,cam,selected,onToggle }) {
 }
 
 /* ─── CAMERA SECTION ──────────────────────────────────────── */
-function CameraSection({ camId,cam,data,onChange,usedModels }) {
+function CameraSection({ camId,cam,data,onChange,usedModels,readOnly }) {
   const equipos = cam.equipos||[];
+  const hasEquipos = equipos.length>0;
   return (
     <Card style={{borderLeft:`3px solid ${cam.color}`}}>
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:equipos.length>0?8:14}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:hasEquipos?8:14,flexWrap:"wrap"}}>
         <span style={{fontSize:16}}>{cam.icon}</span>
         <div style={{flex:1}}><div style={{fontSize:14,fontWeight:600}}>{cam.label}</div></div>
+        {/* Modo read-only: mostrar modelos como badges en el header */}
+        {readOnly&&hasEquipos&&equipos.map(slot=>{
+          const val=data.equipos?.[slot.key];
+          return val?<Badge key={slot.key} style={{fontSize:10,fontFamily:"'Geist Mono',monospace"}}>{slot.label}: {val}</Badge>:null;
+        })}
       </div>
-      {equipos.length>0&&(
+      {/* Selects de modelo SOLO en modo edición (coordinador) */}
+      {!readOnly&&hasEquipos&&(
         <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>
           {equipos.map(slot=>{
             const selVal = data.equipos?.[slot.key]||"";

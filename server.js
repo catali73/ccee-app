@@ -122,6 +122,11 @@ async function initDB() {
   // Añadir columnas a informes si no existen (sin romper datos existentes)
   await pool.query(`ALTER TABLE informes ADD COLUMN IF NOT EXISTS servicio_id  INTEGER REFERENCES servicios(id)`)
   await pool.query(`ALTER TABLE informes ADD COLUMN IF NOT EXISTS submitted_by INTEGER REFERENCES users(id)`)
+  await pool.query(`ALTER TABLE informes ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'enviado'`)
+  await pool.query(`UPDATE informes SET status='enviado' WHERE status IS NULL`)
+
+  // cam_models: modelos de equipo seleccionados por el coordinador
+  await pool.query(`ALTER TABLE servicios ADD COLUMN IF NOT EXISTS cam_models JSONB DEFAULT '{}'::jsonb`)
 
   console.log('✓ Base de datos lista')
 
@@ -233,13 +238,13 @@ app.patch('/api/users/:id/activate', requireAuth(['coordinador']), async (req, r
 // Crear servicio (coordinador: pasos 1-3 + asignación)
 app.post('/api/servicios', requireAuth(['coordinador']), async (req, res) => {
   try {
-    const { match, selectedCams, operators, assigned_to, tipo_servicio } = req.body
+    const { match, selectedCams, operators, assigned_to, tipo_servicio, cam_models } = req.body
     const r = await pool.query(`
       INSERT INTO servicios (
         tipo_servicio, jornada, encuentro, fecha, hora_partido, hora_citacion,
         responsable, um, jefe_tecnico, realizador, productor, horario_md1,
-        operadores, camaras_activas, assigned_to, created_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+        operadores, camaras_activas, cam_models, assigned_to, created_by
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
       RETURNING id
     `, [
       tipo_servicio,
@@ -248,6 +253,7 @@ app.post('/api/servicios', requireAuth(['coordinador']), async (req, res) => {
       match.responsable, match.um, match.jefe_tecnico,
       match.realizador, match.productor, match.horario_md1,
       JSON.stringify(operators), JSON.stringify(selectedCams),
+      JSON.stringify(cam_models || {}),
       assigned_to, req.user.id
     ])
     res.json({ ok: true, id: r.rows[0].id })
@@ -309,10 +315,12 @@ app.get('/api/servicios/:id', requireAuth(), async (req, res) => {
 
 // ── INFORMES ROUTES ────────────────────────────────────────
 
-// Guardar informe (usuario, ligado a un servicio)
+// Guardar informe (usuario, ligado a un servicio — soporta draft/borrador)
 app.post('/api/informes', requireAuth(['usuario']), async (req, res) => {
   try {
-    const { servicio_id, logistica, camData, incidenciasGraves, incidenciasLeves } = req.body
+    const { servicio_id, logistica, camData, incidenciasGraves, incidenciasLeves, draft } = req.body
+    const isDraft = !!draft
+    const newStatus = isDraft ? 'borrador' : 'enviado'
 
     // Verificar que el servicio está asignado a este usuario
     const sv = await pool.query(
@@ -324,44 +332,71 @@ app.post('/api/informes', requireAuth(['usuario']), async (req, res) => {
     }
     const s = sv.rows[0]
 
-    const result = await pool.query(`
-      INSERT INTO informes (
-        jornada, encuentro, fecha, hora_partido, hora_citacion,
-        responsable, um, jefe_tecnico, realizador, productor, horario_md1,
-        operadores, camaras_activas, logistica, cam_data,
-        incidencias_graves, incidencias_leves,
-        servicio_id, submitted_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
-      RETURNING id
-    `, [
-      s.jornada, s.encuentro, s.fecha, s.hora_partido, s.hora_citacion,
-      s.responsable, s.um, s.jefe_tecnico, s.realizador, s.productor, s.horario_md1,
-      s.operadores, s.camaras_activas,
-      JSON.stringify(logistica), JSON.stringify(camData),
-      incidenciasGraves, incidenciasLeves,
-      servicio_id, req.user.id
-    ])
+    // Upsert: si ya existe un borrador para este servicio+usuario, actualizarlo
+    const existing = await pool.query(
+      "SELECT id FROM informes WHERE servicio_id=$1 AND submitted_by=$2 AND status='borrador'",
+      [servicio_id, req.user.id]
+    )
 
-    // Marcar servicio como completado
-    await pool.query("UPDATE servicios SET status = 'completado' WHERE id = $1", [servicio_id])
+    let informeId
+    if (existing.rows.length > 0) {
+      // Actualizar borrador existente
+      const upd = await pool.query(`
+        UPDATE informes SET
+          logistica=$1, cam_data=$2, incidencias_graves=$3, incidencias_leves=$4, status=$5
+        WHERE id=$6 RETURNING id
+      `, [
+        JSON.stringify(logistica), JSON.stringify(camData),
+        incidenciasGraves, incidenciasLeves, newStatus,
+        existing.rows[0].id
+      ])
+      informeId = upd.rows[0].id
+    } else {
+      // Crear nuevo informe
+      const result = await pool.query(`
+        INSERT INTO informes (
+          jornada, encuentro, fecha, hora_partido, hora_citacion,
+          responsable, um, jefe_tecnico, realizador, productor, horario_md1,
+          operadores, camaras_activas, logistica, cam_data,
+          incidencias_graves, incidencias_leves,
+          servicio_id, submitted_by, status
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+        RETURNING id
+      `, [
+        s.jornada, s.encuentro, s.fecha, s.hora_partido, s.hora_citacion,
+        s.responsable, s.um, s.jefe_tecnico, s.realizador, s.productor, s.horario_md1,
+        s.operadores, s.camaras_activas,
+        JSON.stringify(logistica), JSON.stringify(camData),
+        incidenciasGraves, incidenciasLeves,
+        servicio_id, req.user.id, newStatus
+      ])
+      informeId = result.rows[0].id
+    }
 
-    res.json({ ok: true, id: result.rows[0].id })
+    // Solo marcar como completado si es envío definitivo
+    if (!isDraft) {
+      await pool.query("UPDATE servicios SET status='completado' WHERE id=$1", [servicio_id])
+    }
+
+    res.json({ ok: true, id: informeId })
   } catch (err) {
     console.error(err)
     res.status(500).json({ ok: false, error: err.message })
   }
 })
 
-// Listar informes (coordinador: todos · usuario: solo los suyos)
+// Listar informes (coordinador: solo enviados · usuario: todos los suyos incl. borradores)
 app.get('/api/informes', requireAuth(), async (req, res) => {
   try {
     let query = `
       SELECT id, jornada, encuentro, fecha, hora_partido,
              responsable, um, incidencias_graves, incidencias_leves,
-             created_at, servicio_id, submitted_by
+             created_at, servicio_id, submitted_by, status
       FROM informes`
     const params = []
-    if (req.user.role === 'usuario') {
+    if (req.user.role === 'coordinador') {
+      query += " WHERE status='enviado'"
+    } else {
       query += ' WHERE submitted_by = $1'
       params.push(req.user.id)
     }
@@ -391,13 +426,14 @@ app.get('/api/informes/:id', requireAuth(), async (req, res) => {
 // Actualizar servicio (coordinador)
 app.put('/api/servicios/:id', requireAuth(['coordinador']), async (req, res) => {
   try {
-    const { match, selectedCams, operators, assigned_to, tipo_servicio } = req.body
+    const { match, selectedCams, operators, assigned_to, tipo_servicio, cam_models } = req.body
     await pool.query(`
       UPDATE servicios SET
         tipo_servicio=$1, jornada=$2, encuentro=$3, fecha=$4, hora_partido=$5,
         hora_citacion=$6, responsable=$7, um=$8, jefe_tecnico=$9, realizador=$10,
-        productor=$11, horario_md1=$12, operadores=$13, camaras_activas=$14, assigned_to=$15
-      WHERE id=$16
+        productor=$11, horario_md1=$12, operadores=$13, camaras_activas=$14,
+        cam_models=$15, assigned_to=$16
+      WHERE id=$17
     `, [
       tipo_servicio,
       match.jornada, match.encuentro, match.fecha || null,
@@ -405,6 +441,7 @@ app.put('/api/servicios/:id', requireAuth(['coordinador']), async (req, res) => 
       match.responsable, match.um, match.jefe_tecnico,
       match.realizador, match.productor, match.horario_md1,
       JSON.stringify(operators), JSON.stringify(selectedCams),
+      JSON.stringify(cam_models || {}),
       assigned_to, req.params.id
     ])
     res.json({ ok: true })
