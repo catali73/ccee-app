@@ -8,6 +8,21 @@ import {
 /* ── helpers ── */
 const fmt = (d) => d ? new Date(d).toLocaleDateString('es-ES') : '—';
 
+/* ── HOJA DE SERVICIO PDF (descarga directa, igual que usuario) ── */
+async function downloadHojaPDF(servicioId, encuentro) {
+  try {
+    const res = await apiFetch(`/api/servicios/${servicioId}/hoja-pdf`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `hoja-servicio-${(encuentro||'servicio').replace(/[^\w]/g,'-')}.pdf`;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 500);
+  } catch { alert('Error generando PDF'); }
+}
+
 /* ── PDF GENERATOR ─────────────────────────────────────────── */
 function generatePDF(informe) {
   const fmtD = (d) => d ? new Date(d).toLocaleDateString('es-ES') : '—';
@@ -493,6 +508,9 @@ function CoordDashboard({ onNewServicio, onManageUsers, onEditServicio }) {
                   </div>
                 </div>
                 <Badge style={{background:'#fffbeb',color:'#d97706',borderColor:'#fde68a'}}>⏳ Pendiente</Badge>
+                <button onClick={e=>{e.stopPropagation();downloadHojaPDF(s.id,s.encuentro);}}
+                  title="Descargar hoja de servicio"
+                  style={{border:'1px solid #e4e4e7',borderRadius:6,background:'#fafafa',padding:'3px 8px',fontSize:11,cursor:'pointer',color:'#52525b',lineHeight:1.4,flexShrink:0}}>📄</button>
                 <span onClick={()=>onEditServicio(s.id)} style={{color:'#71717a',fontSize:16,cursor:'pointer'}}>✏</span>
                 <button onClick={e=>{e.stopPropagation();handleDeleteServicio(s.id);}}
                   style={{border:'1px solid #fecaca',borderRadius:6,background:'#fff5f5',padding:'3px 8px',fontSize:11,cursor:'pointer',color:'#dc2626',lineHeight:1.4,flexShrink:0}}>✕</button>
@@ -593,13 +611,24 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
   const firstRender = useRef(true);
 
   const [todosUsuarios,setTodosUsuarios] = useState([]);
+  const [personalTecnico,setPersonalTecnico] = useState([]);
   useEffect(()=>{
     apiFetch('/api/users').then(r=>r.json()).then(data=>{
       const activos = Array.isArray(data)?data.filter(u=>u.active):[];
       setTodosUsuarios(activos);
       setUsuarios(activos.filter(u=>u.role==='usuario'));
     }).catch(()=>{});
+    apiFetch('/api/personal-tecnico').then(r=>r.json()).then(data=>{
+      setPersonalTecnico(Array.isArray(data)?data:[]);
+    }).catch(()=>{});
   },[]);
+
+  // Auto-rellena el teléfono cuando se selecciona un nombre conocido
+  const handlePersonalNombre = (campo, telCampo, valor) => {
+    setMatch(m=>({...m,[campo]:valor}));
+    const found = personalTecnico.find(p=>p.rol===campo&&p.nombre.toLowerCase()===valor.toLowerCase());
+    if (found?.telefono) setMatch(m=>({...m,[telCampo]:found.telefono}));
+  };
 
   useEffect(()=>{ if(tipoServicio==='liga'&&ligaJornada&&ligaPartido) setMatch(p=>({...p,jornada:ligaJornada,encuentro:ligaPartido})); },[ligaJornada,ligaPartido,tipoServicio]);
   useEffect(()=>{
@@ -727,11 +756,29 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
                 </Select>
               </Field>
               <Field label="Unidad Móvil"><Input value={match.um} onChange={e=>setMatch({...match,um:e.target.value})} /></Field>
-              <Field label="J. Técnico UM"><Input value={match.jefe_tecnico} onChange={e=>setMatch({...match,jefe_tecnico:e.target.value})} /></Field>
+              <Field label="J. Técnico UM">
+                <Input list="dt-jefe_tecnico" value={match.jefe_tecnico}
+                  onChange={e=>handlePersonalNombre('jefe_tecnico','tel_jefe_tecnico',e.target.value)} />
+                <datalist id="dt-jefe_tecnico">
+                  {personalTecnico.filter(p=>p.rol==='jefe_tecnico').map(p=><option key={p.id} value={p.nombre}/>)}
+                </datalist>
+              </Field>
               <Field label="Teléfono J. Técnico UM"><Input type="tel" placeholder="Ej: 612 345 678" value={match.tel_jefe_tecnico} onChange={e=>setMatch({...match,tel_jefe_tecnico:e.target.value})} /></Field>
-              <Field label="Realizador"><Input value={match.realizador} onChange={e=>setMatch({...match,realizador:e.target.value})} /></Field>
+              <Field label="Realizador">
+                <Input list="dt-realizador" value={match.realizador}
+                  onChange={e=>handlePersonalNombre('realizador','tel_realizador',e.target.value)} />
+                <datalist id="dt-realizador">
+                  {personalTecnico.filter(p=>p.rol==='realizador').map(p=><option key={p.id} value={p.nombre}/>)}
+                </datalist>
+              </Field>
               <Field label="Teléfono Realizador"><Input type="tel" placeholder="Ej: 612 345 678" value={match.tel_realizador} onChange={e=>setMatch({...match,tel_realizador:e.target.value})} /></Field>
-              <Field label="Productor"><Input value={match.productor} onChange={e=>setMatch({...match,productor:e.target.value})} /></Field>
+              <Field label="Productor">
+                <Input list="dt-productor" value={match.productor}
+                  onChange={e=>handlePersonalNombre('productor','tel_productor',e.target.value)} />
+                <datalist id="dt-productor">
+                  {personalTecnico.filter(p=>p.rol==='productor').map(p=><option key={p.id} value={p.nombre}/>)}
+                </datalist>
+              </Field>
               <Field label="Teléfono Productor"><Input type="tel" placeholder="Ej: 612 345 678" value={match.tel_productor} onChange={e=>setMatch({...match,tel_productor:e.target.value})} /></Field>
             </div>
           </Card>

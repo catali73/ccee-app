@@ -180,6 +180,18 @@ async function initDB() {
   await pool.query(`ALTER TABLE servicios ADD COLUMN IF NOT EXISTS tel_realizador VARCHAR(50) DEFAULT ''`)
   await pool.query(`ALTER TABLE servicios ADD COLUMN IF NOT EXISTS tel_productor VARCHAR(50) DEFAULT ''`)
 
+  // Directorio de personal técnico reutilizable
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS personal_tecnico (
+      id         SERIAL PRIMARY KEY,
+      rol        VARCHAR(20) NOT NULL CHECK (rol IN ('jefe_tecnico','realizador','productor')),
+      nombre     VARCHAR(100) NOT NULL,
+      telefono   VARCHAR(50) DEFAULT '',
+      updated_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE (rol, nombre)
+    )
+  `)
+
   console.log('✓ Base de datos lista')
 
   // Bootstrap: crear coordinador inicial si no hay usuarios
@@ -285,6 +297,28 @@ app.patch('/api/users/:id/activate', requireAuth(['coordinador']), async (req, r
   }
 })
 
+// ── PERSONAL TÉCNICO ROUTES ────────────────────────────────
+
+// Listar personal técnico (coordinador)
+app.get('/api/personal-tecnico', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM personal_tecnico ORDER BY rol, nombre ASC')
+    res.json(r.rows)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Helper: upsert one personal técnico entry (called internally on service save)
+async function upsertPersonalTecnico(rol, nombre, telefono) {
+  if (!nombre?.trim()) return
+  await pool.query(`
+    INSERT INTO personal_tecnico (rol, nombre, telefono, updated_at)
+    VALUES ($1, $2, $3, NOW())
+    ON CONFLICT (rol, nombre) DO UPDATE SET telefono=$3, updated_at=NOW()
+  `, [rol, nombre.trim(), telefono || ''])
+}
+
 // ── SERVICIOS ROUTES ───────────────────────────────────────
 
 // Crear servicio (coordinador: pasos 1-3 + asignación)
@@ -309,6 +343,12 @@ app.post('/api/servicios', requireAuth(['coordinador']), async (req, res) => {
       JSON.stringify(operators), JSON.stringify(selectedCams),
       JSON.stringify(cam_models || {}),
       assigned_to, req.user.id
+    ])
+    // Guardar/actualizar directorio de personal técnico para reutilización futura
+    await Promise.all([
+      upsertPersonalTecnico('jefe_tecnico', match.jefe_tecnico, match.tel_jefe_tecnico),
+      upsertPersonalTecnico('realizador',   match.realizador,   match.tel_realizador),
+      upsertPersonalTecnico('productor',    match.productor,    match.tel_productor),
     ])
     res.json({ ok: true, id: r.rows[0].id })
   } catch (err) {
@@ -665,6 +705,12 @@ app.put('/api/servicios/:id', requireAuth(['coordinador']), async (req, res) => 
       JSON.stringify(operators), JSON.stringify(selectedCams),
       JSON.stringify(cam_models || {}),
       assigned_to, req.params.id
+    ])
+    // Actualizar directorio de personal técnico
+    await Promise.all([
+      upsertPersonalTecnico('jefe_tecnico', match.jefe_tecnico, match.tel_jefe_tecnico),
+      upsertPersonalTecnico('realizador',   match.realizador,   match.tel_realizador),
+      upsertPersonalTecnico('productor',    match.productor,    match.tel_productor),
     ])
     res.json({ ok: true })
   } catch (err) {
