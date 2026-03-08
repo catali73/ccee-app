@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import AnalisisView from "./AnalisisView.jsx";
 import {
   apiFetch, Input, Select, Textarea, Label, Card, SecTitle, BtnP, BtnO, Badge,
   Field, Sep, Steps, StatusToggle, CameraToggle, CameraSection, initItems, STATUS,
@@ -132,6 +133,7 @@ function Header({ user, onLogout, view, setView }) {
     { id:'dashboard', label:'Dashboard' },
     { id:'new-servicio', label:'+ Nuevo servicio' },
     { id:'users', label:'Usuarios' },
+    { id:'analisis', label:'Análisis' },
   ];
   return (
     <header style={{background:'#fff',borderBottom:'1px solid #e4e4e7',position:'sticky',top:0,zIndex:100}}>
@@ -1139,6 +1141,9 @@ export default function CoordView({ user, onLogout }) {
       )}
       {view==='users'&&(
         <UserManagement currentUser={user} />
+      )}
+      {view==='analisis'&&(
+        <AnalisisView />
       )}
     </div>
   );

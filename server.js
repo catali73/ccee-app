@@ -8,6 +8,7 @@ import jwt from 'jsonwebtoken'
 
 const require = createRequire(import.meta.url)
 const PDFDocument = require('pdfkit')
+const XLSX = require('xlsx')
 
 // ── LOOKUP TABLES FOR HOJA-PDF (mirror App.jsx CAMERA_CATALOG / OPERATOR_GROUPS) ──
 const CAMERA_ORDER = [
@@ -811,6 +812,126 @@ app.get('/api/stats', requireAuth(['coordinador']), async (req, res) => {
       ultimos: ultimos.rows
     })
   } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ── ANALISIS ROUTES ─────────────────────────────────────────
+
+// Obtener todos los informes enviados para análisis (coordinador)
+app.get('/api/analisis', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT i.*, u.username as submitted_by_name
+      FROM informes i
+      LEFT JOIN users u ON u.id = i.submitted_by
+      WHERE i.status = 'enviado'
+      ORDER BY i.jornada ASC, i.created_at ASC
+    `)
+    res.json(r.rows)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Exportar informes a Excel (coordinador)
+app.post('/api/analisis/export', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const { ids } = req.body
+    let query
+    let params = []
+    if (ids && ids.length > 0) {
+      const placeholders = ids.map((_, i) => `$${i + 1}`).join(',')
+      query = `
+        SELECT i.*, u.username as submitted_by_name
+        FROM informes i
+        LEFT JOIN users u ON u.id = i.submitted_by
+        WHERE i.id IN (${placeholders}) AND i.status = 'enviado'
+        ORDER BY i.jornada ASC, i.created_at ASC
+      `
+      params = ids
+    } else {
+      query = `
+        SELECT i.*, u.username as submitted_by_name
+        FROM informes i
+        LEFT JOIN users u ON u.id = i.submitted_by
+        WHERE i.status = 'enviado'
+        ORDER BY i.jornada ASC, i.created_at ASC
+      `
+    }
+    const r = await pool.query(query, params)
+    const informes = r.rows
+
+    // Hoja 1: resumen por informe
+    const resumen = informes.map(inf => ({
+      'Jornada':           inf.jornada || '',
+      'Encuentro':         inf.encuentro || '',
+      'Fecha':             inf.fecha ? new Date(inf.fecha).toLocaleDateString('es-ES') : '',
+      'UM':                inf.um || '',
+      'Técnico':           inf.submitted_by_name || '',
+      'Jefe Técnico UM':   inf.jefe_tecnico || '',
+      'Realizador':        inf.realizador || '',
+      'Productor':         inf.productor || '',
+      'Incidencias Graves': inf.incidencias_graves || 0,
+      'Incidencias Leves':  inf.incidencias_leves || 0,
+    }))
+
+    // Hoja 2: detalle por cámara
+    const porCamara = []
+    for (const inf of informes) {
+      const camData = inf.cam_data || {}
+      const camarasActivas = inf.camaras_activas || {}
+      for (const [camId, activa] of Object.entries(camarasActivas)) {
+        if (!activa) continue
+        const cam = camData[camId] || {}
+        const modelo = (inf.cam_models || {})[camId] || {}
+        const modeloStr = Object.values(modelo).filter(Boolean).join(', ')
+        const items = cam.items || {}
+        const incidencias = cam.incidencias || []
+        const itemsKO = Object.entries(items).filter(([, v]) => v === 'KO').map(([k]) => k).join(', ')
+        porCamara.push({
+          'Jornada':     inf.jornada || '',
+          'Encuentro':   inf.encuentro || '',
+          'UM':          inf.um || '',
+          'Técnico':     inf.submitted_by_name || '',
+          'Cámara':      CAMERA_LABELS[camId] || camId,
+          'Modelo':      modeloStr,
+          'Items KO':    itemsKO,
+          'Incidencias': incidencias.length,
+          'Detalle Incidencias': incidencias.map(i => `[${i.tipo || ''}] ${i.texto || ''}`).join(' | '),
+        })
+      }
+    }
+
+    // Hoja 3: detalle por operador
+    const porOperador = []
+    for (const inf of informes) {
+      const operadores = inf.operadores || {}
+      for (const rol of OPERATOR_ROLES_ORDERED) {
+        const nombre = operadores[rol.key]
+        if (!nombre) continue
+        porOperador.push({
+          'Jornada':   inf.jornada || '',
+          'Encuentro': inf.encuentro || '',
+          'UM':        inf.um || '',
+          'Técnico':   inf.submitted_by_name || '',
+          'Rol':       rol.label,
+          'Operador':  nombre,
+        })
+      }
+    }
+
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumen),      'Informes')
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(porCamara),    'Por Cámara')
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(porOperador),  'Operadores')
+
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
+    res.setHeader('Content-Disposition', 'attachment; filename="analisis-ccee.xlsx"')
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    res.send(buf)
+  } catch (err) {
+    console.error(err)
     res.status(500).json({ error: err.message })
   }
 })
