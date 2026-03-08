@@ -822,7 +822,7 @@ app.get('/api/stats', requireAuth(['coordinador']), async (req, res) => {
 app.get('/api/analisis', requireAuth(['coordinador']), async (req, res) => {
   try {
     const r = await pool.query(`
-      SELECT i.*, u.username as submitted_by_name
+      SELECT i.*, u.name as submitted_by_name
       FROM informes i
       LEFT JOIN users u ON u.id = i.submitted_by
       WHERE i.status = 'enviado'
@@ -843,7 +843,7 @@ app.post('/api/analisis/export', requireAuth(['coordinador']), async (req, res) 
     if (ids && ids.length > 0) {
       const placeholders = ids.map((_, i) => `$${i + 1}`).join(',')
       query = `
-        SELECT i.*, u.username as submitted_by_name
+        SELECT i.*, u.name as submitted_by_name
         FROM informes i
         LEFT JOIN users u ON u.id = i.submitted_by
         WHERE i.id IN (${placeholders}) AND i.status = 'enviado'
@@ -852,7 +852,7 @@ app.post('/api/analisis/export', requireAuth(['coordinador']), async (req, res) 
       params = ids
     } else {
       query = `
-        SELECT i.*, u.username as submitted_by_name
+        SELECT i.*, u.name as submitted_by_name
         FROM informes i
         LEFT JOIN users u ON u.id = i.submitted_by
         WHERE i.status = 'enviado'
