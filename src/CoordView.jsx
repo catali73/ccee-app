@@ -82,7 +82,7 @@ h2{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
 .cv{font-size:11px;font-weight:600}
 table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px}
 td{border:1px solid #e5e5e5;padding:5px 9px}
-tr:nth-child(even) td{background:#fafafa}
+tr:nth-child(even) td{background:#F5F0EC}
 .cam-block{border:1px solid #ddd;border-radius:6px;overflow:hidden;margin-bottom:10px;page-break-inside:avoid}
 .cam-head{background:#f0f0f0;padding:7px 11px;display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:12px}
 .ic-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));border-top:1px solid #e5e5e5}
@@ -136,35 +136,45 @@ function Header({ user, onLogout, view, setView }) {
     { id:'analisis', label:'Análisis' },
   ];
   return (
-    <header style={{background:'#fff',borderBottom:'1px solid #e4e4e7',position:'sticky',top:0,zIndex:100}}>
-      <div style={{maxWidth:1100,margin:'0 auto',padding:'0 20px',height:56,display:'flex',alignItems:'center',gap:16}}>
+    <header style={{background:'#1A1A1A',borderBottom:'3px solid #E8392C',position:'sticky',top:0,zIndex:100}}>
+      <div style={{maxWidth:1100,margin:'0 auto',padding:'0 20px',height:58,display:'flex',alignItems:'center',gap:16}}>
+        {/* Logo MEDIAPRO */}
         <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <div style={{width:28,height:28,borderRadius:6,background:'#18181b',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14}}>📷</div>
+          <div style={{width:32,height:32,borderRadius:6,background:'#E8392C',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0}}>📷</div>
           <div>
-            <div style={{fontSize:13,fontWeight:600,lineHeight:1.2}}>MEDIAPRO · CCEE</div>
-            <div style={{fontSize:10,color:'#71717a',lineHeight:1.2}}>Cámaras Especiales</div>
+            <div style={{fontSize:13,fontWeight:700,lineHeight:1.2,color:'#fff',letterSpacing:'0.05em',fontFamily:"'Montserrat',-apple-system,sans-serif"}}>MEDIAPRO</div>
+            <div style={{fontSize:9,color:'#C2B9AD',lineHeight:1.2,letterSpacing:'0.14em',textTransform:'uppercase',fontFamily:"'Montserrat',-apple-system,sans-serif"}}>Cámaras Especiales</div>
           </div>
         </div>
         <div style={{flex:1}} />
+        {/* Nav tabs */}
         <nav style={{display:'flex',gap:2}}>
           {tabs.map(t=>(
             <button key={t.id} onClick={()=>setView(t.id)}
-              style={{padding:'0 12px',height:32,borderRadius:8,fontSize:12,fontWeight:500,cursor:'pointer',border:'none',background:view===t.id?'#f4f4f5':'transparent',color:view===t.id?'#09090b':'#71717a',transition:'all 0.12s'}}>
+              style={{
+                padding:'0 14px',height:34,borderRadius:6,fontSize:12,fontWeight:600,cursor:'pointer',
+                fontFamily:"'Montserrat',-apple-system,sans-serif",border:'none',
+                background:view===t.id?'#E8392C':'transparent',
+                color:view===t.id?'#fff':'#C2B9AD',
+                transition:'all 0.15s',
+              }}
+              onMouseEnter={e=>{if(view!==t.id)e.currentTarget.style.color='#fff';}}
+              onMouseLeave={e=>{if(view!==t.id)e.currentTarget.style.color='#C2B9AD';}}>
               {t.label}
             </button>
           ))}
         </nav>
-        <div style={{width:1,height:20,background:'#e4e4e7'}} />
-        <Badge>{user.name}</Badge>
-        <BtnO onClick={onLogout} style={{height:28,fontSize:12,padding:'0 10px'}}>Salir</BtnO>
+        <div style={{width:1,height:20,background:'#444'}} />
+        <span style={{fontSize:12,color:'#C2B9AD',fontFamily:"'Montserrat',-apple-system,sans-serif",fontWeight:500}}>{user.name}</span>
+        <button onClick={onLogout} style={{height:28,fontSize:11,padding:'0 12px',borderRadius:6,border:'1px solid #555',background:'transparent',color:'#C2B9AD',cursor:'pointer',fontFamily:"'Montserrat',-apple-system,sans-serif",fontWeight:500}}>Salir</button>
       </div>
     </header>
   );
 }
 
 /* ── INFORME MODAL ─────────────────────────────────────────── */
-const STATUS_COLOR = { OK:'#16a34a', G:'#dc2626', L:'#d97706', '—':'#71717a' };
-const STATUS_BG    = { OK:'#f0fdf4', G:'#fef2f2', L:'#fffbeb', '—':'#f4f4f5' };
+const STATUS_COLOR = { OK:'#16a34a', G:'#dc2626', L:'#d97706', '—':'#7A7168' };
+const STATUS_BG    = { OK:'#f0fdf4', G:'#fef2f2', L:'#fffbeb', '—':'#EDE8E4' };
 
 function InformeModal({ informe, onClose, onDeleted }) {
   const [deleting, setDeleting] = useState(false);
@@ -188,10 +198,10 @@ function InformeModal({ informe, onClose, onDeleted }) {
       <div onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:12,width:'100%',maxWidth:760,boxShadow:'0 20px 60px rgba(0,0,0,0.2)',marginBottom:40}}>
 
         {/* Header */}
-        <div style={{display:'flex',alignItems:'center',gap:12,padding:'18px 20px',borderBottom:'1px solid #e4e4e7',position:'sticky',top:0,background:'#fff',borderRadius:'12px 12px 0 0',zIndex:1}}>
+        <div style={{display:'flex',alignItems:'center',gap:12,padding:'18px 20px',borderBottom:'1px solid #DDD5CE',position:'sticky',top:0,background:'#fff',borderRadius:'12px 12px 0 0',zIndex:1}}>
           <div style={{flex:1}}>
             <div style={{fontSize:15,fontWeight:600}}>{informe.encuentro||'Informe'}</div>
-            <div style={{fontSize:11,color:'#71717a',marginTop:2,fontFamily:"'Geist Mono',monospace"}}>{informe.jornada} · {fmt(informe.fecha)}</div>
+            <div style={{fontSize:11,color:'#7A7168',marginTop:2,fontFamily:"'Courier New',monospace"}}>{informe.jornada} · {fmt(informe.fecha)}</div>
           </div>
           <div style={{display:'flex',gap:4}}>
             {informe.incidencias_graves>0&&<Badge variant="grave">⚠ {informe.incidencias_graves}G</Badge>}
@@ -199,39 +209,39 @@ function InformeModal({ informe, onClose, onDeleted }) {
             {!informe.incidencias_graves&&!informe.incidencias_leves&&<Badge variant="ok">✓ Sin incidencias</Badge>}
           </div>
           <button onClick={()=>generatePDF(informe)}
-            style={{padding:'0 12px',height:30,borderRadius:6,border:'1px solid #e4e4e7',background:'#fff',color:'#18181b',fontSize:12,cursor:'pointer',fontWeight:500}}>
+            style={{padding:'0 12px',height:30,borderRadius:6,border:'1px solid #DDD5CE',background:'#fff',color:'#1A1A1A',fontSize:12,cursor:'pointer',fontWeight:500}}>
             📄 PDF
           </button>
           <button onClick={handleDelete} disabled={deleting}
             style={{padding:'0 12px',height:30,borderRadius:6,border:'1px solid #fecaca',background:'#fef2f2',color:'#dc2626',fontSize:12,cursor:'pointer',fontWeight:500,opacity:deleting?0.6:1}}>
             {deleting?'Eliminando…':'🗑 Eliminar'}
           </button>
-          <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',color:'#71717a',fontSize:20,lineHeight:1,padding:'0 4px'}}>✕</button>
+          <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',color:'#7A7168',fontSize:20,lineHeight:1,padding:'0 4px'}}>✕</button>
         </div>
 
         <div style={{padding:'20px'}}>
 
           {/* Datos del partido */}
-          <div style={{marginBottom:6,fontSize:10,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.08em'}}>Partido</div>
+          <div style={{marginBottom:6,fontSize:10,fontWeight:600,color:'#7A7168',textTransform:'uppercase',letterSpacing:'0.08em'}}>Partido</div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:16}}>
             {[['Jornada',informe.jornada],['Encuentro',informe.encuentro],['Fecha',fmt(informe.fecha)],
               ['Hora partido',informe.hora_partido],['Hora citación',informe.hora_citacion],['Horario citación MD-1',informe.horario_md1]
             ].map(([k,v])=>(
-              <div key={k} style={{padding:'8px 10px',background:'#fafafa',borderRadius:8,border:'1px solid #e4e4e7'}}>
-                <div style={{fontSize:9,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:2}}>{k}</div>
+              <div key={k} style={{padding:'8px 10px',background:'#F5F0EC',borderRadius:8,border:'1px solid #DDD5CE'}}>
+                <div style={{fontSize:9,fontWeight:600,color:'#7A7168',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:2}}>{k}</div>
                 <div style={{fontSize:12,fontWeight:500}}>{v||'—'}</div>
               </div>
             ))}
           </div>
 
           {/* Equipo técnico */}
-          <div style={{marginBottom:6,fontSize:10,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.08em'}}>Equipo técnico</div>
+          <div style={{marginBottom:6,fontSize:10,fontWeight:600,color:'#7A7168',textTransform:'uppercase',letterSpacing:'0.08em'}}>Equipo técnico</div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:16}}>
             {[['Responsable CCEE',informe.responsable],['Unidad Móvil',informe.um],['J. Técnico UM',informe.jefe_tecnico],
               ['Realizador',informe.realizador],['Productor',informe.productor]
             ].map(([k,v])=>(
-              <div key={k} style={{padding:'8px 10px',background:'#fafafa',borderRadius:8,border:'1px solid #e4e4e7'}}>
-                <div style={{fontSize:9,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:2}}>{k}</div>
+              <div key={k} style={{padding:'8px 10px',background:'#F5F0EC',borderRadius:8,border:'1px solid #DDD5CE'}}>
+                <div style={{fontSize:9,fontWeight:600,color:'#7A7168',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:2}}>{k}</div>
                 <div style={{fontSize:12,fontWeight:500}}>{v||'—'}</div>
               </div>
             ))}
@@ -240,11 +250,11 @@ function InformeModal({ informe, onClose, onDeleted }) {
           {/* Operadores */}
           {Object.values(ops).some(v=>v)&&(
             <>
-              <div style={{marginBottom:6,fontSize:10,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.08em'}}>Operadores</div>
+              <div style={{marginBottom:6,fontSize:10,fontWeight:600,color:'#7A7168',textTransform:'uppercase',letterSpacing:'0.08em'}}>Operadores</div>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:16}}>
                 {OPERATOR_GROUPS.map(g=>g.roles.map(r=>{ const v=ops[r.key]; if(!v) return null; return (
-                  <div key={r.key} style={{display:'flex',gap:8,padding:'6px 10px',background:'#fafafa',borderRadius:8,border:'1px solid #e4e4e7',fontSize:12}}>
-                    <span style={{color:'#71717a',minWidth:100,flexShrink:0}}>{r.label}</span>
+                  <div key={r.key} style={{display:'flex',gap:8,padding:'6px 10px',background:'#F5F0EC',borderRadius:8,border:'1px solid #DDD5CE',fontSize:12}}>
+                    <span style={{color:'#7A7168',minWidth:100,flexShrink:0}}>{r.label}</span>
                     <span style={{fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{v}</span>
                   </div>
                 );}))}
@@ -255,18 +265,18 @@ function InformeModal({ informe, onClose, onDeleted }) {
           {/* Logística */}
           {Object.keys(logItems).length>0&&(
             <>
-              <div style={{marginBottom:6,fontSize:10,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.08em'}}>Logística</div>
-              <div style={{border:'1px solid #e4e4e7',borderRadius:8,overflow:'hidden',marginBottom:16}}>
+              <div style={{marginBottom:6,fontSize:10,fontWeight:600,color:'#7A7168',textTransform:'uppercase',letterSpacing:'0.08em'}}>Logística</div>
+              <div style={{border:'1px solid #DDD5CE',borderRadius:8,overflow:'hidden',marginBottom:16}}>
                 {LOGISTICA_ITEMS.map((item,i)=>{
                   const v = logItems[item]||'—';
                   return (
-                    <div key={item} style={{display:'flex',alignItems:'center',gap:12,padding:'8px 12px',background:i%2===0?'#fff':'#fafafa',borderBottom:i<LOGISTICA_ITEMS.length-1?'1px solid #e4e4e7':'none'}}>
+                    <div key={item} style={{display:'flex',alignItems:'center',gap:12,padding:'8px 12px',background:i%2===0?'#fff':'#F5F0EC',borderBottom:i<LOGISTICA_ITEMS.length-1?'1px solid #DDD5CE':'none'}}>
                       <div style={{flex:1,fontSize:12}}>{item}</div>
-                      <span style={{fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:4,background:STATUS_BG[v]||'#f4f4f5',color:STATUS_COLOR[v]||'#71717a'}}>{v}</span>
+                      <span style={{fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:4,background:STATUS_BG[v]||'#EDE8E4',color:STATUS_COLOR[v]||'#7A7168'}}>{v}</span>
                     </div>
                   );
                 })}
-                {log.incidencias&&<div style={{padding:'8px 12px',borderTop:'1px solid #e4e4e7',fontSize:12,color:'#71717a'}}>{log.incidencias}</div>}
+                {log.incidencias&&<div style={{padding:'8px 12px',borderTop:'1px solid #DDD5CE',fontSize:12,color:'#7A7168'}}>{log.incidencias}</div>}
               </div>
             </>
           )}
@@ -274,18 +284,18 @@ function InformeModal({ informe, onClose, onDeleted }) {
           {/* Cámaras */}
           {activeCams.length>0&&(
             <>
-              <div style={{marginBottom:6,fontSize:10,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.08em'}}>Cámaras · {activeCams.length} activas</div>
+              <div style={{marginBottom:6,fontSize:10,fontWeight:600,color:'#7A7168',textTransform:'uppercase',letterSpacing:'0.08em'}}>Cámaras · {activeCams.length} activas</div>
               <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:4}}>
                 {activeCams.map(([id,cam])=>{
                   const d = camData[id]||{}; const items = d.items||{};
                   const gv=Object.values(items).filter(v=>v==='G').length;
                   const lv=Object.values(items).filter(v=>v==='L').length;
                   return (
-                    <div key={id} style={{border:'1px solid #e4e4e7',borderRadius:8,overflow:'hidden'}}>
-                      <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',background:'#fafafa',borderBottom:Object.keys(items).length>0?'1px solid #e4e4e7':'none'}}>
+                    <div key={id} style={{border:'1px solid #DDD5CE',borderRadius:8,overflow:'hidden'}}>
+                      <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',background:'#F5F0EC',borderBottom:Object.keys(items).length>0?'1px solid #DDD5CE':'none'}}>
                         <span style={{fontSize:14}}>{cam.icon}</span>
                         <span style={{fontSize:12,fontWeight:600,flex:1}}>{cam.label}</span>
-                        {(()=>{const eq=d.equipos?Object.values(d.equipos).filter(Boolean).join(' · '):(d.equipo||'');return eq?<span style={{fontSize:11,color:'#71717a',fontFamily:"'Geist Mono',monospace"}}>{eq}</span>:null;})()}
+                        {(()=>{const eq=d.equipos?Object.values(d.equipos).filter(Boolean).join(' · '):(d.equipo||'');return eq?<span style={{fontSize:11,color:'#7A7168',fontFamily:"'Courier New',monospace"}}>{eq}</span>:null;})()}
                         <div style={{display:'flex',gap:3}}>
                           {gv>0&&<Badge variant="grave">⚠{gv}</Badge>}
                           {lv>0&&<Badge variant="leve">↓{lv}</Badge>}
@@ -295,14 +305,14 @@ function InformeModal({ informe, onClose, onDeleted }) {
                       {Object.keys(items).length>0&&(
                         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))'}}>
                           {Object.entries(items).map(([key,v],i)=>(
-                            <div key={key} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'5px 10px',borderRight:i%2===0?'1px solid #e4e4e7':'none',borderBottom:'1px solid #e4e4e7'}}>
-                              <span style={{fontSize:11,color:'#52525b'}}>{key}</span>
-                              <span style={{fontSize:10,fontWeight:600,padding:'1px 6px',borderRadius:3,background:STATUS_BG[v]||'#f4f4f5',color:STATUS_COLOR[v]||'#71717a'}}>{v||'—'}</span>
+                            <div key={key} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'5px 10px',borderRight:i%2===0?'1px solid #DDD5CE':'none',borderBottom:'1px solid #DDD5CE'}}>
+                              <span style={{fontSize:11,color:'#5C534D'}}>{key}</span>
+                              <span style={{fontSize:10,fontWeight:600,padding:'1px 6px',borderRadius:3,background:STATUS_BG[v]||'#EDE8E4',color:STATUS_COLOR[v]||'#7A7168'}}>{v||'—'}</span>
                             </div>
                           ))}
                         </div>
                       )}
-                      {d.incidencias&&<div style={{padding:'6px 12px',borderTop:'1px solid #e4e4e7',fontSize:11,color:'#71717a'}}>{d.incidencias}</div>}
+                      {d.incidencias&&<div style={{padding:'6px 12px',borderTop:'1px solid #DDD5CE',fontSize:11,color:'#7A7168'}}>{d.incidencias}</div>}
                     </div>
                   );
                 })}
@@ -394,17 +404,17 @@ function DocumentosSection({ servicioId }) {
       </div>
       {error&&<div style={{fontSize:12,color:'#dc2626',background:'#fef2f2',padding:'6px 10px',borderRadius:6,border:'1px solid #fecaca',marginBottom:10}}>{error}</div>}
       {loading?(
-        <div style={{fontSize:12,color:'#71717a',padding:'8px 0'}}>Cargando…</div>
+        <div style={{fontSize:12,color:'#7A7168',padding:'8px 0'}}>Cargando…</div>
       ):docs.length===0?(
-        <div style={{fontSize:12,color:'#71717a',textAlign:'center',padding:'12px 0'}}>Sin documentos adjuntos.</div>
+        <div style={{fontSize:12,color:'#7A7168',textAlign:'center',padding:'12px 0'}}>Sin documentos adjuntos.</div>
       ):(
-        <div style={{border:'1px solid #e4e4e7',borderRadius:8,overflow:'hidden'}}>
+        <div style={{border:'1px solid #DDD5CE',borderRadius:8,overflow:'hidden'}}>
           {docs.map((doc,i)=>(
-            <div key={doc.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:i%2===0?'#fff':'#fafafa',borderBottom:i<docs.length-1?'1px solid #e4e4e7':'none'}}>
+            <div key={doc.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:i%2===0?'#fff':'#F5F0EC',borderBottom:i<docs.length-1?'1px solid #DDD5CE':'none'}}>
               <span style={{fontSize:18}}>{fileIcon(doc.tipo)}</span>
               <div style={{flex:1}}>
                 <div style={{fontSize:13,fontWeight:500}}>{doc.descripcion}</div>
-                <div style={{fontSize:11,color:'#71717a',marginTop:1}}>{doc.nombre} · {(doc.tamano/1024).toFixed(0)} KB</div>
+                <div style={{fontSize:11,color:'#7A7168',marginTop:1}}>{doc.nombre} · {(doc.tamano/1024).toFixed(0)} KB</div>
               </div>
               <BtnO onClick={()=>handleOpen(doc)} style={{height:28,fontSize:11,padding:'0 10px'}}>Abrir</BtnO>
               <BtnO onClick={()=>handleDelete(doc.id)} style={{height:28,fontSize:11,padding:'0 10px',color:'#dc2626',borderColor:'#fecaca'}}>✕</BtnO>
@@ -450,7 +460,7 @@ function CoordDashboard({ onNewServicio, onManageUsers, onEditServicio }) {
     } catch { alert('Error al eliminar el servicio.'); }
   };
 
-  if (loading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',fontSize:13,color:'#71717a'}}>Cargando...</div>;
+  if (loading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',fontSize:13,color:'#7A7168'}}>Cargando...</div>;
 
   const pendientes = servicios.filter(s=>s.status==='pendiente');
 
@@ -463,7 +473,7 @@ function CoordDashboard({ onNewServicio, onManageUsers, onEditServicio }) {
       <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:24}}>
         <div>
           <h1 style={{fontSize:22,fontWeight:600,margin:0,marginBottom:4}}>Dashboard</h1>
-          <p style={{fontSize:13,color:'#71717a',margin:0}}>Coordinación · Temporada 25/26</p>
+          <p style={{fontSize:13,color:'#7A7168',margin:0}}>Coordinación · Temporada 25/26</p>
         </div>
         <div style={{display:'flex',gap:8}}>
           <BtnO onClick={onManageUsers}>Gestionar usuarios</BtnO>
@@ -481,9 +491,9 @@ function CoordDashboard({ onNewServicio, onManageUsers, onEditServicio }) {
             {l:'Leves',v:stats.porJornada?.reduce((a,j)=>a+parseInt(j.leves||0),0)||0,s:'acumuladas',yel:true},
           ].map(s=>(
             <Card key={s.l} style={{padding:'16px 18px',marginBottom:0}}>
-              <div style={{fontSize:24,fontWeight:600,fontFamily:"'Geist Mono',monospace",color:s.red?'#dc2626':s.yel?'#d97706':'#09090b',marginBottom:2}}>{s.v}</div>
+              <div style={{fontSize:24,fontWeight:600,fontFamily:"'Courier New',monospace",color:s.red?'#dc2626':s.yel?'#d97706':'#1A1A1A',marginBottom:2}}>{s.v}</div>
               <div style={{fontSize:12,fontWeight:500}}>{s.l}</div>
-              <div style={{fontSize:11,color:'#71717a',marginTop:1}}>{s.s}</div>
+              <div style={{fontSize:11,color:'#7A7168',marginTop:1}}>{s.s}</div>
             </Card>
           ))}
         </div>
@@ -492,19 +502,19 @@ function CoordDashboard({ onNewServicio, onManageUsers, onEditServicio }) {
       {/* Servicios pendientes */}
       {pendientes.length>0&&(
         <Card style={{padding:0,overflow:'hidden',marginBottom:16}}>
-          <div style={{padding:'14px 16px',borderBottom:'1px solid #e4e4e7',display:'flex',alignItems:'center',gap:8}}>
+          <div style={{padding:'14px 16px',borderBottom:'1px solid #DDD5CE',display:'flex',alignItems:'center',gap:8}}>
             <SecTitle style={{margin:0}}>Servicios pendientes · {pendientes.length}</SecTitle>
           </div>
           {pendientes.map((s,i)=>(
             <div key={s.id}
-              style={{padding:'12px 16px',borderBottom:i<pendientes.length-1?'1px solid #e4e4e7':'none',background:'#fff',transition:'background 0.1s'}}
-              onMouseEnter={e=>e.currentTarget.style.background='#fafafa'}
+              style={{padding:'12px 16px',borderBottom:i<pendientes.length-1?'1px solid #DDD5CE':'none',background:'#fff',transition:'background 0.1s'}}
+              onMouseEnter={e=>e.currentTarget.style.background='#F5F0EC'}
               onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
               <div style={{display:'flex',alignItems:'center',gap:10}}>
                 <div style={{flex:1,cursor:'pointer'}} onClick={()=>onEditServicio(s.id)}>
                   <div style={{fontSize:13,fontWeight:500}}>{s.encuentro||'—'}</div>
-                  <div style={{fontSize:11,color:'#71717a',marginTop:2}}>
-                    <span style={{fontFamily:"'Geist Mono',monospace"}}>{s.jornada}</span>
+                  <div style={{fontSize:11,color:'#7A7168',marginTop:2}}>
+                    <span style={{fontFamily:"'Courier New',monospace"}}>{s.jornada}</span>
                     {' · '}{fmt(s.fecha)}
                     {' · '}<span style={{fontWeight:500}}>{s.assigned_to_name||'Sin asignar'}</span>
                   </div>
@@ -512,8 +522,8 @@ function CoordDashboard({ onNewServicio, onManageUsers, onEditServicio }) {
                 <Badge style={{background:'#fffbeb',color:'#d97706',borderColor:'#fde68a'}}>⏳ Pendiente</Badge>
                 <button onClick={e=>{e.stopPropagation();downloadHojaPDF(s.id,s.encuentro);}}
                   title="Descargar hoja de servicio"
-                  style={{border:'1px solid #e4e4e7',borderRadius:6,background:'#fafafa',padding:'3px 8px',fontSize:11,cursor:'pointer',color:'#52525b',lineHeight:1.4,flexShrink:0}}>📄</button>
-                <span onClick={()=>onEditServicio(s.id)} style={{color:'#71717a',fontSize:16,cursor:'pointer'}}>✏</span>
+                  style={{border:'1px solid #DDD5CE',borderRadius:6,background:'#F5F0EC',padding:'3px 8px',fontSize:11,cursor:'pointer',color:'#5C534D',lineHeight:1.4,flexShrink:0}}>📄</button>
+                <span onClick={()=>onEditServicio(s.id)} style={{color:'#7A7168',fontSize:16,cursor:'pointer'}}>✏</span>
                 <button onClick={e=>{e.stopPropagation();handleDeleteServicio(s.id);}}
                   style={{border:'1px solid #fecaca',borderRadius:6,background:'#fff5f5',padding:'3px 8px',fontSize:11,cursor:'pointer',color:'#dc2626',lineHeight:1.4,flexShrink:0}}>✕</button>
               </div>
@@ -525,25 +535,25 @@ function CoordDashboard({ onNewServicio, onManageUsers, onEditServicio }) {
       {/* Informes completados */}
       {informes.length===0&&pendientes.length===0?(
         <Card style={{textAlign:'center',padding:'48px 20px'}}>
-          <div style={{fontSize:13,color:'#71717a',marginBottom:16}}>No hay servicios todavía.</div>
+          <div style={{fontSize:13,color:'#7A7168',marginBottom:16}}>No hay servicios todavía.</div>
           <BtnP onClick={onNewServicio}>Crear primer servicio</BtnP>
         </Card>
       ):(
         informes.length>0&&(
           <Card style={{padding:0,overflow:'hidden'}}>
-            <div style={{padding:'14px 16px',borderBottom:'1px solid #e4e4e7'}}>
+            <div style={{padding:'14px 16px',borderBottom:'1px solid #DDD5CE'}}>
               <SecTitle style={{margin:0}}>Informes completados · {informes.length}</SecTitle>
             </div>
             {informes.map((inf,i)=>(
               <div key={inf.id} onClick={()=>openInforme(inf.id)}
-                style={{padding:'12px 16px',cursor:'pointer',background:'#fff',borderBottom:i<informes.length-1?'1px solid #e4e4e7':'none',transition:'background 0.1s'}}
-                onMouseEnter={e=>e.currentTarget.style.background='#fafafa'}
+                style={{padding:'12px 16px',cursor:'pointer',background:'#fff',borderBottom:i<informes.length-1?'1px solid #DDD5CE':'none',transition:'background 0.1s'}}
+                onMouseEnter={e=>e.currentTarget.style.background='#F5F0EC'}
                 onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
                 <div style={{display:'flex',alignItems:'center',gap:10}}>
                   <div style={{flex:1}}>
                     <div style={{fontSize:13,fontWeight:500}}>{inf.encuentro||'—'}</div>
-                    <div style={{fontSize:11,color:'#71717a',marginTop:2}}>
-                      <span style={{fontFamily:"'Geist Mono',monospace"}}>{inf.jornada}</span>
+                    <div style={{fontSize:11,color:'#7A7168',marginTop:2}}>
+                      <span style={{fontFamily:"'Courier New',monospace"}}>{inf.jornada}</span>
                       {' · '}{fmt(inf.fecha)}
                     </div>
                   </div>
@@ -551,7 +561,7 @@ function CoordDashboard({ onNewServicio, onManageUsers, onEditServicio }) {
                     {inf.incidencias_graves>0&&<Badge variant="grave">⚠ {inf.incidencias_graves}G</Badge>}
                     {inf.incidencias_leves>0&&<Badge variant="leve">↓ {inf.incidencias_leves}L</Badge>}
                     {inf.incidencias_graves===0&&inf.incidencias_leves===0&&<Badge variant="ok">✓ OK</Badge>}
-                    <span style={{color:'#71717a',fontSize:16}}>›</span>
+                    <span style={{color:'#7A7168',fontSize:16}}>›</span>
                   </div>
                 </div>
               </div>
@@ -685,7 +695,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
     <div style={{maxWidth:760,margin:'0 auto',padding:'80px 20px',textAlign:'center',display:'flex',flexDirection:'column',alignItems:'center',gap:12}}>
       <div style={{width:48,height:48,borderRadius:'50%',background:'#f0fdf4',border:'1px solid #bbf7d0',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22}}>✓</div>
       <div style={{fontSize:18,fontWeight:600}}>{isEdit?'Servicio actualizado':'Servicio creado y asignado'}</div>
-      <div style={{fontSize:13,color:'#71717a'}}>{match.encuentro} · {match.jornada}</div>
+      <div style={{fontSize:13,color:'#7A7168'}}>{match.encuentro} · {match.jornada}</div>
       <div style={{display:'flex',gap:8,marginTop:12}}>
         <BtnO onClick={onCancel}>Ver dashboard</BtnO>
         {!isEdit&&<BtnP onClick={()=>{ setStep(1); setTipoServicio('liga'); setLigaJornada(''); setLigaPartido(''); setMatch({jornada:'',encuentro:'',fecha:'',hora_partido:'',hora_citacion:'',responsable:'',um:'',jefe_tecnico:'',tel_jefe_tecnico:'',realizador:'',tel_realizador:'',productor:'',tel_productor:'',horario_md1:''}); setSelectedCams({}); setOperators(initOperators()); setCustomOps({}); setAssignedTo(''); setSaveError(null); setSent(false); setPendingDocs([]); }}>+ Otro servicio</BtnP>}
@@ -701,15 +711,15 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
         <>
           <div style={{marginBottom:20}}>
             <h2 style={{fontSize:18,fontWeight:600,margin:0,marginBottom:4}}>Datos del servicio</h2>
-            <p style={{fontSize:13,color:'#71717a',margin:0}}>Tipo, partido y equipo técnico</p>
+            <p style={{fontSize:13,color:'#7A7168',margin:0}}>Tipo, partido y equipo técnico</p>
           </div>
           <Card>
             <SecTitle>Tipo de servicio</SecTitle>
             <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:8}}>
               {TIPOS_SERVICIO.map(tp=>(
-                <button key={tp.id} onClick={()=>setTipoServicio(tp.id)} style={{padding:'12px 8px',borderRadius:8,border:`1px solid ${tipoServicio===tp.id?'#18181b':'#e4e4e7'}`,background:tipoServicio===tp.id?'#18181b':'#fff',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:6,transition:'all 0.15s'}}>
+                <button key={tp.id} onClick={()=>setTipoServicio(tp.id)} style={{padding:'12px 8px',borderRadius:8,border:`1px solid ${tipoServicio===tp.id?'#E8392C':'#DDD5CE'}`,background:tipoServicio===tp.id?'#E8392C':'#fff',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:6,transition:'all 0.15s'}}>
                   <span style={{fontSize:20}}>{tp.icon}</span>
-                  <span style={{fontSize:10,fontWeight:500,color:tipoServicio===tp.id?'#fafafa':'#71717a',lineHeight:1.3,textAlign:'center'}}>{tp.label}</span>
+                  <span style={{fontSize:10,fontWeight:500,color:tipoServicio===tp.id?'#ffffff':'#7A7168',lineHeight:1.3,textAlign:'center'}}>{tp.label}</span>
                 </button>
               ))}
             </div>
@@ -797,7 +807,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
         <>
           <div style={{marginBottom:20}}>
             <h2 style={{fontSize:18,fontWeight:600,margin:0,marginBottom:4}}>Cámaras desplegadas</h2>
-            <p style={{fontSize:13,color:'#71717a',margin:0}}>Activas en <strong>{match.encuentro||'este servicio'}</strong></p>
+            <p style={{fontSize:13,color:'#7A7168',margin:0}}>Activas en <strong>{match.encuentro||'este servicio'}</strong></p>
           </div>
           <Card>
             <SecTitle>Activa / desactiva cada equipo</SecTitle>
@@ -816,7 +826,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
                   const used=new Set();
                   activeCams.forEach(([oid])=>{if(oid===id)return;const m=camModels[oid];if(!m)return;Object.values(m).forEach(v=>{if(v)used.add(v);});});
                   return (
-                    <div key={id} style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',padding:'8px 0',borderBottom:'1px solid #f0f0f0'}}>
+                    <div key={id} style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',padding:'8px 0',borderBottom:'1px solid #DDD5CE'}}>
                       <span style={{fontSize:13,minWidth:28}}>{cam.icon}</span>
                       <span style={{fontSize:13,fontWeight:500,minWidth:90}}>{cam.label}</span>
                       {cam.equipos.map(slot=>{
@@ -824,7 +834,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
                         const opts=slot.models.filter(m=>m===selVal||!used.has(m));
                         return (
                           <div key={slot.key} style={{display:'flex',alignItems:'center',gap:5,flex:'1 1 160px'}}>
-                            <Label style={{marginBottom:0,whiteSpace:'nowrap',minWidth:40,fontSize:11,color:'#71717a'}}>{slot.label}</Label>
+                            <Label style={{marginBottom:0,whiteSpace:'nowrap',minWidth:40,fontSize:11,color:'#7A7168'}}>{slot.label}</Label>
                             <Select style={{height:30,fontSize:12}} value={selVal}
                               onChange={e=>setCamModels(p=>({...p,[id]:{...(p[id]||{}),[slot.key]:e.target.value}}))}>
                               <option value="">— Sin asignar —</option>
@@ -851,10 +861,10 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
         <>
           <div style={{marginBottom:20}}>
             <h2 style={{fontSize:18,fontWeight:600,margin:0,marginBottom:4}}>Operadores asignados</h2>
-            <p style={{fontSize:13,color:'#71717a',margin:0}}>Solo para los equipos seleccionados · {activeCams.length} cámaras activas</p>
+            <p style={{fontSize:13,color:'#7A7168',margin:0}}>Solo para los equipos seleccionados · {activeCams.length} cámaras activas</p>
           </div>
           {activeOpGroups.length===0?(
-            <Card style={{textAlign:'center',padding:32,color:'#71717a',fontSize:13}}>No hay grupos de operadores para las cámaras seleccionadas.</Card>
+            <Card style={{textAlign:'center',padding:32,color:'#7A7168',fontSize:13}}>No hay grupos de operadores para las cámaras seleccionadas.</Card>
           ):(
             <Card>
               <div style={{display:'flex',flexDirection:'column',gap:16}}>
@@ -864,9 +874,9 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
                   if(visibleRoles.length===0) return null;
                   return (
                     <div key={group.id}>
-                      <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10,paddingBottom:6,borderBottom:'1px solid #e4e4e7'}}>
+                      <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10,paddingBottom:6,borderBottom:'1px solid #DDD5CE'}}>
                         <span style={{fontSize:13}}>{group.icon}</span>
-                        <span style={{fontSize:11,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.06em'}}>{group.label}</span>
+                        <span style={{fontSize:11,fontWeight:600,color:'#7A7168',textTransform:'uppercase',letterSpacing:'0.06em'}}>{group.label}</span>
                       </div>
                       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(210px,1fr))',gap:12}}>
                         {visibleRoles.map(role=>{
@@ -876,7 +886,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
                             {isCustom?(
                               <div style={{display:'flex',gap:4}}>
                                 <Input value={operators[role.key]||''} onChange={e=>updateOp(role.key,e.target.value)} placeholder="Nombre del operador" style={{flex:1}} />
-                                <button onClick={()=>{setCustomOps(p=>({...p,[role.key]:false}));updateOp(role.key,'');}} style={{padding:'0 8px',border:'1px solid #e4e4e7',borderRadius:6,cursor:'pointer',background:'#fff',fontSize:12,color:'#71717a'}}>✕</button>
+                                <button onClick={()=>{setCustomOps(p=>({...p,[role.key]:false}));updateOp(role.key,'');}} style={{padding:'0 8px',border:'1px solid #DDD5CE',borderRadius:6,cursor:'pointer',background:'#fff',fontSize:12,color:'#7A7168'}}>✕</button>
                               </div>
                             ):(
                               <Select value={operators[role.key]||''} onChange={e=>{
@@ -910,13 +920,13 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
         <>
           <div style={{marginBottom:20}}>
             <h2 style={{fontSize:18,fontWeight:600,margin:0,marginBottom:4}}>Asignar servicio</h2>
-            <p style={{fontSize:13,color:'#71717a',margin:0}}>Selecciona el técnico que realizará el informe</p>
+            <p style={{fontSize:13,color:'#7A7168',margin:0}}>Selecciona el técnico que realizará el informe</p>
           </div>
           <Card>
             <SecTitle>Técnico asignado</SecTitle>
             <Field label="Asignar a">
               {usuarios.length===0?(
-                <div style={{fontSize:13,color:'#71717a',padding:'8px 0'}}>No hay técnicos disponibles. <a href="#" onClick={e=>{e.preventDefault();onCancel();}} style={{color:'#18181b'}}>Crea uno primero.</a></div>
+                <div style={{fontSize:13,color:'#7A7168',padding:'8px 0'}}>No hay técnicos disponibles. <a href="#" onClick={e=>{e.preventDefault();onCancel();}} style={{color:'#1A1A1A'}}>Crea uno primero.</a></div>
               ):(
                 <Select value={assignedTo} onChange={e=>setAssignedTo(e.target.value)}>
                   <option value="">— Seleccionar técnico —</option>
@@ -930,9 +940,9 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
             <SecTitle>Resumen del servicio</SecTitle>
             <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:14}}>
               {[['Encuentro',match.encuentro],['Jornada',match.jornada],['Fecha',match.fecha],['Hora',match.hora_partido],['Responsable',match.responsable],['Cámaras',`${activeCams.length} activas`]].map(([k,v])=>(
-                <div key={k} style={{padding:'10px 12px',background:'#fafafa',borderRadius:8,border:'1px solid #e4e4e7'}}>
-                  <div style={{fontSize:10,fontWeight:500,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:3}}>{k}</div>
-                  <div style={{fontSize:13,fontWeight:500,fontFamily:"'Geist Mono',monospace"}}>{v||'—'}</div>
+                <div key={k} style={{padding:'10px 12px',background:'#F5F0EC',borderRadius:8,border:'1px solid #DDD5CE'}}>
+                  <div style={{fontSize:10,fontWeight:500,color:'#7A7168',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:3}}>{k}</div>
+                  <div style={{fontSize:13,fontWeight:500,fontFamily:"'Courier New',monospace"}}>{v||'—'}</div>
                 </div>
               ))}
             </div>
@@ -944,7 +954,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
           {/* Documentos opcionales — solo en creación */}
           {!isEdit&&(
             <Card>
-              <SecTitle>Documentos adjuntos <span style={{fontWeight:400,color:'#71717a'}}>(opcional)</span></SecTitle>
+              <SecTitle>Documentos adjuntos <span style={{fontWeight:400,color:'#7A7168'}}>(opcional)</span></SecTitle>
               <div style={{display:'flex',gap:8,marginBottom:10,alignItems:'flex-end',flexWrap:'wrap'}}>
                 <Field label="Descripción" style={{flex:1,minWidth:180,marginBottom:0}}>
                   <Input value={pendingDesc} onChange={e=>setPendingDesc(e.target.value)} placeholder="Ej: Plano de cámaras, Mapa de conexiones…" />
@@ -962,15 +972,15 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
               </div>
               {pendingErr&&<div style={{fontSize:12,color:'#dc2626',background:'#fef2f2',padding:'6px 10px',borderRadius:6,border:'1px solid #fecaca',marginBottom:10}}>{pendingErr}</div>}
               {pendingDocs.length===0?(
-                <div style={{fontSize:12,color:'#71717a',textAlign:'center',padding:'8px 0'}}>Sin documentos adjuntos todavía.</div>
+                <div style={{fontSize:12,color:'#7A7168',textAlign:'center',padding:'8px 0'}}>Sin documentos adjuntos todavía.</div>
               ):(
-                <div style={{border:'1px solid #e4e4e7',borderRadius:8,overflow:'hidden'}}>
+                <div style={{border:'1px solid #DDD5CE',borderRadius:8,overflow:'hidden'}}>
                   {pendingDocs.map((doc,i)=>(
-                    <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:i%2===0?'#fff':'#fafafa',borderBottom:i<pendingDocs.length-1?'1px solid #e4e4e7':'none'}}>
+                    <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:i%2===0?'#fff':'#F5F0EC',borderBottom:i<pendingDocs.length-1?'1px solid #DDD5CE':'none'}}>
                       <span style={{fontSize:18}}>{fileIcon(doc.tipo)}</span>
                       <div style={{flex:1}}>
                         <div style={{fontSize:13,fontWeight:500}}>{doc.descripcion}</div>
-                        <div style={{fontSize:11,color:'#71717a',marginTop:1}}>{doc.nombre} · {(doc.tamano/1024).toFixed(0)} KB</div>
+                        <div style={{fontSize:11,color:'#7A7168',marginTop:1}}>{doc.nombre} · {(doc.tamano/1024).toFixed(0)} KB</div>
                       </div>
                       <BtnO onClick={()=>removePendingDoc(i)} style={{height:28,fontSize:11,padding:'0 10px',color:'#dc2626',borderColor:'#fecaca'}}>✕</BtnO>
                     </div>
@@ -1041,7 +1051,7 @@ function UserManagement({ currentUser }) {
     <div style={{maxWidth:760,margin:'0 auto',padding:'24px 20px 80px'}}>
       <div style={{marginBottom:20}}>
         <h2 style={{fontSize:18,fontWeight:600,margin:0,marginBottom:4}}>Gestión de usuarios</h2>
-        <p style={{fontSize:13,color:'#71717a',margin:0}}>Crea y administra las cuentas del equipo</p>
+        <p style={{fontSize:13,color:'#7A7168',margin:0}}>Crea y administra las cuentas del equipo</p>
       </div>
 
       <Card>
@@ -1071,18 +1081,18 @@ function UserManagement({ currentUser }) {
       </Card>
 
       <Card style={{padding:0,overflow:'hidden'}}>
-        <div style={{padding:'14px 16px',borderBottom:'1px solid #e4e4e7'}}>
+        <div style={{padding:'14px 16px',borderBottom:'1px solid #DDD5CE'}}>
           <SecTitle style={{margin:0}}>Usuarios · {users.length} total</SecTitle>
         </div>
         {loading?(
-          <div style={{padding:24,textAlign:'center',fontSize:13,color:'#71717a'}}>Cargando...</div>
+          <div style={{padding:24,textAlign:'center',fontSize:13,color:'#7A7168'}}>Cargando...</div>
         ):users.length===0?(
-          <div style={{padding:24,textAlign:'center',fontSize:13,color:'#71717a'}}>No hay usuarios todavía.</div>
+          <div style={{padding:24,textAlign:'center',fontSize:13,color:'#7A7168'}}>No hay usuarios todavía.</div>
         ):users.map((u,i)=>(
-          <div key={u.id} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',borderBottom:i<users.length-1?'1px solid #e4e4e7':'none',background:u.active?'#fff':'#fafafa',opacity:u.active?1:0.6}}>
+          <div key={u.id} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',borderBottom:i<users.length-1?'1px solid #DDD5CE':'none',background:u.active?'#fff':'#F5F0EC',opacity:u.active?1:0.6}}>
             <div style={{flex:1}}>
               <div style={{fontSize:13,fontWeight:500}}>{u.name}</div>
-              <div style={{fontSize:11,color:'#71717a',marginTop:2}}>{u.email}</div>
+              <div style={{fontSize:11,color:'#7A7168',marginTop:2}}>{u.email}</div>
             </div>
             <Badge variant={u.role==='coordinador'?'default':'ok'}>{u.role==='coordinador'?'Coordinador':'Técnico'}</Badge>
             {!u.active&&<Badge>Inactivo</Badge>}
@@ -1122,7 +1132,7 @@ export default function CoordView({ user, onLogout }) {
   };
 
   return (
-    <div style={{minHeight:'100vh',background:'#fafafa'}}>
+    <div style={{minHeight:'100vh',background:'#F5F0EC'}}>
       <Header user={user} onLogout={onLogout} view={view} setView={(v)=>{ setView(v); if(v!=='edit-servicio'){setEditServicioId(null);setEditServicioData(null);} }} />
       {view==='dashboard'&&(
         <CoordDashboard
@@ -1136,7 +1146,7 @@ export default function CoordView({ user, onLogout }) {
       )}
       {view==='edit-servicio'&&(
         loadingEdit
-          ? <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',fontSize:13,color:'#71717a'}}>Cargando servicio...</div>
+          ? <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',fontSize:13,color:'#7A7168'}}>Cargando servicio...</div>
           : editServicioData && <NewServicioForm servicioId={editServicioId} initialData={editServicioData} onCancel={goToDashboard} onSaved={goToDashboard} />
       )}
       {view==='users'&&(

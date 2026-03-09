@@ -38,7 +38,7 @@ function BarChart({ data }) {
       {[0, 0.25, 0.5, 0.75, 1].map(t => {
         const y = PAD.t + chartH - t * chartH;
         return <g key={t}>
-          <line x1={PAD.l} y1={y} x2={W - PAD.r} y2={y} stroke="#e4e4e7" strokeWidth={1} />
+          <line x1={PAD.l} y1={y} x2={W - PAD.r} y2={y} stroke="#DDD5CE" strokeWidth={1} />
           <text x={PAD.l - 4} y={y + 4} fontSize={9} fill="#999" textAnchor="end">{Math.round(t * maxVal)}</text>
         </g>;
       })}
@@ -71,7 +71,7 @@ function HBarChart({ title, data, colorKey = '#3b82f6' }) {
   const H = data.length * (barH + gap);
   return (
     <div>
-      <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{title}</div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: '#7A7168', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{title}</div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxWidth: W, display: 'block' }}>
         {data.map((d, i) => {
           const y = i * (barH + gap);
@@ -91,8 +91,8 @@ function HBarChart({ title, data, colorKey = '#3b82f6' }) {
 }
 
 /* ── Estilos de selects reutilizables ── */
-const SEL = { width: '100%', height: 32, borderRadius: 6, border: '1px solid #d4d4d8', fontSize: 12, paddingLeft: 8, background: '#fff', color: '#18181b' };
-const LBL = { fontSize: 10, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 };
+const SEL = { width: '100%', height: 32, borderRadius: 6, border: '1px solid #DDD5CE', fontSize: 12, paddingLeft: 8, background: '#fff', color: '#1A1A1A' };
+const LBL = { fontSize: 10, fontWeight: 600, color: '#7A7168', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 };
 
 /* ── Main AnalisisView ── */
 export default function AnalisisView() {
@@ -246,7 +246,7 @@ export default function AnalisisView() {
   const clearFilters = () => { setFJornada(''); setFUM(''); setFBloque(''); setFUsuario(''); setFOperador(''); setFTipoInc(''); };
   const hasFilters = fJornada || fUM || fBloque || fUsuario || fOperador || fTipoInc;
 
-  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#71717a', fontSize: 13 }}>Cargando análisis...</div>;
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#7A7168', fontSize: 13 }}>Cargando análisis...</div>;
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 20px' }}>
@@ -268,7 +268,7 @@ export default function AnalisisView() {
           { label: 'Con incidencias', val: conInc, color: '#8b5cf6' },
         ].map(s => (
           <Card key={s.label} style={{ padding: '14px 18px', borderTop: `3px solid ${s.color}` }}>
-            <div style={{ fontSize: 11, color: '#71717a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>{s.label}</div>
+            <div style={{ fontSize: 11, color: '#7A7168', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>{s.label}</div>
             <div style={{ fontSize: 28, fontWeight: 700, color: s.color }}>{s.val}</div>
           </Card>
         ))}
@@ -277,7 +277,7 @@ export default function AnalisisView() {
       {/* Gráficas */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 16, marginBottom: 20, alignItems: 'start' }}>
         <Card style={{ padding: 16 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Incidencias por jornada (global)</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#7A7168', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Incidencias por jornada (global)</div>
           <BarChart data={chartJornada} />
         </Card>
         {chartBloques.length > 0 && (
@@ -295,9 +295,9 @@ export default function AnalisisView() {
       {/* Filtros */}
       <Card style={{ padding: 16, marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: '#71717a' }}>Filtros</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#7A7168' }}>Filtros</span>
           {hasFilters && (
-            <button onClick={clearFilters} style={{ fontSize: 11, color: '#71717a', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>
+            <button onClick={clearFilters} style={{ fontSize: 11, color: '#7A7168', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>
               Limpiar
             </button>
           )}
@@ -350,24 +350,24 @@ export default function AnalisisView() {
       {/* Estadísticas por modelo */}
       {modelStats.length > 0 && (
         <Card style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
-          <div style={{ padding: '12px 16px', borderBottom: '1px solid #e4e4e7' }}>
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid #DDD5CE' }}>
             <span style={{ fontSize: 13, fontWeight: 600 }}>Estadísticas por modelo de equipo</span>
           </div>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
-                <tr style={{ background: '#fafafa' }}>
+                <tr style={{ background: '#F5F0EC' }}>
                   {['Bloque', 'Modelo', 'Usos', 'Items G', 'Items L'].map(h => (
-                    <th key={h} style={{ padding: '8px 12px', textAlign: h === 'Usos' || h === 'Items G' || h === 'Items L' ? 'center' : 'left', fontSize: 10, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e4e4e7', whiteSpace: 'nowrap' }}>{h}</th>
+                    <th key={h} style={{ padding: '8px 12px', textAlign: h === 'Usos' || h === 'Items G' || h === 'Items L' ? 'center' : 'left', fontSize: 10, fontWeight: 700, color: '#7A7168', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #DDD5CE', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {modelStats.map((m, i) => (
-                  <tr key={i} style={{ borderBottom: i < modelStats.length - 1 ? '1px solid #f4f4f5' : 'none', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                  <tr key={i} style={{ borderBottom: i < modelStats.length - 1 ? '1px solid #EDE8E4' : 'none', background: i % 2 === 0 ? '#fff' : '#F5F0EC' }}>
                     <td style={{ padding: '7px 12px', fontWeight: 500 }}>{m.icon} {m.bloque}</td>
                     <td style={{ padding: '7px 12px', fontFamily: 'monospace', fontSize: 11 }}>{m.modelo}</td>
-                    <td style={{ padding: '7px 12px', textAlign: 'center', color: '#71717a' }}>{m.usos}</td>
+                    <td style={{ padding: '7px 12px', textAlign: 'center', color: '#7A7168' }}>{m.usos}</td>
                     <td style={{ padding: '7px 12px', textAlign: 'center' }}>
                       {m.incG > 0 ? <span style={{ color: '#dc2626', fontWeight: 700 }}>⚠ {m.incG}</span> : <span style={{ color: '#d1d5db' }}>0</span>}
                     </td>
@@ -384,31 +384,31 @@ export default function AnalisisView() {
 
       {/* Tabla de informes */}
       <Card style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ padding: '12px 16px', borderBottom: '1px solid #e4e4e7', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid #DDD5CE', display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 13, fontWeight: 600 }}>Informes</span>
           <Badge>{filtered.length}</Badge>
         </div>
         {filtered.length === 0 ? (
-          <div style={{ padding: 24, textAlign: 'center', fontSize: 13, color: '#71717a' }}>No hay informes que coincidan con los filtros.</div>
+          <div style={{ padding: 24, textAlign: 'center', fontSize: 13, color: '#7A7168' }}>No hay informes que coincidan con los filtros.</div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
-                <tr style={{ background: '#fafafa' }}>
+                <tr style={{ background: '#F5F0EC' }}>
                   {['Jornada', 'Encuentro', 'Fecha', 'UM', 'Técnico', 'J. Técnico', 'Graves', 'Leves'].map(h => (
-                    <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e4e4e7', whiteSpace: 'nowrap' }}>{h}</th>
+                    <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#7A7168', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #DDD5CE', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((inf, i) => (
-                  <tr key={inf.id} style={{ borderBottom: i < filtered.length - 1 ? '1px solid #f4f4f5' : 'none', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                    <td style={{ padding: '8px 12px', color: '#71717a' }}>J{inf.jornada || '—'}</td>
+                  <tr key={inf.id} style={{ borderBottom: i < filtered.length - 1 ? '1px solid #EDE8E4' : 'none', background: i % 2 === 0 ? '#fff' : '#F5F0EC' }}>
+                    <td style={{ padding: '8px 12px', color: '#7A7168' }}>J{inf.jornada || '—'}</td>
                     <td style={{ padding: '8px 12px', fontWeight: 500 }}>{inf.encuentro || '—'}</td>
-                    <td style={{ padding: '8px 12px', color: '#71717a', whiteSpace: 'nowrap' }}>{fmt(inf.fecha)}</td>
+                    <td style={{ padding: '8px 12px', color: '#7A7168', whiteSpace: 'nowrap' }}>{fmt(inf.fecha)}</td>
                     <td style={{ padding: '8px 12px' }}>{inf.um || '—'}</td>
                     <td style={{ padding: '8px 12px' }}>{inf.submitted_by_name || '—'}</td>
-                    <td style={{ padding: '8px 12px', color: '#71717a' }}>{inf.jefe_tecnico || '—'}</td>
+                    <td style={{ padding: '8px 12px', color: '#7A7168' }}>{inf.jefe_tecnico || '—'}</td>
                     <td style={{ padding: '8px 12px', textAlign: 'center' }}>
                       {inf.incidencias_graves > 0
                         ? <span style={{ color: '#dc2626', fontWeight: 700 }}>⚠ {inf.incidencias_graves}</span>

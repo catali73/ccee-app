@@ -171,11 +171,11 @@ function DocumentosUsuario({ servicioId }) {
       <SecTitle>Documentos del servicio · {docs.length}</SecTitle>
       <div style={{display:'flex',flexDirection:'column',gap:8}}>
         {docs.map(doc=>(
-          <div key={doc.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:'#fafafa',borderRadius:8,border:'1px solid #e4e4e7'}}>
+          <div key={doc.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:'#F5F0EC',borderRadius:8,border:'1px solid #DDD5CE'}}>
             <span style={{fontSize:20}}>{fileIcon(doc.tipo)}</span>
             <div style={{flex:1}}>
               <div style={{fontSize:13,fontWeight:500}}>{doc.descripcion}</div>
-              <div style={{fontSize:11,color:'#71717a',marginTop:1}}>{doc.nombre}</div>
+              <div style={{fontSize:11,color:'#7A7168',marginTop:1}}>{doc.nombre}</div>
             </div>
             <BtnO onClick={()=>handleOpen(doc)} style={{height:30,fontSize:12,padding:'0 12px'}}>Abrir</BtnO>
           </div>
@@ -188,20 +188,28 @@ function DocumentosUsuario({ servicioId }) {
 /* ── HEADER ────────────────────────────────────────────────── */
 function Header({ user, onLogout, onHome }) {
   return (
-    <header style={{background:'#fff',borderBottom:'1px solid #e4e4e7',position:'sticky',top:0,zIndex:100}}>
-      <div style={{maxWidth:1100,margin:'0 auto',padding:'0 20px',height:56,display:'flex',alignItems:'center',gap:16}}>
+    <header style={{background:'#1A1A1A',borderBottom:'3px solid #E8392C',position:'sticky',top:0,zIndex:100}}>
+      <div style={{maxWidth:1100,margin:'0 auto',padding:'0 20px',height:58,display:'flex',alignItems:'center',gap:16}}>
+        {/* Logo MEDIAPRO */}
         <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <div style={{width:28,height:28,borderRadius:6,background:'#18181b',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14}}>📷</div>
+          <div style={{width:32,height:32,borderRadius:6,background:'#E8392C',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0}}>📷</div>
           <div>
-            <div style={{fontSize:13,fontWeight:600,lineHeight:1.2}}>MEDIAPRO · CCEE</div>
-            <div style={{fontSize:10,color:'#71717a',lineHeight:1.2}}>Cámaras Especiales</div>
+            <div style={{fontSize:13,fontWeight:700,lineHeight:1.2,color:'#fff',letterSpacing:'0.05em',fontFamily:"'Montserrat',-apple-system,sans-serif"}}>MEDIAPRO</div>
+            <div style={{fontSize:9,color:'#C2B9AD',lineHeight:1.2,letterSpacing:'0.14em',textTransform:'uppercase',fontFamily:"'Montserrat',-apple-system,sans-serif"}}>Cámaras Especiales</div>
           </div>
         </div>
         <div style={{flex:1}} />
-        {onHome&&<BtnO onClick={onHome} style={{height:28,fontSize:12,padding:'0 10px'}}>🏠 Mis servicios</BtnO>}
-        <Badge>{user.name}</Badge>
-        <span style={{fontSize:11,color:'#71717a'}}>Técnico</span>
-        <BtnO onClick={onLogout} style={{height:28,fontSize:12,padding:'0 10px'}}>Salir</BtnO>
+        {onHome&&(
+          <button onClick={onHome} style={{height:28,fontSize:11,padding:'0 12px',borderRadius:6,border:'1px solid #555',background:'transparent',color:'#C2B9AD',cursor:'pointer',fontFamily:"'Montserrat',-apple-system,sans-serif",fontWeight:500}}>
+            🏠 Mis servicios
+          </button>
+        )}
+        <div style={{width:1,height:20,background:'#444'}} />
+        <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end'}}>
+          <span style={{fontSize:12,color:'#fff',fontFamily:"'Montserrat',-apple-system,sans-serif",fontWeight:600}}>{user.name}</span>
+          <span style={{fontSize:9,color:'#C2B9AD',letterSpacing:'0.1em',textTransform:'uppercase',fontFamily:"'Montserrat',-apple-system,sans-serif"}}>Técnico</span>
+        </div>
+        <button onClick={onLogout} style={{height:28,fontSize:11,padding:'0 12px',borderRadius:6,border:'1px solid #555',background:'transparent',color:'#C2B9AD',cursor:'pointer',fontFamily:"'Montserrat',-apple-system,sans-serif",fontWeight:500}}>Salir</button>
       </div>
     </header>
   );
@@ -231,7 +239,7 @@ function ServiciosList({ onSelect, onViewInforme }) {
 
   useEffect(()=>{ load(); },[]);
 
-  if (loading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',fontSize:13,color:'#71717a'}}>Cargando...</div>;
+  if (loading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',fontSize:13,color:'#7A7168'}}>Cargando...</div>;
 
   const sinIniciar = servicios.filter(s=>s.status==='pendiente'&&!informeMap[s.id]);
   const enCurso   = servicios.filter(s=>s.status==='pendiente'&&informeMap[s.id]?.status==='borrador');
@@ -244,13 +252,13 @@ function ServiciosList({ onSelect, onViewInforme }) {
       <div>
         <div onClick={canClick?onClick:undefined}
           style={{padding:'14px 16px',cursor:canClick?'pointer':'default',background:'#fff',transition:'background 0.1s'}}
-          onMouseEnter={e=>{if(canClick)e.currentTarget.style.background='#fafafa';}}
+          onMouseEnter={e=>{if(canClick)e.currentTarget.style.background='#F5F0EC';}}
           onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
           <div style={{display:'flex',alignItems:'center',gap:12,opacity:dim?0.7:1}}>
             <div style={{flex:1}}>
               <div style={{fontSize:14,fontWeight:500}}>{s.encuentro||'—'}</div>
-              <div style={{fontSize:11,color:'#71717a',marginTop:3}}>
-                <span style={{fontFamily:"'Geist Mono',monospace"}}>{s.jornada}</span>
+              <div style={{fontSize:11,color:'#7A7168',marginTop:3}}>
+                <span style={{fontFamily:"'Courier New',monospace"}}>{s.jornada}</span>
                 {' · '}{fmt(s.fecha)}
                 {s.hora_partido&&<>{' · '}{s.hora_partido}</>}
               </div>
@@ -258,15 +266,15 @@ function ServiciosList({ onSelect, onViewInforme }) {
             <div style={{display:'flex',alignItems:'center',gap:8}}>
               {badge}
               <button onClick={e=>{e.stopPropagation();setDocsOpen(o=>!o);}}
-                style={{border:'1px solid #e4e4e7',borderRadius:6,background:'#fafafa',padding:'3px 8px',fontSize:11,cursor:'pointer',color:'#71717a',lineHeight:1.4}}>
+                style={{border:'1px solid #DDD5CE',borderRadius:6,background:'#F5F0EC',padding:'3px 8px',fontSize:11,cursor:'pointer',color:'#7A7168',lineHeight:1.4}}>
                 📎
               </button>
-              {canClick&&<span style={{color:'#71717a',fontSize:18}}>›</span>}
+              {canClick&&<span style={{color:'#7A7168',fontSize:18}}>›</span>}
             </div>
           </div>
         </div>
         {docsOpen&&(
-          <div style={{padding:'0 16px 12px',borderTop:'1px solid #f0f0f0',background:'#fafafa'}}>
+          <div style={{padding:'0 16px 12px',borderTop:'1px solid #DDD5CE',background:'#F5F0EC'}}>
             <DocumentosUsuario servicioId={s.id} />
           </div>
         )}
@@ -275,19 +283,19 @@ function ServiciosList({ onSelect, onViewInforme }) {
   };
 
   const SectionHeader = ({label,count}) => (
-    <div style={{fontSize:11,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10}}>{label} · {count}</div>
+    <div style={{fontSize:11,fontWeight:600,color:'#7A7168',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10}}>{label} · {count}</div>
   );
 
   return (
     <div style={{maxWidth:760,margin:'0 auto',padding:'24px 20px 80px'}}>
       <div style={{marginBottom:24}}>
         <h1 style={{fontSize:22,fontWeight:600,margin:0,marginBottom:4}}>Mis servicios</h1>
-        <p style={{fontSize:13,color:'#71717a',margin:0}}>Servicios asignados · Temporada 25/26</p>
+        <p style={{fontSize:13,color:'#7A7168',margin:0}}>Servicios asignados · Temporada 25/26</p>
       </div>
 
       {total===0&&(
         <Card style={{textAlign:'center',padding:'48px 20px'}}>
-          <div style={{fontSize:13,color:'#71717a'}}>No tienes servicios asignados todavía.</div>
+          <div style={{fontSize:13,color:'#7A7168'}}>No tienes servicios asignados todavía.</div>
         </Card>
       )}
 
@@ -296,7 +304,7 @@ function ServiciosList({ onSelect, onViewInforme }) {
           <SectionHeader label="Pendientes de informe" count={sinIniciar.length} />
           <Card style={{padding:0,overflow:'hidden'}}>
             {sinIniciar.map((s,i)=>(
-              <div key={s.id} style={{borderBottom:i<sinIniciar.length-1?'1px solid #e4e4e7':'none'}}>
+              <div key={s.id} style={{borderBottom:i<sinIniciar.length-1?'1px solid #DDD5CE':'none'}}>
                 <ServiceRow s={s} onClick={()=>onSelect(s.id,null)}
                   badge={<Badge style={{background:'#fffbeb',color:'#d97706',borderColor:'#fde68a'}}>⏳ Pendiente</Badge>} />
               </div>
@@ -310,7 +318,7 @@ function ServiciosList({ onSelect, onViewInforme }) {
           <SectionHeader label="En curso" count={enCurso.length} />
           <Card style={{padding:0,overflow:'hidden'}}>
             {enCurso.map((s,i)=>(
-              <div key={s.id} style={{borderBottom:i<enCurso.length-1?'1px solid #e4e4e7':'none'}}>
+              <div key={s.id} style={{borderBottom:i<enCurso.length-1?'1px solid #DDD5CE':'none'}}>
                 <ServiceRow s={s} onClick={()=>onSelect(s.id,informeMap[s.id].id)}
                   badge={<Badge style={{background:'#eff6ff',color:'#2563eb',borderColor:'#bfdbfe'}}>✏️ En curso</Badge>} />
               </div>
@@ -324,7 +332,7 @@ function ServiciosList({ onSelect, onViewInforme }) {
           <SectionHeader label="Enviados" count={enviados.length} />
           <Card style={{padding:0,overflow:'hidden'}}>
             {enviados.map((s,i)=>(
-              <div key={s.id} style={{borderBottom:i<enviados.length-1?'1px solid #e4e4e7':'none'}}>
+              <div key={s.id} style={{borderBottom:i<enviados.length-1?'1px solid #DDD5CE':'none'}}>
                 <ServiceRow s={s}
                   onClick={informeMap[s.id]?()=>onViewInforme(informeMap[s.id].id):undefined}
                   canClick={!!informeMap[s.id]} dim
@@ -397,7 +405,7 @@ function FillReport({ servicioId, draftInformeId, onBack }) {
     });
   },[]);
 
-  if (loading||!servicio) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',fontSize:13,color:'#71717a'}}>Cargando servicio...</div>;
+  if (loading||!servicio) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',fontSize:13,color:'#7A7168'}}>Cargando servicio...</div>;
 
   const activeCams = servicio.camaras_activas
     ? Object.entries(CAMERA_CATALOG).filter(([id])=>servicio.camaras_activas[id])
@@ -429,7 +437,7 @@ function FillReport({ servicioId, draftInformeId, onBack }) {
     <div style={{maxWidth:760,margin:'0 auto',padding:'80px 20px',textAlign:'center',display:'flex',flexDirection:'column',alignItems:'center',gap:12}}>
       <div style={{width:48,height:48,borderRadius:'50%',background:'#f0fdf4',border:'1px solid #bbf7d0',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22}}>✓</div>
       <div style={{fontSize:18,fontWeight:600}}>Informe enviado</div>
-      <div style={{fontSize:13,color:'#71717a'}}>{servicio.encuentro} · {servicio.jornada}</div>
+      <div style={{fontSize:13,color:'#7A7168'}}>{servicio.encuentro} · {servicio.jornada}</div>
       <div style={{display:'flex',gap:6,marginTop:4}}>
         {g>0&&<Badge variant="grave">⚠ {g} graves</Badge>}
         {l>0&&<Badge variant="leve">↓ {l} leves</Badge>}
@@ -447,7 +455,7 @@ function FillReport({ servicioId, draftInformeId, onBack }) {
         <>
           <div style={{marginBottom:20}}>
             <h2 style={{fontSize:18,fontWeight:600,margin:0,marginBottom:4}}>{servicio.encuentro||'Servicio'}</h2>
-            <p style={{fontSize:13,color:'#71717a',margin:0}}>Datos del servicio asignado</p>
+            <p style={{fontSize:13,color:'#7A7168',margin:0}}>Datos del servicio asignado</p>
           </div>
 
           <Card>
@@ -465,9 +473,9 @@ function FillReport({ servicioId, draftInformeId, onBack }) {
                 ['Productor',servicio.productor||'—'],
                 ...(servicio.tel_productor?[['Tel. Productor',servicio.tel_productor]]:[]),
               ].map(([k,v])=>(
-                <div key={k} style={{padding:'10px 12px',background:'#fafafa',borderRadius:8,border:'1px solid #e4e4e7'}}>
-                  <div style={{fontSize:10,fontWeight:500,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:3}}>{k}</div>
-                  <div style={{fontSize:12,fontWeight:500,fontFamily:"'Geist Mono',monospace"}}>{v||'—'}</div>
+                <div key={k} style={{padding:'10px 12px',background:'#F5F0EC',borderRadius:8,border:'1px solid #DDD5CE'}}>
+                  <div style={{fontSize:10,fontWeight:500,color:'#7A7168',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:3}}>{k}</div>
+                  <div style={{fontSize:12,fontWeight:500,fontFamily:"'Courier New',monospace"}}>{v||'—'}</div>
                 </div>
               ))}
             </div>
@@ -491,8 +499,8 @@ function FillReport({ servicioId, draftInformeId, onBack }) {
                   if(r.cam&&!servicio.camaras_activas?.[r.cam]) return null;
                   const v=servicio.operadores[r.key]; if(!v) return null;
                   return (
-                    <div key={r.key} style={{display:'flex',gap:8,padding:'6px 10px',background:'#fafafa',borderRadius:8,fontSize:12}}>
-                      <span style={{color:'#71717a',minWidth:90}}>{r.label}</span>
+                    <div key={r.key} style={{display:'flex',gap:8,padding:'6px 10px',background:'#F5F0EC',borderRadius:8,fontSize:12}}>
+                      <span style={{color:'#7A7168',minWidth:90}}>{r.label}</span>
                       <span style={{fontWeight:500}}>{v}</span>
                     </div>
                   );
@@ -519,7 +527,7 @@ function FillReport({ servicioId, draftInformeId, onBack }) {
           <div style={{marginBottom:16,display:'flex',alignItems:'center',gap:12}}>
             <div>
               <h2 style={{fontSize:18,fontWeight:600,margin:0,marginBottom:4}}>Informe técnico</h2>
-              <p style={{fontSize:13,color:'#71717a',margin:0}}>{servicio.encuentro} · {servicio.jornada}</p>
+              <p style={{fontSize:13,color:'#7A7168',margin:0}}>{servicio.encuentro} · {servicio.jornada}</p>
             </div>
             <div style={{marginLeft:'auto',display:'flex',gap:4}}>
               {g>0&&<Badge variant="grave">⚠ {g}G</Badge>}
@@ -540,9 +548,9 @@ function FillReport({ servicioId, draftInformeId, onBack }) {
 
           <Card style={{borderLeft:'3px solid #f59e0b'}}>
             <SecTitle>Logística</SecTitle>
-            <div style={{border:'1px solid #e4e4e7',borderRadius:8,overflow:'hidden',marginBottom:12}}>
+            <div style={{border:'1px solid #DDD5CE',borderRadius:8,overflow:'hidden',marginBottom:12}}>
               {LOGISTICA_ITEMS.map((item,i)=>(
-                <div key={item} style={{display:'flex',alignItems:'center',gap:12,padding:'9px 12px',background:i%2===0?'#fff':'#fafafa',borderBottom:i<LOGISTICA_ITEMS.length-1?'1px solid #e4e4e7':'none'}}>
+                <div key={item} style={{display:'flex',alignItems:'center',gap:12,padding:'9px 12px',background:i%2===0?'#fff':'#F5F0EC',borderBottom:i<LOGISTICA_ITEMS.length-1?'1px solid #DDD5CE':'none'}}>
                   <div style={{flex:1,fontSize:12}}>{item}</div>
                   <StatusToggle value={logistica.items[item]||STATUS.OK} onChange={v=>setLogistica({...logistica,items:{...logistica.items,[item]:v}})} />
                 </div>
@@ -573,7 +581,7 @@ function FillReport({ servicioId, draftInformeId, onBack }) {
         <>
           <div style={{marginBottom:20}}>
             <h2 style={{fontSize:18,fontWeight:600,margin:0,marginBottom:4}}>Resumen del informe</h2>
-            <p style={{fontSize:13,color:'#71717a',margin:0}}>Revisa antes de guardar</p>
+            <p style={{fontSize:13,color:'#7A7168',margin:0}}>Revisa antes de guardar</p>
           </div>
 
           <Card>
@@ -585,9 +593,9 @@ function FillReport({ servicioId, draftInformeId, onBack }) {
                 ...(logistica.inicio_md1||logistica.fin_md1?[['Inicio MD-1',logistica.inicio_md1||'—'],['Fin MD-1',logistica.fin_md1||'—'],['','']]:[] ),
                 ...(logistica.inicio_md||logistica.fin_md?[['Inicio MD',logistica.inicio_md||'—'],['Fin MD',logistica.fin_md||'—'],['','']]:[] ),
               ].map(([k,v])=>k?(
-                <div key={k} style={{padding:'10px 12px',background:'#fafafa',borderRadius:8,border:'1px solid #e4e4e7'}}>
-                  <div style={{fontSize:10,fontWeight:500,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:3}}>{k}</div>
-                  <div style={{fontSize:13,fontWeight:500,fontFamily:"'Geist Mono',monospace"}}>{v||'—'}</div>
+                <div key={k} style={{padding:'10px 12px',background:'#F5F0EC',borderRadius:8,border:'1px solid #DDD5CE'}}>
+                  <div style={{fontSize:10,fontWeight:500,color:'#7A7168',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:3}}>{k}</div>
+                  <div style={{fontSize:13,fontWeight:500,fontFamily:"'Courier New',monospace"}}>{v||'—'}</div>
                 </div>
               ):<div key={Math.random()} />)}
             </div>
@@ -597,28 +605,28 @@ function FillReport({ servicioId, draftInformeId, onBack }) {
             <SecTitle>Estado general</SecTitle>
             <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:16}}>
               <div style={{padding:14,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,textAlign:'center'}}>
-                <div style={{fontSize:22,fontWeight:600,color:'#16a34a',fontFamily:"'Geist Mono',monospace"}}>{activeCams.length+1}</div>
+                <div style={{fontSize:22,fontWeight:600,color:'#16a34a',fontFamily:"'Courier New',monospace"}}>{activeCams.length+1}</div>
                 <div style={{fontSize:11,color:'#16a34a',marginTop:2}}>Secciones</div>
               </div>
-              <div style={{padding:14,background:g>0?'#fef2f2':'#fafafa',border:`1px solid ${g>0?'#fecaca':'#e4e4e7'}`,borderRadius:8,textAlign:'center'}}>
-                <div style={{fontSize:22,fontWeight:600,color:g>0?'#dc2626':'#a1a1aa',fontFamily:"'Geist Mono',monospace"}}>{g}</div>
-                <div style={{fontSize:11,color:g>0?'#dc2626':'#a1a1aa',marginTop:2}}>Graves</div>
+              <div style={{padding:14,background:g>0?'#fef2f2':'#F5F0EC',border:`1px solid ${g>0?'#fecaca':'#DDD5CE'}`,borderRadius:8,textAlign:'center'}}>
+                <div style={{fontSize:22,fontWeight:600,color:g>0?'#dc2626':'#C2B9AD',fontFamily:"'Courier New',monospace"}}>{g}</div>
+                <div style={{fontSize:11,color:g>0?'#dc2626':'#C2B9AD',marginTop:2}}>Graves</div>
               </div>
-              <div style={{padding:14,background:l>0?'#fffbeb':'#fafafa',border:`1px solid ${l>0?'#fde68a':'#e4e4e7'}`,borderRadius:8,textAlign:'center'}}>
-                <div style={{fontSize:22,fontWeight:600,color:l>0?'#d97706':'#a1a1aa',fontFamily:"'Geist Mono',monospace"}}>{l}</div>
-                <div style={{fontSize:11,color:l>0?'#d97706':'#a1a1aa',marginTop:2}}>Leves</div>
+              <div style={{padding:14,background:l>0?'#fffbeb':'#F5F0EC',border:`1px solid ${l>0?'#fde68a':'#DDD5CE'}`,borderRadius:8,textAlign:'center'}}>
+                <div style={{fontSize:22,fontWeight:600,color:l>0?'#d97706':'#C2B9AD',fontFamily:"'Courier New',monospace"}}>{l}</div>
+                <div style={{fontSize:11,color:l>0?'#d97706':'#C2B9AD',marginTop:2}}>Leves</div>
               </div>
             </div>
-            <div style={{border:'1px solid #e4e4e7',borderRadius:8,overflow:'hidden'}}>
+            <div style={{border:'1px solid #DDD5CE',borderRadius:8,overflow:'hidden'}}>
               {activeCams.map(([id,cam],i)=>{
                 const d=camData[id]; const items=d?.items||{};
                 const gv=Object.values(items).filter(v=>v==='G').length;
                 const lv=Object.values(items).filter(v=>v==='L').length;
                 return (
-                  <div key={id} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',background:i%2===0?'#fff':'#fafafa',borderBottom:i<activeCams.length-1?'1px solid #e4e4e7':'none'}}>
+                  <div key={id} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',background:i%2===0?'#fff':'#F5F0EC',borderBottom:i<activeCams.length-1?'1px solid #DDD5CE':'none'}}>
                     <span style={{fontSize:14}}>{cam.icon}</span>
                     <div style={{flex:1,fontSize:12,fontWeight:500}}>{cam.label}</div>
-                    {(()=>{const eq=d?.equipos?Object.values(d.equipos).filter(Boolean).join(' · '):(d?.equipo||''); return eq?<span style={{fontSize:11,color:'#71717a',fontFamily:"'Geist Mono',monospace"}}>{eq}</span>:null;})()}
+                    {(()=>{const eq=d?.equipos?Object.values(d.equipos).filter(Boolean).join(' · '):(d?.equipo||''); return eq?<span style={{fontSize:11,color:'#7A7168',fontFamily:"'Courier New',monospace"}}>{eq}</span>:null;})()}
                     <div style={{display:'flex',gap:4}}>
                       {gv>0&&<Badge variant="grave">⚠{gv}G</Badge>}
                       {lv>0&&<Badge variant="leve">↓{lv}L</Badge>}
@@ -660,7 +668,7 @@ function InformeUsuarioView({ informeId, onBack }) {
     }).catch(()=>setLoading(false));
   },[informeId]);
 
-  if (loading||!informe) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',fontSize:13,color:'#71717a'}}>Cargando...</div>;
+  if (loading||!informe) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',fontSize:13,color:'#7A7168'}}>Cargando...</div>;
 
   const camData = informe.cam_data||{};
   const activeCams = Object.entries(CAMERA_CATALOG).filter(([id])=>camData[id]);
@@ -670,7 +678,7 @@ function InformeUsuarioView({ informeId, onBack }) {
     <div style={{maxWidth:760,margin:'0 auto',padding:'28px 20px 80px'}}>
       <div style={{marginBottom:20}}>
         <h2 style={{fontSize:18,fontWeight:600,margin:0,marginBottom:4}}>{informe.encuentro||'Informe'}</h2>
-        <p style={{fontSize:13,color:'#71717a',margin:0}}>{informe.jornada} · {fmt(informe.fecha)} · <Badge variant="ok">✓ Enviado</Badge></p>
+        <p style={{fontSize:13,color:'#7A7168',margin:0}}>{informe.jornada} · {fmt(informe.fecha)} · <Badge variant="ok">✓ Enviado</Badge></p>
       </div>
 
       {/* Horarios de jornada */}
@@ -681,7 +689,7 @@ function InformeUsuarioView({ informeId, onBack }) {
             {[['Inicio MD-1',log.inicio_md1],['Fin MD-1',log.fin_md1],['Inicio MD',log.inicio_md],['Fin MD',log.fin_md]].filter(([,v])=>v).map(([k,v])=>(
               <div key={k} style={{padding:'8px 10px',background:'#f5f3ff',borderRadius:8,border:'1px solid #ddd6fe'}}>
                 <div style={{fontSize:9,fontWeight:600,color:'#7c3aed',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:2}}>{k}</div>
-                <div style={{fontSize:14,fontWeight:600,fontFamily:"'Geist Mono',monospace"}}>{v}</div>
+                <div style={{fontSize:14,fontWeight:600,fontFamily:"'Courier New',monospace"}}>{v}</div>
               </div>
             ))}
           </div>
@@ -696,8 +704,8 @@ function InformeUsuarioView({ informeId, onBack }) {
           {label:'Leves',v:informe.incidencias_leves||0,yel:true},
         ].map(s=>(
           <Card key={s.label} style={{padding:'14px 16px',marginBottom:0,textAlign:'center'}}>
-            <div style={{fontSize:22,fontWeight:700,fontFamily:"'Geist Mono',monospace",color:s.red?'#dc2626':s.yel?'#d97706':'#09090b'}}>{s.v}</div>
-            <div style={{fontSize:11,color:'#71717a',marginTop:2}}>{s.label}</div>
+            <div style={{fontSize:22,fontWeight:700,fontFamily:"'Courier New',monospace",color:s.red?'#dc2626':s.yel?'#d97706':'#1A1A1A'}}>{s.v}</div>
+            <div style={{fontSize:11,color:'#7A7168',marginTop:2}}>{s.label}</div>
           </Card>
         ))}
       </div>
@@ -706,15 +714,15 @@ function InformeUsuarioView({ informeId, onBack }) {
       {log.items&&Object.keys(log.items).length>0&&(
         <Card style={{marginBottom:12}}>
           <SecTitle>Logística</SecTitle>
-          <div style={{border:'1px solid #e4e4e7',borderRadius:8,overflow:'hidden'}}>
+          <div style={{border:'1px solid #DDD5CE',borderRadius:8,overflow:'hidden'}}>
             {Object.entries(log.items).map(([item,val],i,arr)=>(
-              <div key={item} style={{display:'flex',alignItems:'center',padding:'8px 12px',background:i%2===0?'#fff':'#fafafa',borderBottom:i<arr.length-1?'1px solid #e4e4e7':'none'}}>
+              <div key={item} style={{display:'flex',alignItems:'center',padding:'8px 12px',background:i%2===0?'#fff':'#F5F0EC',borderBottom:i<arr.length-1?'1px solid #DDD5CE':'none'}}>
                 <span style={{flex:1,fontSize:12}}>{item}</span>
                 <Badge variant={val==='G'?'grave':val==='L'?'leve':'ok'}>{val||'OK'}</Badge>
               </div>
             ))}
           </div>
-          {log.incidencias&&<div style={{marginTop:8,fontSize:12,color:'#52525b',padding:'8px 12px',background:'#fafafa',borderRadius:6,border:'1px solid #e4e4e7'}}>{log.incidencias}</div>}
+          {log.incidencias&&<div style={{marginTop:8,fontSize:12,color:'#5C534D',padding:'8px 12px',background:'#F5F0EC',borderRadius:6,border:'1px solid #DDD5CE'}}>{log.incidencias}</div>}
         </Card>
       )}
 
@@ -730,22 +738,22 @@ function InformeUsuarioView({ informeId, onBack }) {
             <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10,flexWrap:'wrap'}}>
               <span style={{fontSize:15}}>{cam.icon}</span>
               <span style={{fontWeight:600,fontSize:13,flex:1}}>{cam.label}</span>
-              {eq&&<span style={{fontSize:11,color:'#71717a',fontFamily:"'Geist Mono',monospace"}}>{eq}</span>}
+              {eq&&<span style={{fontSize:11,color:'#7A7168',fontFamily:"'Courier New',monospace"}}>{eq}</span>}
               {gv>0&&<Badge variant="grave">⚠{gv}G</Badge>}
               {lv>0&&<Badge variant="leve">↓{lv}L</Badge>}
               {gv===0&&lv===0&&<Badge variant="ok">✓</Badge>}
             </div>
             {Object.keys(items).length>0&&(
-              <div style={{border:'1px solid #e4e4e7',borderRadius:6,overflow:'hidden',marginBottom:d?.incidencias?8:0}}>
+              <div style={{border:'1px solid #DDD5CE',borderRadius:6,overflow:'hidden',marginBottom:d?.incidencias?8:0}}>
                 {Object.entries(items).map(([item,val],i,arr)=>(
-                  <div key={item} style={{display:'flex',alignItems:'center',padding:'6px 10px',background:i%2===0?'#fff':'#fafafa',borderBottom:i<arr.length-1?'1px solid #e4e4e7':'none'}}>
+                  <div key={item} style={{display:'flex',alignItems:'center',padding:'6px 10px',background:i%2===0?'#fff':'#F5F0EC',borderBottom:i<arr.length-1?'1px solid #DDD5CE':'none'}}>
                     <span style={{flex:1,fontSize:11}}>{item}</span>
                     <Badge variant={val==='G'?'grave':val==='L'?'leve':'ok'} style={{fontSize:10}}>{val||'OK'}</Badge>
                   </div>
                 ))}
               </div>
             )}
-            {d?.incidencias&&<div style={{fontSize:12,color:'#52525b',padding:'6px 10px',background:'#fafafa',borderRadius:5,border:'1px solid #e4e4e7'}}>{d.incidencias}</div>}
+            {d?.incidencias&&<div style={{fontSize:12,color:'#5C534D',padding:'6px 10px',background:'#F5F0EC',borderRadius:5,border:'1px solid #DDD5CE'}}>{d.incidencias}</div>}
           </Card>
         );
       })}
@@ -773,7 +781,7 @@ export default function UsuarioView({ user, onLogout }) {
   const handleBack = () => { setSelectedServicioId(null); setDraftInformeId(null); setViewInformeId(null); setView('list'); };
 
   return (
-    <div style={{minHeight:'100vh',background:'#fafafa'}}>
+    <div style={{minHeight:'100vh',background:'#F5F0EC'}}>
       <Header user={user} onLogout={onLogout} onHome={view!=='list'?handleBack:null} />
       {view==='list'&&<ServiciosList onSelect={handleSelect} onViewInforme={handleViewInforme} />}
       {view==='filling'&&selectedServicioId&&<FillReport servicioId={selectedServicioId} draftInformeId={draftInformeId} onBack={handleBack} />}

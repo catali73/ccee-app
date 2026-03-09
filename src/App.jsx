@@ -2,10 +2,15 @@ import { useState, useCallback, useEffect, lazy, Suspense } from "react";
 const CoordView = lazy(() => import('./CoordView.jsx'));
 const UsuarioView = lazy(() => import('./UsuarioView.jsx'));
 
+// Fuente Montserrat — equivalente web de Gotham (libro de estilo GRUP MEDIAPRO)
 const fontLink = document.createElement("link");
 fontLink.rel = "stylesheet";
-fontLink.href = "https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap";
+fontLink.href = "https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap";
 document.head.appendChild(fontLink);
+// Aplicar fuente y background global
+const bodyStyle = document.createElement("style");
+bodyStyle.textContent = "body{font-family:'Montserrat',-apple-system,sans-serif;background:#F5F0EC;margin:0}";
+document.head.appendChild(bodyStyle);
 
 /* ─── LIGA DATA ───────────────────────────────────────────── */
 const LIGA_PARTIDOS = {
@@ -199,7 +204,7 @@ const CAMERA_CATALOG = {
   PTZ_2:        { label:"PTZ 2",        icon:"📹", color:"#0891b2",
                   equipos:[{key:"ptz",label:"PTZ",models:M.PTZ},{key:"control",label:"Control",models:M.PTZ_CTL}],
                   items:["PTZ","CONTROL","CABLEADO","ALIMENTACIÓN","INTERCOM"] },
-  OTROS:        { label:"Otros equipos",icon:"🔧", color:"#a1a1aa",
+  OTROS:        { label:"Otros equipos",icon:"🔧", color:"#C2B9AD",
                   equipos:[],
                   items:["EQUIPO","CABLEADO","ALIMENTACIÓN","INTERCOM"] },
 };
@@ -215,40 +220,43 @@ const TIPOS_SERVICIO = [
 const STATUS = { OK:"OK", G:"G", L:"L" };
 const initItems = (items) => Object.fromEntries(items.map(i=>[i,STATUS.OK]));
 
-/* ─── DESIGN TOKENS ───────────────────────────────────────── */
+/* ─── DESIGN TOKENS — GRUP MEDIAPRO ───────────────────────── */
+// Paleta: Naranja Pantone 179 C · Negro Process Black · Gris Warm Gray 3 C
 const t = {
-  font:"'Geist',-apple-system,sans-serif", mono:"'Geist Mono','Fira Code',monospace",
-  bg:"#ffffff", bgMuted:"#fafafa", bgHover:"#f4f4f5",
-  border:"#e4e4e7", borderFocus:"#a1a1aa",
-  text:"#09090b", textMuted:"#71717a",
-  accent:"#18181b", accentFg:"#fafafa",
-  shadow:"0 1px 3px 0 rgba(0,0,0,0.07),0 1px 2px -1px rgba(0,0,0,0.06)",
+  font:"'Montserrat',-apple-system,sans-serif", mono:"'Courier New',monospace",
+  bg:"#ffffff", bgMuted:"#F5F0EC", bgHover:"#EDE8E4",
+  border:"#DDD5CE", borderFocus:"#E8392C",
+  text:"#1A1A1A", textMuted:"#7A7168",
+  accent:"#E8392C", accentFg:"#ffffff",    // naranja Pantone 179 C
+  black:"#1A1A1A",                          // negro Process Black
+  gray3:"#C2B9AD",                          // gris Warm Gray 3 C
+  shadow:"0 1px 3px 0 rgba(0,0,0,0.08),0 1px 2px -1px rgba(0,0,0,0.05)",
   radius:"8px", radiusLg:"12px",
 };
 
-/* ─── BASE COMPONENTS ─────────────────────────────────────── */
-const IB = { width:"100%",boxSizing:"border-box",height:36,padding:"0 12px",background:"#fff",border:"1px solid #e4e4e7",borderRadius:"8px",fontSize:14,fontFamily:"'Geist',-apple-system,sans-serif",color:"#09090b",outline:"none",transition:"border-color 0.15s" };
-const Input = ({ style,...p }) => <input {...p} style={{...IB,...style}} onFocus={e=>e.target.style.borderColor="#a1a1aa"} onBlur={e=>e.target.style.borderColor="#e4e4e7"} />;
-const Select = ({ style,children,...p }) => <select {...p} style={{...IB,cursor:"pointer",...style}} onFocus={e=>e.target.style.borderColor="#a1a1aa"} onBlur={e=>e.target.style.borderColor="#e4e4e7"}>{children}</select>;
-const Textarea = ({ style,...p }) => <textarea {...p} style={{width:"100%",boxSizing:"border-box",padding:"8px 12px",minHeight:72,background:"#fff",border:"1px solid #e4e4e7",borderRadius:"8px",fontSize:13,fontFamily:"'Geist',-apple-system,sans-serif",color:"#09090b",outline:"none",resize:"vertical",lineHeight:1.5,transition:"border-color 0.15s",...style}} onFocus={e=>e.target.style.borderColor="#a1a1aa"} onBlur={e=>e.target.style.borderColor="#e4e4e7"} />;
-const Label = ({ children,style }) => <div style={{fontSize:12,fontWeight:500,color:"#09090b",marginBottom:6,fontFamily:"'Geist',-apple-system,sans-serif",...style}}>{children}</div>;
-const Card = ({ children,style }) => <div style={{background:"#fff",border:"1px solid #e4e4e7",borderRadius:"12px",padding:20,marginBottom:12,boxShadow:"0 1px 3px 0 rgba(0,0,0,0.07)",...style}}>{children}</div>;
-const SecTitle = ({ children }) => <div style={{fontSize:11,fontWeight:600,letterSpacing:"0.08em",color:"#71717a",textTransform:"uppercase",marginBottom:16,fontFamily:"'Geist',-apple-system,sans-serif"}}>{children}</div>;
-const BtnP = ({ children,style,...p }) => <button {...p} style={{background:"#18181b",color:"#fafafa",border:"none",borderRadius:"8px",padding:"0 16px",height:36,fontSize:13,fontWeight:500,fontFamily:"'Geist',-apple-system,sans-serif",cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6,transition:"opacity 0.15s",...style}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>{children}</button>;
-const BtnO = ({ children,style,...p }) => <button {...p} style={{background:"#fff",color:"#09090b",border:"1px solid #e4e4e7",borderRadius:"8px",padding:"0 16px",height:36,fontSize:13,fontWeight:500,fontFamily:"'Geist',-apple-system,sans-serif",cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6,...style}} onMouseEnter={e=>e.currentTarget.style.background="#f4f4f5"} onMouseLeave={e=>e.currentTarget.style.background="#fff"}>{children}</button>;
+/* ─── BASE COMPONENTS — estilo GRUP MEDIAPRO ──────────────── */
+const IB = { width:"100%",boxSizing:"border-box",height:36,padding:"0 12px",background:"#fff",border:"1px solid #DDD5CE",borderRadius:"8px",fontSize:14,fontFamily:"'Montserrat',-apple-system,sans-serif",color:"#1A1A1A",outline:"none",transition:"border-color 0.15s" };
+const Input = ({ style,...p }) => <input {...p} style={{...IB,...style}} onFocus={e=>e.target.style.borderColor="#E8392C"} onBlur={e=>e.target.style.borderColor="#DDD5CE"} />;
+const Select = ({ style,children,...p }) => <select {...p} style={{...IB,cursor:"pointer",...style}} onFocus={e=>e.target.style.borderColor="#E8392C"} onBlur={e=>e.target.style.borderColor="#DDD5CE"}>{children}</select>;
+const Textarea = ({ style,...p }) => <textarea {...p} style={{width:"100%",boxSizing:"border-box",padding:"8px 12px",minHeight:72,background:"#fff",border:"1px solid #DDD5CE",borderRadius:"8px",fontSize:13,fontFamily:"'Montserrat',-apple-system,sans-serif",color:"#1A1A1A",outline:"none",resize:"vertical",lineHeight:1.5,transition:"border-color 0.15s",...style}} onFocus={e=>e.target.style.borderColor="#E8392C"} onBlur={e=>e.target.style.borderColor="#DDD5CE"} />;
+const Label = ({ children,style }) => <div style={{fontSize:12,fontWeight:600,color:"#1A1A1A",marginBottom:6,fontFamily:"'Montserrat',-apple-system,sans-serif",...style}}>{children}</div>;
+const Card = ({ children,style }) => <div style={{background:"#fff",border:"1px solid #DDD5CE",borderRadius:"12px",padding:20,marginBottom:12,boxShadow:"0 1px 3px 0 rgba(0,0,0,0.07)",...style}}>{children}</div>;
+const SecTitle = ({ children,style }) => <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",color:"#7A7168",textTransform:"uppercase",marginBottom:16,fontFamily:"'Montserrat',-apple-system,sans-serif",...style}}>{children}</div>;
+const BtnP = ({ children,style,...p }) => <button {...p} style={{background:"#E8392C",color:"#fff",border:"none",borderRadius:"8px",padding:"0 16px",height:36,fontSize:13,fontWeight:600,fontFamily:"'Montserrat',-apple-system,sans-serif",cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6,transition:"opacity 0.15s",...style}} onMouseEnter={e=>e.currentTarget.style.opacity="0.88"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>{children}</button>;
+const BtnO = ({ children,style,...p }) => <button {...p} style={{background:"#fff",color:"#1A1A1A",border:"1px solid #DDD5CE",borderRadius:"8px",padding:"0 16px",height:36,fontSize:13,fontWeight:500,fontFamily:"'Montserrat',-apple-system,sans-serif",cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6,...style}} onMouseEnter={e=>e.currentTarget.style.background="#F5F0EC"} onMouseLeave={e=>e.currentTarget.style.background="#fff"}>{children}</button>;
 const Badge = ({ children,variant="default",style }) => {
-  const v={default:{bg:"#f4f4f5",color:"#52525b",border:"#e4e4e7"},grave:{bg:"#fef2f2",color:"#dc2626",border:"#fecaca"},leve:{bg:"#fffbeb",color:"#d97706",border:"#fde68a"},ok:{bg:"#f0fdf4",color:"#16a34a",border:"#bbf7d0"}}[variant]||{bg:"#f4f4f5",color:"#52525b",border:"#e4e4e7"};
-  return <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:9999,fontSize:11,fontWeight:500,fontFamily:"'Geist',-apple-system,sans-serif",background:v.bg,color:v.color,border:`1px solid ${v.border}`,...style}}>{children}</span>;
+  const v={default:{bg:"#F0EBE7",color:"#5C534D",border:"#DDD5CE"},grave:{bg:"#fef2f2",color:"#dc2626",border:"#fecaca"},leve:{bg:"#fff7ed",color:"#c2590a",border:"#fed7aa"},ok:{bg:"#f0fdf4",color:"#16a34a",border:"#bbf7d0"}}[variant]||{bg:"#F0EBE7",color:"#5C534D",border:"#DDD5CE"};
+  return <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:9999,fontSize:11,fontWeight:600,fontFamily:"'Montserrat',-apple-system,sans-serif",background:v.bg,color:v.color,border:`1px solid ${v.border}`,...style}}>{children}</span>;
 };
 const Field = ({ label,children }) => <div><Label>{label}</Label>{children}</div>;
-const Sep = () => <div style={{height:1,background:"#e4e4e7",margin:"16px 0"}} />;
+const Sep = () => <div style={{height:1,background:"#DDD5CE",margin:"16px 0"}} />;
 
 /* ─── STATUS TOGGLE ───────────────────────────────────────── */
 function StatusToggle({ value,onChange }) {
   return (
     <div style={{display:"flex",gap:4}}>
       {[{k:"OK",l:"OK",bg:"#f0fdf4",c:"#16a34a",b:"#86efac"},{k:"G",l:"Grave",bg:"#fef2f2",c:"#dc2626",b:"#fca5a5"},{k:"L",l:"Leve",bg:"#fffbeb",c:"#d97706",b:"#fde68a"}].map(o=>(
-        <button key={o.k} onClick={()=>onChange(o.k)} style={{padding:"3px 10px",borderRadius:6,fontSize:11,fontWeight:500,cursor:"pointer",fontFamily:"'Geist',-apple-system,sans-serif",background:value===o.k?o.bg:"#fafafa",color:value===o.k?o.c:"#71717a",border:`1px solid ${value===o.k?o.b:"#e4e4e7"}`,transition:"all 0.12s"}}>{o.l}</button>
+        <button key={o.k} onClick={()=>onChange(o.k)} style={{padding:"3px 10px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"'Montserrat',-apple-system,sans-serif",background:value===o.k?o.bg:"#F5F0EC",color:value===o.k?o.c:"#7A7168",border:`1px solid ${value===o.k?o.b:"#DDD5CE"}`,transition:"all 0.12s"}}>{o.l}</button>
       ))}
     </div>
   );
@@ -263,10 +271,10 @@ function Steps({ current,steps }) {
         return (
           <div key={i} style={{display:"flex",alignItems:"center"}}>
             <div style={{display:"flex",alignItems:"center",gap:6}}>
-              <div style={{width:22,height:22,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,background:done||active?"#18181b":"#f4f4f5",color:done||active?"#fafafa":"#71717a",border:`1px solid ${done||active?"#18181b":"#e4e4e7"}`,transition:"all 0.2s"}}>{done?"✓":i+1}</div>
-              <span style={{fontSize:12,fontWeight:active?500:400,color:active?"#09090b":"#71717a"}}>{s}</span>
+              <div style={{width:22,height:22,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,background:done||active?"#E8392C":"#F5F0EC",color:done||active?"#fff":"#7A7168",border:`1px solid ${done||active?"#E8392C":"#DDD5CE"}`,transition:"all 0.2s"}}>{done?"✓":i+1}</div>
+              <span style={{fontSize:12,fontWeight:active?600:400,color:active?"#1A1A1A":"#7A7168",fontFamily:"'Montserrat',-apple-system,sans-serif"}}>{s}</span>
             </div>
-            {i<steps.length-1&&<div style={{width:20,height:1,background:"#e4e4e7",margin:"0 8px"}} />}
+            {i<steps.length-1&&<div style={{width:20,height:1,background:"#DDD5CE",margin:"0 8px"}} />}
           </div>
         );
       })}
@@ -277,9 +285,9 @@ function Steps({ current,steps }) {
 /* ─── CAMERA TOGGLE ───────────────────────────────────────── */
 function CameraToggle({ id,cam,selected,onToggle }) {
   return (
-    <button onClick={()=>onToggle(id)} style={{background:selected?`${cam.color}08`:"#fff",border:`1px solid ${selected?cam.color:"#e4e4e7"}`,borderRadius:"8px",padding:"12px 8px",cursor:"pointer",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:6,transition:"all 0.15s",boxShadow:selected?`0 0 0 1px ${cam.color}`:"none"}}>
+    <button onClick={()=>onToggle(id)} style={{background:selected?`${cam.color}08`:"#fff",border:`1px solid ${selected?cam.color:"#DDD5CE"}`,borderRadius:"8px",padding:"12px 8px",cursor:"pointer",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:6,transition:"all 0.15s",boxShadow:selected?`0 0 0 1px ${cam.color}`:"none"}}>
       <div style={{fontSize:20}}>{cam.icon}</div>
-      <div style={{fontSize:10,fontWeight:500,color:selected?cam.color:"#71717a",lineHeight:1.3}}>{cam.label}</div>
+      <div style={{fontSize:10,fontWeight:500,color:selected?cam.color:"#7A7168",lineHeight:1.3}}>{cam.label}</div>
       {selected&&<div style={{width:4,height:4,borderRadius:"50%",background:cam.color}} />}
     </button>
   );
@@ -297,7 +305,7 @@ function CameraSection({ camId,cam,data,onChange,usedModels,readOnly }) {
         {/* Modo read-only: mostrar modelos como badges en el header */}
         {readOnly&&hasEquipos&&equipos.map(slot=>{
           const val=data.equipos?.[slot.key];
-          return val?<Badge key={slot.key} style={{fontSize:10,fontFamily:"'Geist Mono',monospace"}}>{slot.label}: {val}</Badge>:null;
+          return val?<Badge key={slot.key} style={{fontSize:10,fontFamily:"'Courier New',monospace"}}>{slot.label}: {val}</Badge>:null;
         })}
       </div>
       {/* Selects de modelo SOLO en modo edición (coordinador) */}
@@ -318,9 +326,9 @@ function CameraSection({ camId,cam,data,onChange,usedModels,readOnly }) {
           })}
         </div>
       )}
-      <div style={{border:"1px solid #e4e4e7",borderRadius:"8px",overflow:"hidden",marginBottom:12}}>
+      <div style={{border:"1px solid #DDD5CE",borderRadius:"8px",overflow:"hidden",marginBottom:12}}>
         {cam.items.map((item,idx)=>(
-          <div key={item} style={{display:"flex",alignItems:"center",gap:12,padding:"9px 12px",background:idx%2===0?"#fff":"#fafafa",borderBottom:idx<cam.items.length-1?"1px solid #e4e4e7":"none"}}>
+          <div key={item} style={{display:"flex",alignItems:"center",gap:12,padding:"9px 12px",background:idx%2===0?"#fff":"#F5F0EC",borderBottom:idx<cam.items.length-1?"1px solid #DDD5CE":"none"}}>
             <div style={{flex:1,fontSize:12}}>{item}</div>
             <StatusToggle value={data.items?.[item]||STATUS.OK} onChange={v=>onChange(camId,"item",item,v)} />
           </div>
@@ -350,14 +358,14 @@ function Dashboard({ onNewReport }) {
   const loadDetail = async (id) => { const r=await fetch(`/api/informes/${id}`); setDetail(await r.json()); setSelected(id); };
   const fmt = (d) => d?new Date(d).toLocaleDateString('es-ES'):'—';
 
-  if(loading) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"60vh"}}><span style={{fontSize:13,color:"#71717a"}}>Cargando...</span></div>;
+  if(loading) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"60vh"}}><span style={{fontSize:13,color:"#7A7168"}}>Cargando...</span></div>;
 
   return (
     <div style={{maxWidth:1000,margin:"0 auto",padding:"24px 20px 80px"}}>
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:24}}>
         <div>
           <h1 style={{fontSize:22,fontWeight:600,margin:0,marginBottom:4}}>Dashboard</h1>
-          <p style={{fontSize:13,color:"#71717a",margin:0}}>Informes de cámaras especiales · Temporada 25/26</p>
+          <p style={{fontSize:13,color:"#7A7168",margin:0}}>Informes de cámaras especiales · Temporada 25/26</p>
         </div>
         <BtnP onClick={onNewReport}>+ Nuevo informe</BtnP>
       </div>
@@ -365,31 +373,31 @@ function Dashboard({ onNewReport }) {
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20}}>
           {[{l:"Informes",v:stats.total,s:"esta temporada"},{l:"Jornadas",v:stats.porJornada?.length||0,s:"registradas"},{l:"Graves",v:stats.porJornada?.reduce((a,j)=>a+parseInt(j.graves||0),0)||0,s:"acumuladas",red:true},{l:"Leves",v:stats.porJornada?.reduce((a,j)=>a+parseInt(j.leves||0),0)||0,s:"acumuladas",yel:true}].map(s=>(
             <Card key={s.l} style={{padding:"16px 18px",marginBottom:0}}>
-              <div style={{fontSize:24,fontWeight:600,fontFamily:"'Geist Mono',monospace",color:s.red?"#dc2626":s.yel?"#d97706":"#09090b",marginBottom:2}}>{s.v}</div>
+              <div style={{fontSize:24,fontWeight:600,color:s.red?"#dc2626":s.yel?"#c2590a":"#1A1A1A",marginBottom:2}}>{s.v}</div>
               <div style={{fontSize:12,fontWeight:500}}>{s.l}</div>
-              <div style={{fontSize:11,color:"#71717a",marginTop:1}}>{s.s}</div>
+              <div style={{fontSize:11,color:"#7A7168",marginTop:1}}>{s.s}</div>
             </Card>
           ))}
         </div>
       )}
       {informes.length===0?(
         <Card style={{textAlign:"center",padding:"48px 20px"}}>
-          <div style={{fontSize:13,color:"#71717a",marginBottom:16}}>No hay informes todavía.</div>
+          <div style={{fontSize:13,color:"#7A7168",marginBottom:16}}>No hay informes todavía.</div>
           <BtnP onClick={onNewReport}>Crear primer informe</BtnP>
         </Card>
       ):(
         <div style={{display:"grid",gridTemplateColumns:selected?"1fr 1fr":"1fr",gap:16,alignItems:"start"}}>
           <Card style={{padding:0,overflow:"hidden"}}>
-            <div style={{padding:"14px 16px",borderBottom:"1px solid #e4e4e7"}}><SecTitle>Informes · {informes.length} resultados</SecTitle></div>
+            <div style={{padding:"14px 16px",borderBottom:"1px solid #DDD5CE"}}><SecTitle>Informes · {informes.length} resultados</SecTitle></div>
             {informes.map((inf,i)=>(
               <div key={inf.id} onClick={()=>loadDetail(inf.id)}
-                style={{padding:"12px 16px",cursor:"pointer",background:selected===inf.id?"#f4f4f5":"#fff",borderBottom:i<informes.length-1?"1px solid #e4e4e7":"none",transition:"background 0.1s"}}
-                onMouseEnter={e=>{if(selected!==inf.id)e.currentTarget.style.background="#fafafa";}}
+                style={{padding:"12px 16px",cursor:"pointer",background:selected===inf.id?"#EDE8E4":"#fff",borderBottom:i<informes.length-1?"1px solid #DDD5CE":"none",transition:"background 0.1s"}}
+                onMouseEnter={e=>{if(selected!==inf.id)e.currentTarget.style.background="#F5F0EC";}}
                 onMouseLeave={e=>{if(selected!==inf.id)e.currentTarget.style.background="#fff";}}>
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
                   <div style={{flex:1}}>
                     <div style={{fontSize:13,fontWeight:500}}>{inf.encuentro||"—"}</div>
-                    <div style={{fontSize:11,color:"#71717a",marginTop:2}}><span style={{fontFamily:"'Geist Mono',monospace"}}>{inf.jornada}</span> · {fmt(inf.fecha)} · {inf.responsable||"—"}</div>
+                    <div style={{fontSize:11,color:"#7A7168",marginTop:2}}><span style={{fontFamily:"'Courier New',monospace"}}>{inf.jornada}</span> · {fmt(inf.fecha)} · {inf.responsable||"—"}</div>
                   </div>
                   <div style={{display:"flex",gap:4}}>
                     {inf.incidencias_graves>0&&<Badge variant="grave">⚠ {inf.incidencias_graves}G</Badge>}
@@ -404,12 +412,12 @@ function Dashboard({ onNewReport }) {
             <Card style={{position:"sticky",top:80}}>
               <div style={{display:"flex",alignItems:"center",marginBottom:16}}>
                 <div style={{fontSize:14,fontWeight:600,flex:1}}>{detail.encuentro}</div>
-                <button onClick={()=>{setSelected(null);setDetail(null)}} style={{background:"none",border:"none",cursor:"pointer",color:"#71717a",fontSize:16,padding:4}}>✕</button>
+                <button onClick={()=>{setSelected(null);setDetail(null)}} style={{background:"none",border:"none",cursor:"pointer",color:"#7A7168",fontSize:16,padding:4}}>✕</button>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
                 {[["Jornada",detail.jornada],["Fecha",fmt(detail.fecha)],["Hora",detail.hora_partido||"—"],["Responsable",detail.responsable],["UM",detail.um],["J. Técnico",detail.jefe_tecnico]].map(([k,v])=>(
-                  <div key={k} style={{padding:"8px 10px",background:"#fafafa",borderRadius:"8px",border:"1px solid #e4e4e7"}}>
-                    <div style={{fontSize:10,fontWeight:500,color:"#71717a",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{k}</div>
+                  <div key={k} style={{padding:"8px 10px",background:"#F5F0EC",borderRadius:"8px",border:"1px solid #DDD5CE"}}>
+                    <div style={{fontSize:10,fontWeight:500,color:"#7A7168",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{k}</div>
                     <div style={{fontSize:12,fontWeight:500}}>{v||"—"}</div>
                   </div>
                 ))}
@@ -425,16 +433,16 @@ function Dashboard({ onNewReport }) {
               {detail.operators&&Object.values(detail.operators).some(v=>v)&&(
                 <div style={{marginBottom:10}}>
                   <Label>Operadores</Label>
-                  {OPERATOR_GROUPS.map(g=>g.roles.map(r=>{ const v=detail.operators[r.key]; if(!v) return null; return <div key={r.key} style={{display:"flex",gap:8,fontSize:12,marginBottom:3}}><span style={{color:"#71717a",minWidth:90}}>{r.label}</span><span style={{fontWeight:500}}>{v}</span></div>; }))}
+                  {OPERATOR_GROUPS.map(g=>g.roles.map(r=>{ const v=detail.operators[r.key]; if(!v) return null; return <div key={r.key} style={{display:"flex",gap:8,fontSize:12,marginBottom:3}}><span style={{color:"#7A7168",minWidth:90}}>{r.label}</span><span style={{fontWeight:500}}>{v}</span></div>; }))}
                 </div>
               )}
               {detail.cam_data&&(
-                <div style={{border:"1px solid #e4e4e7",borderRadius:"8px",overflow:"hidden"}}>
+                <div style={{border:"1px solid #DDD5CE",borderRadius:"8px",overflow:"hidden"}}>
                   {Object.entries(detail.cam_data).map(([id,d],i,arr)=>{ const cam=CAMERA_CATALOG[id]; if(!cam||!d) return null; const items=d.items||{}; const gv=Object.values(items).filter(v=>v==="G").length; const lv=Object.values(items).filter(v=>v==="L").length; return (
-                    <div key={id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderBottom:i<arr.length-1?"1px solid #e4e4e7":"none",background:i%2===0?"#fff":"#fafafa"}}>
+                    <div key={id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderBottom:i<arr.length-1?"1px solid #DDD5CE":"none",background:i%2===0?"#fff":"#F5F0EC"}}>
                       <span style={{fontSize:13}}>{cam.icon}</span>
                       <div style={{flex:1,fontSize:12}}>{cam.label}</div>
-                      {d.equipo&&<span style={{fontSize:11,color:"#71717a",fontFamily:"'Geist Mono',monospace"}}>{d.equipo}</span>}
+                      {d.equipo&&<span style={{fontSize:11,color:"#7A7168",fontFamily:"'Courier New',monospace"}}>{d.equipo}</span>}
                       <div style={{display:"flex",gap:3}}>{gv>0&&<Badge variant="grave">⚠{gv}</Badge>}{lv>0&&<Badge variant="leve">↓{lv}</Badge>}{gv===0&&lv===0&&<Badge variant="ok">✓</Badge>}</div>
                     </div>
                   ); })}
@@ -495,12 +503,12 @@ function LoginPage({ onLogin }) {
   };
 
   return (
-    <div style={{minHeight:'100vh',background:'#fafafa',display:'flex',alignItems:'center',justifyContent:'center'}}>
-      <div style={{width:360,background:'#fff',border:'1px solid #e4e4e7',borderRadius:12,padding:32,boxShadow:'0 1px 3px 0 rgba(0,0,0,0.07)'}}>
+    <div style={{minHeight:'100vh',background:'#F5F0EC',display:'flex',alignItems:'center',justifyContent:'center'}}>
+      <div style={{width:360,background:'#fff',border:'1px solid #DDD5CE',borderRadius:12,padding:32,boxShadow:'0 1px 3px 0 rgba(0,0,0,0.07)'}}>
         <div style={{textAlign:'center',marginBottom:28}}>
-          <div style={{width:44,height:44,borderRadius:10,background:'#18181b',display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:22,marginBottom:12}}>📷</div>
+          <div style={{width:44,height:44,borderRadius:10,background:'#E8392C',display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:22,marginBottom:12}}>📷</div>
           <div style={{fontSize:16,fontWeight:600}}>MEDIAPRO · CCEE</div>
-          <div style={{fontSize:12,color:'#71717a',marginTop:3}}>Cámaras Especiales</div>
+          <div style={{fontSize:12,color:'#7A7168',marginTop:3}}>Cámaras Especiales</div>
         </div>
         <form onSubmit={handleSubmit} style={{display:'flex',flexDirection:'column',gap:14}}>
           <Field label="Email">
@@ -536,7 +544,7 @@ export default function App() {
   const handleLogout = () => { clearToken(); setUser(null); };
 
   if (loading) return (
-    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,color:'#71717a'}}>
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,color:'#7A7168'}}>
       Cargando...
     </div>
   );
@@ -544,7 +552,7 @@ export default function App() {
   if (!user) return <LoginPage onLogin={setUser} />;
 
   return (
-    <Suspense fallback={<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,color:'#71717a'}}>Cargando...</div>}>
+    <Suspense fallback={<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,color:'#7A7168'}}>Cargando...</div>}>
       {user.role === 'coordinador'
         ? <CoordView user={user} onLogout={handleLogout} />
         : <UsuarioView user={user} onLogout={handleLogout} />
