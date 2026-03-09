@@ -251,26 +251,52 @@ const Badge = ({ children,variant="default",style }) => {
 const Field = ({ label,children }) => <div><Label>{label}</Label>{children}</div>;
 const Sep = () => <div style={{height:1,background:"#DDD5CE",margin:"16px 0"}} />;
 
-/* ─── LOGO MEDIAPRO — tres pastillas solapadas ────────────── */
-// Recrea fielmente el logo corporativo: tres pills en rojo (#E8392C)
-// con negro en las zonas de intersección, mediante clipPath SVG.
+/* ─── LOGO MEDIAPRO — tres pastillas rotadas ~-32° ──────────── */
+// Medidas calibradas sobre el PNG oficial 01_GRUP MEDIAPRO.png (1060×1060):
+// · Tres stadium shapes (rect rx=pH/2) rotadas ≈ -32° alrededor de su centro
+// · Intersecciones TRANSPARENTES (el fondo se ve a través) → funciona sobre
+//   cualquier color de fondo (header oscuro o blanco)
+// · Técnica: SVG mask que "perfora" las zonas de solapamiento
 export function MediaproLogo({ height = 32 }) {
-  const H = 48, pW = 72, rx = 24, offset = 44;
-  const W = offset * 2 + pW; // 160
+  // Dimensiones del canvas normalizado a partir del PNG oficial
+  const W = 220, H = 100;
+  const pW = 85, pH = 54, rx = 27;   // pastilla: ancho, alto, radio bordes
+  const rot = -32;                     // grados de inclinación
+  const cy = 50;                       // centro vertical compartido
+  const cx = [52, 110, 168];           // centros X de cada pastilla (espaciado 58px)
+
+  // Genera las props de cada <rect> (centrado + girado alrededor de su centro)
+  const rp = (i) => ({
+    x: cx[i] - pW / 2,
+    y: cy - pH / 2,
+    width: pW,
+    height: pH,
+    rx,
+    transform: `rotate(${rot} ${cx[i]} ${cy})`,
+  });
+
   return (
     <svg viewBox={`0 0 ${W} ${H}`} height={height} width={Math.round(W * height / H)}
-      style={{display:'block',flexShrink:0}} aria-label="Mediapro">
+      style={{ display: 'block', flexShrink: 0 }} aria-label="Mediapro">
       <defs>
-        <clipPath id="mp-cp1"><rect x={0}       y={0} width={pW} height={H} rx={rx}/></clipPath>
-        <clipPath id="mp-cp2"><rect x={offset}  y={0} width={pW} height={H} rx={rx}/></clipPath>
+        {/* clipPaths = forma de cada pastilla (usados dentro del mask) */}
+        <clipPath id="mp-cp1"><rect {...rp(0)} /></clipPath>
+        <clipPath id="mp-cp2"><rect {...rp(1)} /></clipPath>
+        {/* Mask: blanco = mostrar, negro = ocultar (→ transparente) */}
+        <mask id="mp-mask">
+          <rect width={W} height={H} fill="white" />
+          {/* Perforar la intersección pastilla-1 ∩ pastilla-2 */}
+          <rect {...rp(1)} fill="black" clipPath="url(#mp-cp1)" />
+          {/* Perforar la intersección pastilla-2 ∩ pastilla-3 */}
+          <rect {...rp(2)} fill="black" clipPath="url(#mp-cp2)" />
+        </mask>
       </defs>
-      {/* Tres pastillas rojas */}
-      <rect x={0}        y={0} width={pW} height={H} rx={rx} fill="#E8392C"/>
-      <rect x={offset}   y={0} width={pW} height={H} rx={rx} fill="#E8392C"/>
-      <rect x={offset*2} y={0} width={pW} height={H} rx={rx} fill="#E8392C"/>
-      {/* Negro en las intersecciones */}
-      <rect x={offset}   y={0} width={pW} height={H} rx={rx} fill="#000" clipPath="url(#mp-cp1)"/>
-      <rect x={offset*2} y={0} width={pW} height={H} rx={rx} fill="#000" clipPath="url(#mp-cp2)"/>
+      {/* Tres pastillas rojas con intersecciones transparentes */}
+      <g mask="url(#mp-mask)">
+        <rect {...rp(0)} fill="#E8392C" />
+        <rect {...rp(1)} fill="#E8392C" />
+        <rect {...rp(2)} fill="#E8392C" />
+      </g>
     </svg>
   );
 }
