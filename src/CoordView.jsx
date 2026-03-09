@@ -3,7 +3,8 @@ import AnalisisView from "./AnalisisView.jsx";
 import {
   apiFetch, Input, Select, Textarea, Label, Card, SecTitle, BtnP, BtnO, Badge,
   Field, Sep, Steps, StatusToggle, CameraToggle, CameraSection, initItems, STATUS,
-  CAMERA_CATALOG, OPERATOR_GROUPS, PERSONAL, TIPOS_SERVICIO, LIGA_PARTIDOS, LOGISTICA_ITEMS
+  CAMERA_CATALOG, OPERATOR_GROUPS, PERSONAL, TIPOS_SERVICIO, LIGA_PARTIDOS, LOGISTICA_ITEMS,
+  MediaproLogo
 } from "./App.jsx";
 
 /* ── helpers ── */
@@ -139,12 +140,9 @@ function Header({ user, onLogout, view, setView }) {
     <header style={{background:'#1A1A1A',borderBottom:'3px solid #E8392C',position:'sticky',top:0,zIndex:100}}>
       <div style={{maxWidth:1100,margin:'0 auto',padding:'0 20px',height:58,display:'flex',alignItems:'center',gap:16}}>
         {/* Logo MEDIAPRO */}
-        <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <div style={{width:32,height:32,borderRadius:6,background:'#E8392C',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0}}>📷</div>
-          <div>
-            <div style={{fontSize:13,fontWeight:700,lineHeight:1.2,color:'#fff',letterSpacing:'0.05em',fontFamily:"'Montserrat',-apple-system,sans-serif"}}>MEDIAPRO</div>
-            <div style={{fontSize:9,color:'#C2B9AD',lineHeight:1.2,letterSpacing:'0.14em',textTransform:'uppercase',fontFamily:"'Montserrat',-apple-system,sans-serif"}}>Cámaras Especiales</div>
-          </div>
+        <div style={{display:'flex',alignItems:'center',gap:12}}>
+          <MediaproLogo height={30} />
+          <div style={{fontSize:9,color:'#C2B9AD',lineHeight:1.2,letterSpacing:'0.14em',textTransform:'uppercase',fontFamily:"'Montserrat',-apple-system,sans-serif"}}>Cámaras Especiales</div>
         </div>
         <div style={{flex:1}} />
         {/* Nav tabs */}

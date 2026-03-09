@@ -251,6 +251,30 @@ const Badge = ({ children,variant="default",style }) => {
 const Field = ({ label,children }) => <div><Label>{label}</Label>{children}</div>;
 const Sep = () => <div style={{height:1,background:"#DDD5CE",margin:"16px 0"}} />;
 
+/* ─── LOGO MEDIAPRO — tres pastillas solapadas ────────────── */
+// Recrea fielmente el logo corporativo: tres pills en rojo (#E8392C)
+// con negro en las zonas de intersección, mediante clipPath SVG.
+export function MediaproLogo({ height = 32 }) {
+  const H = 48, pW = 72, rx = 24, offset = 44;
+  const W = offset * 2 + pW; // 160
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} height={height} width={Math.round(W * height / H)}
+      style={{display:'block',flexShrink:0}} aria-label="Mediapro">
+      <defs>
+        <clipPath id="mp-cp1"><rect x={0}       y={0} width={pW} height={H} rx={rx}/></clipPath>
+        <clipPath id="mp-cp2"><rect x={offset}  y={0} width={pW} height={H} rx={rx}/></clipPath>
+      </defs>
+      {/* Tres pastillas rojas */}
+      <rect x={0}        y={0} width={pW} height={H} rx={rx} fill="#E8392C"/>
+      <rect x={offset}   y={0} width={pW} height={H} rx={rx} fill="#E8392C"/>
+      <rect x={offset*2} y={0} width={pW} height={H} rx={rx} fill="#E8392C"/>
+      {/* Negro en las intersecciones */}
+      <rect x={offset}   y={0} width={pW} height={H} rx={rx} fill="#000" clipPath="url(#mp-cp1)"/>
+      <rect x={offset*2} y={0} width={pW} height={H} rx={rx} fill="#000" clipPath="url(#mp-cp2)"/>
+    </svg>
+  );
+}
+
 /* ─── STATUS TOGGLE ───────────────────────────────────────── */
 function StatusToggle({ value,onChange }) {
   return (
