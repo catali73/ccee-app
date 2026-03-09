@@ -822,9 +822,10 @@ app.get('/api/stats', requireAuth(['coordinador']), async (req, res) => {
 app.get('/api/analisis', requireAuth(['coordinador']), async (req, res) => {
   try {
     const r = await pool.query(`
-      SELECT i.*, u.name as submitted_by_name
+      SELECT i.*, u.name as submitted_by_name, s.cam_models
       FROM informes i
       LEFT JOIN users u ON u.id = i.submitted_by
+      LEFT JOIN servicios s ON s.id = i.servicio_id
       WHERE i.status = 'enviado'
       ORDER BY i.jornada ASC, i.created_at ASC
     `)
@@ -833,6 +834,17 @@ app.get('/api/analisis', requireAuth(['coordinador']), async (req, res) => {
     res.status(500).json({ error: err.message })
   }
 })
+
+// Grupos de cámaras para analytics (bloques, no posiciones individuales)
+const CAM_BLOCK_MAP = {
+  STEADY_L:'Steadycam', STEADY_R:'Steadycam', STEADY_PERSO:'Steadycam',
+  RF_L:'RF', RF_R:'RF', RF_PERSO:'RF',
+  KIT_CINEMA_L:'Cinema', KIT_CINEMA_R:'Cinema',
+  POLECAM_L:'Polecam', POLECAM_R:'Polecam',
+  MINICAM_L:'Minicám.', MINICAM_R:'Minicám.',
+  PTZ_1:'PTZ', PTZ_2:'PTZ',
+}
+const camBlock = id => CAM_BLOCK_MAP[id] || CAMERA_LABELS[id] || id
 
 // Exportar informes a Excel (coordinador)
 app.post('/api/analisis/export', requireAuth(['coordinador']), async (req, res) => {
@@ -843,18 +855,20 @@ app.post('/api/analisis/export', requireAuth(['coordinador']), async (req, res) 
     if (ids && ids.length > 0) {
       const placeholders = ids.map((_, i) => `$${i + 1}`).join(',')
       query = `
-        SELECT i.*, u.name as submitted_by_name
+        SELECT i.*, u.name as submitted_by_name, s.cam_models
         FROM informes i
         LEFT JOIN users u ON u.id = i.submitted_by
+        LEFT JOIN servicios s ON s.id = i.servicio_id
         WHERE i.id IN (${placeholders}) AND i.status = 'enviado'
         ORDER BY i.jornada ASC, i.created_at ASC
       `
       params = ids
     } else {
       query = `
-        SELECT i.*, u.name as submitted_by_name
+        SELECT i.*, u.name as submitted_by_name, s.cam_models
         FROM informes i
         LEFT JOIN users u ON u.id = i.submitted_by
+        LEFT JOIN servicios s ON s.id = i.servicio_id
         WHERE i.status = 'enviado'
         ORDER BY i.jornada ASC, i.created_at ASC
       `
@@ -864,46 +878,73 @@ app.post('/api/analisis/export', requireAuth(['coordinador']), async (req, res) 
 
     // Hoja 1: resumen por informe
     const resumen = informes.map(inf => ({
-      'Jornada':           inf.jornada || '',
-      'Encuentro':         inf.encuentro || '',
-      'Fecha':             inf.fecha ? new Date(inf.fecha).toLocaleDateString('es-ES') : '',
-      'UM':                inf.um || '',
-      'Técnico':           inf.submitted_by_name || '',
-      'Jefe Técnico UM':   inf.jefe_tecnico || '',
-      'Realizador':        inf.realizador || '',
-      'Productor':         inf.productor || '',
+      'Jornada':            inf.jornada || '',
+      'Encuentro':          inf.encuentro || '',
+      'Fecha':              inf.fecha ? new Date(inf.fecha).toLocaleDateString('es-ES') : '',
+      'UM':                 inf.um || '',
+      'Técnico':            inf.submitted_by_name || '',
+      'Jefe Técnico UM':    inf.jefe_tecnico || '',
+      'Realizador':         inf.realizador || '',
+      'Productor':          inf.productor || '',
       'Incidencias Graves': inf.incidencias_graves || 0,
       'Incidencias Leves':  inf.incidencias_leves || 0,
     }))
 
-    // Hoja 2: detalle por cámara
+    // Hoja 2: detalle por bloque de cámara
     const porCamara = []
     for (const inf of informes) {
       const camData = inf.cam_data || {}
       const camarasActivas = inf.camaras_activas || {}
+      const camModels = inf.cam_models || {}
       for (const [camId, activa] of Object.entries(camarasActivas)) {
         if (!activa) continue
         const cam = camData[camId] || {}
-        const modelo = (inf.cam_models || {})[camId] || {}
-        const modeloStr = Object.values(modelo).filter(Boolean).join(', ')
+        const modelRaw = camModels[camId] || {}
+        const modeloStr = Object.values(modelRaw).filter(Boolean).join(', ')
         const items = cam.items || {}
-        const incidencias = cam.incidencias || []
-        const itemsKO = Object.entries(items).filter(([, v]) => v === 'KO').map(([k]) => k).join(', ')
+        const incG = Object.values(items).filter(v => v === 'G').length
+        const incL = Object.values(items).filter(v => v === 'L').length
+        const itemsKO = Object.entries(items).filter(([, v]) => v === 'G' || v === 'L').map(([k, v]) => `${k}:${v}`).join(', ')
         porCamara.push({
-          'Jornada':     inf.jornada || '',
-          'Encuentro':   inf.encuentro || '',
-          'UM':          inf.um || '',
-          'Técnico':     inf.submitted_by_name || '',
-          'Cámara':      CAMERA_LABELS[camId] || camId,
-          'Modelo':      modeloStr,
-          'Items KO':    itemsKO,
-          'Incidencias': incidencias.length,
-          'Detalle Incidencias': incidencias.map(i => `[${i.tipo || ''}] ${i.texto || ''}`).join(' | '),
+          'Jornada':   inf.jornada || '',
+          'Encuentro': inf.encuentro || '',
+          'UM':        inf.um || '',
+          'Técnico':   inf.submitted_by_name || '',
+          'Bloque':    camBlock(camId),
+          'Cámara':    CAMERA_LABELS[camId] || camId,
+          'Modelo':    modeloStr,
+          'Inc. Graves (items)': incG,
+          'Inc. Leves (items)':  incL,
+          'Items KO':  itemsKO,
         })
       }
     }
 
-    // Hoja 3: detalle por operador
+    // Hoja 3: estadísticas por modelo de equipo
+    const modelMap = {}
+    for (const inf of informes) {
+      const camData = inf.cam_data || {}
+      const camarasActivas = inf.camaras_activas || {}
+      const camModels = inf.cam_models || {}
+      for (const [camId, activa] of Object.entries(camarasActivas)) {
+        if (!activa) continue
+        const modelRaw = camModels[camId] || {}
+        const modeloStr = Object.values(modelRaw).filter(Boolean).join(', ') || '(sin modelo)'
+        const bloque = camBlock(camId)
+        const key = `${bloque}||${modeloStr}`
+        const cam = camData[camId] || {}
+        const items = cam.items || {}
+        const incG = Object.values(items).filter(v => v === 'G').length
+        const incL = Object.values(items).filter(v => v === 'L').length
+        if (!modelMap[key]) modelMap[key] = { 'Bloque': bloque, 'Modelo': modeloStr, 'Usos': 0, 'Inc. Graves': 0, 'Inc. Leves': 0 }
+        modelMap[key]['Usos']++
+        modelMap[key]['Inc. Graves'] += incG
+        modelMap[key]['Inc. Leves'] += incL
+      }
+    }
+    const porModelo = Object.values(modelMap).sort((a, b) => a.Bloque.localeCompare(b.Bloque) || b['Usos'] - a['Usos'])
+
+    // Hoja 4: detalle por operador
     const porOperador = []
     for (const inf of informes) {
       const operadores = inf.operadores || {}
@@ -922,9 +963,10 @@ app.post('/api/analisis/export', requireAuth(['coordinador']), async (req, res) 
     }
 
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumen),      'Informes')
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(porCamara),    'Por Cámara')
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(porOperador),  'Operadores')
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumen),     'Informes')
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(porCamara),   'Por Cámara')
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(porModelo),   'Por Modelo')
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(porOperador), 'Operadores')
 
     const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
     res.setHeader('Content-Disposition', 'attachment; filename="analisis-ccee.xlsx"')
