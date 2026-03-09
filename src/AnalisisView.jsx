@@ -211,6 +211,8 @@ export default function AnalisisView() {
         if (!active) return;
         const block = CAM_TO_BLOCK[camId];
         if (!block) return;
+        // Si hay filtro de bloque, ceñirse solo a ese bloque
+        if (fBloque && block.id !== fBloque) return;
         const modelRaw = camModels[camId] || {};
         const modelo = Object.values(modelRaw).filter(Boolean).join(' / ') || '—';
         const key = `${block.id}||${modelo}`;
@@ -226,7 +228,7 @@ export default function AnalisisView() {
     return Object.values(map)
       .filter(d => d.modelo !== '—' || d.incG + d.incL > 0)
       .sort((a, b) => a.bloque.localeCompare(b.bloque) || b.usos - a.usos);
-  }, [filtered]);
+  }, [filtered, fBloque]);
 
   const handleExport = async () => {
     setExporting(true);
@@ -347,43 +349,8 @@ export default function AnalisisView() {
         </div>
       </Card>
 
-      {/* Estadísticas por modelo */}
-      {modelStats.length > 0 && (
-        <Card style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
-          <div style={{ padding: '12px 16px', borderBottom: '1px solid #DDD5CE' }}>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>Estadísticas por modelo de equipo</span>
-          </div>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr style={{ background: '#F5F0EC' }}>
-                  {['Bloque', 'Modelo', 'Usos', 'Items G', 'Items L'].map(h => (
-                    <th key={h} style={{ padding: '8px 12px', textAlign: h === 'Usos' || h === 'Items G' || h === 'Items L' ? 'center' : 'left', fontSize: 10, fontWeight: 700, color: '#7A7168', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #DDD5CE', whiteSpace: 'nowrap' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {modelStats.map((m, i) => (
-                  <tr key={i} style={{ borderBottom: i < modelStats.length - 1 ? '1px solid #EDE8E4' : 'none', background: i % 2 === 0 ? '#fff' : '#F5F0EC' }}>
-                    <td style={{ padding: '7px 12px', fontWeight: 500 }}>{m.icon} {m.bloque}</td>
-                    <td style={{ padding: '7px 12px', fontFamily: 'monospace', fontSize: 11 }}>{m.modelo}</td>
-                    <td style={{ padding: '7px 12px', textAlign: 'center', color: '#7A7168' }}>{m.usos}</td>
-                    <td style={{ padding: '7px 12px', textAlign: 'center' }}>
-                      {m.incG > 0 ? <span style={{ color: '#dc2626', fontWeight: 700 }}>⚠ {m.incG}</span> : <span style={{ color: '#d1d5db' }}>0</span>}
-                    </td>
-                    <td style={{ padding: '7px 12px', textAlign: 'center' }}>
-                      {m.incL > 0 ? <span style={{ color: '#f59e0b', fontWeight: 700 }}>↓ {m.incL}</span> : <span style={{ color: '#d1d5db' }}>0</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-
       {/* Tabla de informes */}
-      <Card style={{ padding: 0, overflow: 'hidden' }}>
+      <Card style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
         <div style={{ padding: '12px 16px', borderBottom: '1px solid #DDD5CE', display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 13, fontWeight: 600 }}>Informes</span>
           <Badge>{filtered.length}</Badge>
@@ -426,6 +393,42 @@ export default function AnalisisView() {
           </div>
         )}
       </Card>
+
+      {/* Estadísticas por modelo */}
+      {modelStats.length > 0 && (
+        <Card style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid #DDD5CE' }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>Estadísticas por modelo de equipo</span>
+            {fBloque && (() => { const b = CAM_BLOCKS.find(x => x.id === fBloque); return b ? <span style={{ marginLeft: 8, fontSize: 11, color: '#7A7168' }}>· {b.icon} {b.label}</span> : null; })()}
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: '#F5F0EC' }}>
+                  {['Bloque', 'Modelo', 'Usos', 'Items G', 'Items L'].map(h => (
+                    <th key={h} style={{ padding: '8px 12px', textAlign: h === 'Usos' || h === 'Items G' || h === 'Items L' ? 'center' : 'left', fontSize: 10, fontWeight: 700, color: '#7A7168', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #DDD5CE', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {modelStats.map((m, i) => (
+                  <tr key={i} style={{ borderBottom: i < modelStats.length - 1 ? '1px solid #EDE8E4' : 'none', background: i % 2 === 0 ? '#fff' : '#F5F0EC' }}>
+                    <td style={{ padding: '7px 12px', fontWeight: 500 }}>{m.icon} {m.bloque}</td>
+                    <td style={{ padding: '7px 12px', fontFamily: 'monospace', fontSize: 11 }}>{m.modelo}</td>
+                    <td style={{ padding: '7px 12px', textAlign: 'center', color: '#7A7168' }}>{m.usos}</td>
+                    <td style={{ padding: '7px 12px', textAlign: 'center' }}>
+                      {m.incG > 0 ? <span style={{ color: '#dc2626', fontWeight: 700 }}>⚠ {m.incG}</span> : <span style={{ color: '#d1d5db' }}>0</span>}
+                    </td>
+                    <td style={{ padding: '7px 12px', textAlign: 'center' }}>
+                      {m.incL > 0 ? <span style={{ color: '#f59e0b', fontWeight: 700 }}>↓ {m.incL}</span> : <span style={{ color: '#d1d5db' }}>0</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
