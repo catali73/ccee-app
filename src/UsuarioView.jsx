@@ -373,7 +373,8 @@ function FillReport({ servicioId, draftInformeId, onBack }) {
             if(cam.equipos) cam.equipos.forEach(s=>{ if(!equipos[s.key]) equipos[s.key]=""; });
             const items = draft?.cam_data?.[id]?.items || initItems(cam.items);
             const incidencias = draft?.cam_data?.[id]?.incidencias || "";
-            initial[id] = { equipos, items, incidencias };
+            const campos = draft?.cam_data?.[id]?.campos || Object.fromEntries((cam.campos||[]).map(f=>[f,'']));
+            initial[id] = { equipos, items, incidencias, campos };
           }
         });
         setCamData(initial);
@@ -394,9 +395,10 @@ function FillReport({ servicioId, draftInformeId, onBack }) {
     setCamData(prev=>{
       const cam = CAMERA_CATALOG[camId];
       const eqInit = {}; (cam?.equipos||[]).forEach(s=>{eqInit[s.key]="";});
-      const c = prev[camId]||{equipos:eqInit,items:initItems(cam?.items||[]),incidencias:""};
+      const c = prev[camId]||{equipos:eqInit,items:initItems(cam?.items||[]),campos:Object.fromEntries((cam?.campos||[]).map(f=>[f,''])),incidencias:""};
       if (field==="equipos") return {...prev,[camId]:{...c,equipos:{...c.equipos,[sub]:val}}};
       if (field==="item") return {...prev,[camId]:{...c,items:{...c.items,[sub]:val}}};
+      if (field==="campo") return {...prev,[camId]:{...c,campos:{...(c.campos||{}),[sub]:val}}};
       if (field==="incidencias") return {...prev,[camId]:{...c,incidencias:sub}};
       return prev;
     });

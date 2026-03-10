@@ -146,16 +146,16 @@ const M = {
 const CAMERA_CATALOG = {
   OBVAN_CCEE:   { label:"OBVAN CCEE",   icon:"🚐", color:"#374151", noPersonal:true,
                   equipos:[{key:"obvan",label:"OBVAN",models:M.OBVAN}],
-                  items:["GENERADOR/ALIMENTACIÓN","INTERCOM","MONITORES","SISTEMA RF","GRABACIÓN","CONECTIVIDAD"] },
+                  items:["GENERADOR/ALIMENTACIÓN","INTERCOM","MONITORES","GRABACIÓN","CONECTIVIDAD","CABLEADO","OCP","PATCH","TVC"] },
   CAMARA_UHS:   { label:"Cámara UHS",   icon:"📷", color:"#f59e0b",
                   equipos:[{key:"uhs_cam",label:"Cámara",models:M.UHS_CAM},{key:"uhs_optica",label:"Óptica",models:M.UHS_OPT}],
                   items:["CAMARA","REMOTOS ZOOM/FOCO","REMOTO REPLAY","REMOTO CCU","TRIPODE / CABEZA","VIEWFINDER","INTERCOM","CABLEADO / PATCH"] },
   SKYCAM_4:     { label:"4SkyCam",      icon:"🚁", color:"#3b82f6",
                   equipos:[{key:"skycam",label:"4SkyCam",models:M.SKYCAM}],
-                  items:["CAMARA","GIMBAL","TAMBORES","FIBRAS","CONVERSORES","INTERCOM","MONITORES","BATERIAS / CARGADORES","RCP","WALKIES"] },
+                  items:["CAMARA","GIMBAL","TAMBORES","FIBRAS","CONVERSORES","INTERCOM","MONITORES","BATERIAS / CARGADORES","RCP","WALKIES","OCP"] },
   AR_SKYCAM:    { label:"AR Skycam",    icon:"🔮", color:"#6366f1",
                   equipos:[],
-                  items:["SERVIDOR AR","SISTEMA TRACKING","CALIBRACIÓN","SOFTWARE","MONITORES AR","CABLEADO DATOS","TABLET/CONTROL"] },
+                  items:["CALIBRACIÓN","MONITORES AR","CABLEADO DATOS","AR UNITY","LINK BOX","GENLOCK"] },
   STEADY_L:     { label:"Steady L",     icon:"🎬", color:"#10b981",
                   equipos:[{key:"steady",label:"Steady",models:M.STEADY}],
                   items:["MONITOR","SLEED","CABLES","CONTROL ZOOM","BATERIAS","ALIMENTACIÓN","DOCKING BRACKET"] },
@@ -167,13 +167,16 @@ const CAMERA_CATALOG = {
                   items:["MONITOR","SLEED","CABLES","CONTROL ZOOM","BATERIAS","ALIMENTACIÓN","DOCKING BRACKET"] },
   RF_L:         { label:"RF L",         icon:"📡", color:"#8b5cf6",
                   equipos:[{key:"rf",label:"RF",models:M.RF}],
-                  items:["TX/RX RF","CONTROL DE DATOS","CABLEADO","BATERIAS","CAMARA","WALKIES","DATOS TRANSMISION"] },
+                  items:["TX/RX RF","CONTROL DE DATOS","CABLEADO","BATERIAS","CAMARA","WALKIES","LINK BOX"],
+                  campos:["FRECUENCIA","DIVERSIDAD","MODULACION","POTENCIA","FRECUENCIA DATOS"] },
   RF_R:         { label:"RF R",         icon:"📡", color:"#8b5cf6",
                   equipos:[{key:"rf",label:"RF",models:M.RF}],
-                  items:["TX/RX RF","CONTROL DE DATOS","CABLEADO","BATERIAS","CAMARA","WALKIES","DATOS TRANSMISION"] },
+                  items:["TX/RX RF","CONTROL DE DATOS","CABLEADO","BATERIAS","CAMARA","WALKIES","LINK BOX"],
+                  campos:["FRECUENCIA","DIVERSIDAD","MODULACION","POTENCIA","FRECUENCIA DATOS"] },
   RF_PERSO:     { label:"RF Perso",     icon:"📡", color:"#8b5cf6",
                   equipos:[{key:"rf",label:"RF",models:M.RF}],
-                  items:["TX/RX RF","CONTROL DE DATOS","CABLEADO","BATERIAS","CAMARA","WALKIES","DATOS TRANSMISION"] },
+                  items:["TX/RX RF","CONTROL DE DATOS","CABLEADO","BATERIAS","CAMARA","WALKIES","LINK BOX"],
+                  campos:["FRECUENCIA","DIVERSIDAD","MODULACION","POTENCIA","FRECUENCIA DATOS"] },
   POLECAM_L:    { label:"Polecam L",    icon:"🎯", color:"#ef4444",
                   equipos:[{key:"polecam",label:"Polecam",models:M.POLECAM},{key:"gimbal",label:"Gimbal",models:M.POL_GIM},{key:"minigimbal",label:"Mini Gimbal",models:M.POL_MINI}],
                   items:["CAMARA","GIMBAL","MONITORES","ESTRUCTURA","TRIPODE","REMOTOS","ELECTRONICAS"] },
@@ -182,10 +185,10 @@ const CAMERA_CATALOG = {
                   items:["CAMARA","GIMBAL","MONITORES","ESTRUCTURA","TRIPODE","REMOTOS","ELECTRONICAS"] },
   MINICAM_L:    { label:"Minicám. L",   icon:"🔭", color:"#f97316",
                   equipos:[{key:"mini",label:"Mini",models:M.MINICAM},{key:"rcp",label:"RCP",models:M.MINI_RCP}],
-                  items:["MINICAMARA","ELECTRONICAS","SOPORTES","FUNDAS"] },
+                  items:["MINICAMARA","ELECTRONICAS","SOPORTES","FUNDAS","OCP"] },
   MINICAM_R:    { label:"Minicám. R",   icon:"🔭", color:"#f97316",
                   equipos:[{key:"mini",label:"Mini",models:M.MINICAM},{key:"rcp",label:"RCP",models:M.MINI_RCP}],
-                  items:["MINICAMARA","ELECTRONICAS","SOPORTES","FUNDAS"] },
+                  items:["MINICAMARA","ELECTRONICAS","SOPORTES","FUNDAS","OCP"] },
   KIT_CINEMA_L: { label:"Cinema L",     icon:"🎞", color:"#ec4899",
                   equipos:[{key:"cinema",label:"Cinema",models:M.CINEMA}],
                   items:["CAMARA","VAXIS","CINEFADE","MICROFONO","MOTORES","MANDO FOCO/IRIS/FILTRO","REMOTO OCP"] },
@@ -194,16 +197,16 @@ const CAMERA_CATALOG = {
                   items:["CAMARA","VAXIS","CINEFADE","MICROFONO","MOTORES","MANDO FOCO/IRIS/FILTRO","REMOTO OCP"] },
   DRONE:        { label:"Drone",        icon:"🛸", color:"#64748b",
                   equipos:[{key:"drone",label:"Drone",models:[]}],
-                  items:["DRONE","BATERIAS","CONTROLADOR","MONITOR FPV","FILTROS","ACCESORIOS","WALKIES","DOCUMENTACIÓN"] },
+                  items:["COMUNICACIÓN","VIDEO","CORRECCION COLOR"] },
   BODYCAM:      { label:"Bodycam",      icon:"👕", color:"#14b8a6",
                   equipos:[{key:"bodycam",label:"Bodycam",models:M.BODYCAM}],
                   items:["MINICAMARA","ELECTRONICAS","SOPORTES","BATERIA","CHALECO","OCP"] },
   PTZ_1:        { label:"PTZ 1",        icon:"📹", color:"#06b6d4",
                   equipos:[{key:"ptz",label:"PTZ",models:M.PTZ},{key:"control",label:"Control",models:M.PTZ_CTL}],
-                  items:["PTZ","CONTROL","CABLEADO","ALIMENTACIÓN","INTERCOM"] },
+                  items:["PTZ","CONTROL","CABLEADO","ALIMENTACIÓN","SOPORTE","OCP"] },
   PTZ_2:        { label:"PTZ 2",        icon:"📹", color:"#0891b2",
                   equipos:[{key:"ptz",label:"PTZ",models:M.PTZ},{key:"control",label:"Control",models:M.PTZ_CTL}],
-                  items:["PTZ","CONTROL","CABLEADO","ALIMENTACIÓN","INTERCOM"] },
+                  items:["PTZ","CONTROL","CABLEADO","ALIMENTACIÓN","SOPORTE","OCP"] },
   OTROS:        { label:"Otros equipos",icon:"🔧", color:"#C2B9AD",
                   equipos:[],
                   items:["EQUIPO","CABLEADO","ALIMENTACIÓN","INTERCOM"] },
@@ -384,6 +387,23 @@ function CameraSection({ camId,cam,data,onChange,usedModels,readOnly }) {
           </div>
         ))}
       </div>
+      {cam.campos&&cam.campos.length>0&&(
+        <div style={{marginBottom:12}}>
+          <Label style={{marginBottom:6}}>Parámetros técnicos</Label>
+          <div style={{border:"1px solid #DDD5CE",borderRadius:"8px",overflow:"hidden"}}>
+            {cam.campos.map((campo,idx)=>(
+              <div key={campo} style={{display:"flex",alignItems:"center",gap:12,padding:"8px 12px",background:idx%2===0?"#fff":"#F5F0EC",borderBottom:idx<cam.campos.length-1?"1px solid #DDD5CE":"none"}}>
+                <div style={{flex:1,fontSize:12,color:"#7A7168"}}>{campo}</div>
+                {readOnly
+                  ? <span style={{fontSize:12,fontFamily:"'Courier New',monospace",color:"#1A1A1A"}}>{data.campos?.[campo]||'—'}</span>
+                  : <input type="text" value={data.campos?.[campo]||''} onChange={e=>onChange(camId,"campo",campo,e.target.value)}
+                      style={{height:28,borderRadius:6,border:"1px solid #DDD5CE",fontSize:12,paddingLeft:8,width:160,outline:"none"}} placeholder="—" />
+                }
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <Label>Incidencias</Label>
       <Textarea placeholder="Sin incidencias..." value={data.incidencias||""} onChange={e=>onChange(camId,"incidencias",e.target.value)} style={{minHeight:52}} />
     </Card>

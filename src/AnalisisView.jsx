@@ -1,46 +1,87 @@
-import { useState, useEffect, useMemo } from "react";
-import { apiFetch, Card, BtnP, Badge, SecTitle } from "./App.jsx";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { apiFetch, Card, BtnP, BtnO, Badge, SecTitle } from "./App.jsx";
 
 /* ── helpers ── */
 const fmt = d => d ? new Date(d).toLocaleDateString('es-ES') : '—';
 
-/* ── Camera blocks: agrupación de posiciones L/R en bloques ── */
+/* ── Camera blocks ── */
 const CAM_BLOCKS = [
-  { id: 'steady',   label: 'Steadycam', icon: '🎬', cams: ['STEADY_L','STEADY_R','STEADY_PERSO'] },
-  { id: 'rf',       label: 'RF',        icon: '📡', cams: ['RF_L','RF_R','RF_PERSO'] },
-  { id: 'cinema',   label: 'Cinema',    icon: '🎞', cams: ['KIT_CINEMA_L','KIT_CINEMA_R'] },
-  { id: 'polecam',  label: 'Polecam',   icon: '🎯', cams: ['POLECAM_L','POLECAM_R'] },
-  { id: 'minicam',  label: 'Minicám.',  icon: '🔭', cams: ['MINICAM_L','MINICAM_R'] },
-  { id: 'ptz',      label: 'PTZ',       icon: '📹', cams: ['PTZ_1','PTZ_2'] },
-  { id: 'OBVAN_CCEE',  label: 'OBVAN CCEE',  icon: '🚐', cams: ['OBVAN_CCEE'] },
-  { id: 'CAMARA_UHS',  label: 'Cámara UHS',  icon: '📷', cams: ['CAMARA_UHS'] },
-  { id: 'SKYCAM_4',    label: '4SkyCam',     icon: '🚁', cams: ['SKYCAM_4'] },
-  { id: 'AR_SKYCAM',   label: 'AR Skycam',   icon: '🔮', cams: ['AR_SKYCAM'] },
-  { id: 'DRONE',       label: 'Drone',       icon: '🛸', cams: ['DRONE'] },
-  { id: 'BODYCAM',     label: 'Bodycam',     icon: '👕', cams: ['BODYCAM'] },
-  { id: 'OTROS',       label: 'Otros',       icon: '📷', cams: ['OTROS'] },
+  { id: 'steady',      label: 'Steadycam', icon: '🎬', cams: ['STEADY_L','STEADY_R','STEADY_PERSO'] },
+  { id: 'rf',          label: 'RF',        icon: '📡', cams: ['RF_L','RF_R','RF_PERSO'] },
+  { id: 'cinema',      label: 'Cinema',    icon: '🎞', cams: ['KIT_CINEMA_L','KIT_CINEMA_R'] },
+  { id: 'polecam',     label: 'Polecam',   icon: '🎯', cams: ['POLECAM_L','POLECAM_R'] },
+  { id: 'minicam',     label: 'Minicám.',  icon: '🔭', cams: ['MINICAM_L','MINICAM_R'] },
+  { id: 'ptz',         label: 'PTZ',       icon: '📹', cams: ['PTZ_1','PTZ_2'] },
+  { id: 'OBVAN_CCEE',  label: 'OBVAN CCEE',icon: '🚐', cams: ['OBVAN_CCEE'] },
+  { id: 'CAMARA_UHS',  label: 'Cámara UHS',icon: '📷', cams: ['CAMARA_UHS'] },
+  { id: 'SKYCAM_4',    label: '4SkyCam',   icon: '🚁', cams: ['SKYCAM_4'] },
+  { id: 'AR_SKYCAM',   label: 'AR Skycam', icon: '🔮', cams: ['AR_SKYCAM'] },
+  { id: 'DRONE',       label: 'Drone',     icon: '🛸', cams: ['DRONE'] },
+  { id: 'BODYCAM',     label: 'Bodycam',   icon: '👕', cams: ['BODYCAM'] },
+  { id: 'OTROS',       label: 'Otros',     icon: '🔧', cams: ['OTROS'] },
 ];
-// camId → block
 const CAM_TO_BLOCK = {};
 CAM_BLOCKS.forEach(b => b.cams.forEach(c => { CAM_TO_BLOCK[c] = b; }));
 
-/* ── BarChart SVG: incidencias por jornada (apilado G+L) ── */
+/* ── Styles ── */
+const SEL = { width: '100%', height: 32, borderRadius: 6, border: '1px solid #DDD5CE', fontSize: 12, paddingLeft: 8, background: '#fff', color: '#1A1A1A' };
+const LBL = { fontSize: 10, fontWeight: 700, color: '#7A7168', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 };
+const TH = { padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#7A7168', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #DDD5CE', whiteSpace: 'nowrap', background: '#F5F0EC' };
+const TD = { padding: '8px 12px', fontSize: 12 };
+
+/* ── Donut chart ── */
+function DonutChart({ graves, leves, sinInc }) {
+  const total = graves + leves + sinInc;
+  if (total === 0) return null;
+  const R = 54, r = 32, cx = 70, cy = 70;
+  const toRad = deg => (deg - 90) * Math.PI / 180;
+  const arc = (start, end, fill) => {
+    if (end - start >= 360) end = 359.999;
+    const s = toRad(start), e = toRad(end);
+    const x1 = cx + R * Math.cos(s), y1 = cy + R * Math.sin(s);
+    const x2 = cx + R * Math.cos(e), y2 = cy + R * Math.sin(e);
+    const laf = end - start > 180 ? 1 : 0;
+    const ix1 = cx + r * Math.cos(e), iy1 = cy + r * Math.sin(e);
+    const ix2 = cx + r * Math.cos(s), iy2 = cy + r * Math.sin(s);
+    return `M ${x1} ${y1} A ${R} ${R} 0 ${laf} 1 ${x2} ${y2} L ${ix1} ${iy1} A ${r} ${r} 0 ${laf} 0 ${ix2} ${iy2} Z`;
+  };
+  const pG = graves / total * 360, pL = leves / total * 360, pS = sinInc / total * 360;
+  const offset = 0, oL = offset + pS, oG = oL + pL;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+      <svg width={140} height={140} viewBox="0 0 140 140">
+        {pS > 0 && <path d={arc(offset, offset + pS)} fill="#10b981" />}
+        {pL > 0 && <path d={arc(oL, oL + pL)} fill="#f59e0b" />}
+        {pG > 0 && <path d={arc(oG, oG + pG)} fill="#dc2626" />}
+        <text x={cx} y={cy - 6} textAnchor="middle" fontSize={18} fontWeight={700} fill="#1A1A1A">{total}</text>
+        <text x={cx} y={cy + 10} textAnchor="middle" fontSize={9} fill="#7A7168">TOTAL</text>
+      </svg>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {[['Sin incidencia', sinInc, '#10b981'], ['Leve', leves, '#f59e0b'], ['Grave', graves, '#dc2626']].map(([l, v, c]) => (
+          <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: 10, height: 10, borderRadius: 2, background: c, flexShrink: 0 }} />
+            <span style={{ fontSize: 11, color: '#7A7168' }}>{l}</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: c, marginLeft: 4 }}>{v}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── Bar chart (vertical, stacked G+L por jornada) ── */
 function BarChart({ data }) {
   if (!data.length) return null;
-  const W = 560, H = 180, PAD = { t: 16, r: 16, b: 36, l: 36 };
-  const chartW = W - PAD.l - PAD.r;
-  const chartH = H - PAD.t - PAD.b;
+  const W = 500, H = 160, PAD = { t: 12, r: 12, b: 32, l: 28 };
+  const chartW = W - PAD.l - PAD.r, chartH = H - PAD.t - PAD.b;
   const maxVal = Math.max(...data.map(d => (d.graves || 0) + (d.leves || 0)), 1);
-  const barW = Math.min(36, (chartW / data.length) - 6);
+  const barW = Math.min(32, (chartW / data.length) - 4);
   const gap = chartW / data.length;
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxWidth: W, display: 'block' }}>
-      {[0, 0.25, 0.5, 0.75, 1].map(t => {
+      {[0, 0.5, 1].map(t => {
         const y = PAD.t + chartH - t * chartH;
-        return <g key={t}>
-          <line x1={PAD.l} y1={y} x2={W - PAD.r} y2={y} stroke="#DDD5CE" strokeWidth={1} />
-          <text x={PAD.l - 4} y={y + 4} fontSize={9} fill="#999" textAnchor="end">{Math.round(t * maxVal)}</text>
-        </g>;
+        return <g key={t}><line x1={PAD.l} y1={y} x2={W - PAD.r} y2={y} stroke="#DDD5CE" strokeWidth={1} /><text x={PAD.l - 3} y={y + 4} fontSize={8} fill="#999" textAnchor="end">{Math.round(t * maxVal)}</text></g>;
       })}
       {data.map((d, i) => {
         const x = PAD.l + i * gap + (gap - barW) / 2;
@@ -48,65 +89,143 @@ function BarChart({ data }) {
         const lH = chartH * (d.leves || 0) / maxVal;
         return (
           <g key={d.jornada}>
-            <rect x={x} y={PAD.t + chartH - gH - lH} width={barW} height={gH} fill="#dc2626" rx={2} />
-            <rect x={x} y={PAD.t + chartH - lH} width={barW} height={lH} fill="#f59e0b" rx={2} />
-            <text x={x + barW / 2} y={H - 6} fontSize={9} fill="#555" textAnchor="middle">J{d.jornada}</text>
+            <rect x={x} y={PAD.t + chartH - gH - lH} width={barW} height={lH} fill="#f59e0b" rx={2} />
+            <rect x={x} y={PAD.t + chartH - gH} width={barW} height={gH} fill="#dc2626" rx={2} />
+            <text x={x + barW / 2} y={H - 4} fontSize={8} fill="#555" textAnchor="middle">J{d.jornada}</text>
           </g>
         );
       })}
-      <rect x={PAD.l} y={H - 34} width={10} height={8} fill="#dc2626" rx={2} />
-      <text x={PAD.l + 13} y={H - 27} fontSize={9} fill="#555">Graves</text>
-      <rect x={PAD.l + 52} y={H - 34} width={10} height={8} fill="#f59e0b" rx={2} />
-      <text x={PAD.l + 65} y={H - 27} fontSize={9} fill="#555">Leves</text>
     </svg>
   );
 }
 
-/* ── HBarChart SVG: barras horizontales ── */
-function HBarChart({ title, data, colorKey = '#3b82f6' }) {
-  if (!data.length) return null;
-  const W = 280, barH = 16, gap = 6, PAD = { r: 56, l: 100 };
-  const maxVal = Math.max(...data.map(d => d.val), 1);
-  const chartW = W - PAD.l - PAD.r;
-  const H = data.length * (barH + gap);
+/* ── Horizontal bar chart ── */
+function HBar({ label, val, max, color }) {
+  const pct = max > 0 ? val / max : 0;
   return (
-    <div>
-      <div style={{ fontSize: 11, fontWeight: 600, color: '#7A7168', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{title}</div>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxWidth: W, display: 'block' }}>
-        {data.map((d, i) => {
-          const y = i * (barH + gap);
-          const bW = Math.max(2, chartW * d.val / maxVal);
-          const short = d.label.length > 13 ? d.label.slice(0, 12) + '…' : d.label;
-          return (
-            <g key={d.label}>
-              <text x={PAD.l - 4} y={y + barH - 4} fontSize={9} fill="#555" textAnchor="end">{short}</text>
-              <rect x={PAD.l} y={y} width={bW} height={barH} fill={colorKey} rx={2} opacity={0.85} />
-              <text x={PAD.l + bW + 4} y={y + barH - 4} fontSize={9} fill="#555">{d.val}</text>
-            </g>
-          );
-        })}
-      </svg>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+      <div style={{ minWidth: 100, fontSize: 11, color: '#1A1A1A', textAlign: 'right', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+      <div style={{ flex: 1, background: '#EDE8E4', borderRadius: 4, height: 14, overflow: 'hidden' }}>
+        <div style={{ width: `${pct * 100}%`, height: '100%', background: color, borderRadius: 4, transition: 'width 0.3s' }} />
+      </div>
+      <div style={{ minWidth: 24, fontSize: 11, fontWeight: 700, color, textAlign: 'right' }}>{val}</div>
     </div>
   );
 }
 
-/* ── Estilos de selects reutilizables ── */
-const SEL = { width: '100%', height: 32, borderRadius: 6, border: '1px solid #DDD5CE', fontSize: 12, paddingLeft: 8, background: '#fff', color: '#1A1A1A' };
-const LBL = { fontSize: 10, fontWeight: 600, color: '#7A7168', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 };
+/* ── Heatmap ── */
+function Heatmap({ data, jornadas }) {
+  if (!data.length) return null;
+  const maxVal = Math.max(...data.flatMap(r => jornadas.map(j => r.jornadas[j] || 0)), 1);
+  const cellColor = v => {
+    if (!v) return '#F5F0EC';
+    const t = v / maxVal;
+    if (t < 0.33) return '#fef9c3';
+    if (t < 0.66) return '#fdba74';
+    return '#ef4444';
+  };
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ borderCollapse: 'collapse', fontSize: 11 }}>
+        <thead>
+          <tr>
+            <th style={{ ...TH, background: 'transparent', padding: '6px 10px' }}>Cámara</th>
+            {jornadas.map(j => <th key={j} style={{ ...TH, background: 'transparent', padding: '6px 8px', textAlign: 'center' }}>J{j}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {data.map(row => (
+            <tr key={row.id}>
+              <td style={{ padding: '5px 10px', fontSize: 11, whiteSpace: 'nowrap', borderBottom: '1px solid #EDE8E4' }}>{row.icon} {row.label}</td>
+              {jornadas.map(j => {
+                const v = row.jornadas[j] || 0;
+                return <td key={j} style={{ padding: '5px 8px', textAlign: 'center', background: cellColor(v), borderBottom: '1px solid #EDE8E4', fontSize: 11, fontWeight: v ? 600 : 400, color: v ? '#1A1A1A' : '#C2B9AD' }}>{v || '—'}</td>;
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
-/* ── Main AnalisisView ── */
+/* ── Severity badge ── */
+function TipoBadge({ tipo }) {
+  return tipo === 'G'
+    ? <span style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: 4, padding: '2px 7px', fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' }}>GRAVE</span>
+    : <span style={{ background: '#fffbeb', color: '#d97706', border: '1px solid #fcd34d', borderRadius: 4, padding: '2px 7px', fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' }}>LEVE</span>;
+}
+
+/* ── Camera label badge ── */
+const CAM_COLORS = {
+  OBVAN_CCEE:'#374151', CAMARA_UHS:'#f59e0b', SKYCAM_4:'#3b82f6', AR_SKYCAM:'#6366f1',
+  STEADY_L:'#10b981', STEADY_R:'#10b981', STEADY_PERSO:'#10b981',
+  RF_L:'#8b5cf6', RF_R:'#8b5cf6', RF_PERSO:'#8b5cf6',
+  POLECAM_L:'#ef4444', POLECAM_R:'#ef4444',
+  MINICAM_L:'#f97316', MINICAM_R:'#f97316',
+  KIT_CINEMA_L:'#ec4899', KIT_CINEMA_R:'#ec4899',
+  DRONE:'#64748b', BODYCAM:'#14b8a6',
+  PTZ_1:'#06b6d4', PTZ_2:'#0891b2', OTROS:'#C2B9AD',
+};
+function CamBadge({ camId }) {
+  const b = CAM_TO_BLOCK[camId];
+  const c = CAM_COLORS[camId] || '#7A7168';
+  return <span style={{ background: `${c}15`, color: c, border: `1px solid ${c}40`, borderRadius: 4, padding: '2px 7px', fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap' }}>{b?.icon} {b?.label || camId}</span>;
+}
+
+/* ── Estado badge ── */
+function EstadoBadge({ graves, leves }) {
+  if (graves > 0) return <span style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: 4, padding: '2px 8px', fontSize: 10, fontWeight: 700 }}>CON GRAVES</span>;
+  if (leves > 0) return <span style={{ background: '#fffbeb', color: '#d97706', border: '1px solid #fcd34d', borderRadius: 4, padding: '2px 8px', fontSize: 10, fontWeight: 700 }}>CON LEVES</span>;
+  return <span style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #86efac', borderRadius: 4, padding: '2px 8px', fontSize: 10, fontWeight: 700 }}>SIN INC.</span>;
+}
+
+/* ── Tab button ── */
+function Tab({ label, active, onClick }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: '8px 16px', fontSize: 12, fontWeight: active ? 700 : 500,
+      color: active ? '#E8392C' : '#7A7168', background: 'none', border: 'none',
+      borderBottom: active ? '2px solid #E8392C' : '2px solid transparent',
+      cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s',
+    }}>{label}</button>
+  );
+}
+
+/* ── CSV export helper ── */
+function toCSV(rows) {
+  if (!rows.length) return '';
+  const headers = Object.keys(rows[0]);
+  const escape = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  return [headers.map(escape).join(','), ...rows.map(r => headers.map(k => escape(r[k])).join(','))].join('\n');
+}
+function downloadCSV(filename, content) {
+  const blob = new Blob(['\ufeff' + content], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 500);
+}
+
+/* ════════════════════════════════════════════════════════════
+   MAIN COMPONENT
+   ════════════════════════════════════════════════════════════ */
 export default function AnalisisView() {
   const [informes, setInformes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [activeTab, setActiveTab] = useState('resumen');
 
-  // Filters
-  const [fJornada, setFJornada] = useState('');
-  const [fUM, setFUM] = useState('');
-  const [fBloque, setFBloque] = useState('');   // block id
-  const [fUsuario, setFUsuario] = useState('');
-  const [fOperador, setFOperador] = useState('');
-  const [fTipoInc, setFTipoInc] = useState('');
+  /* ── Pending filter state (form) ── */
+  const [pJornada, setPJornada] = useState('');
+  const [pTecnico, setPTecnico] = useState('');
+  const [pEncuentro, setPEncuentro] = useState('');
+  const [pBloques, setPBloques] = useState([]);      // array of block IDs
+  const [pTipoInc, setPTipoInc] = useState('');      // '' | 'G' | 'L' | 'sin'
+  const [pUM, setPUM] = useState('');
+
+  /* ── Applied filter state ── */
+  const [applied, setApplied] = useState({ jornada:'', tecnico:'', encuentro:'', bloques:[], tipoInc:'', um:'' });
 
   useEffect(() => {
     apiFetch('/api/analisis')
@@ -115,320 +234,592 @@ export default function AnalisisView() {
       .catch(() => setLoading(false));
   }, []);
 
-  // Opciones únicas de filtros
+  /* ── Filter option lists ── */
   const jornadas = useMemo(() => [...new Set(informes.map(i => i.jornada).filter(Boolean))].sort((a, b) => a - b), [informes]);
+  const tecnicos = useMemo(() => [...new Set(informes.map(i => i.submitted_by_name).filter(Boolean))].sort(), [informes]);
+  const encuentros = useMemo(() => [...new Set(informes.map(i => i.encuentro).filter(Boolean))].sort(), [informes]);
   const ums = useMemo(() => [...new Set(informes.map(i => i.um).filter(Boolean))].sort(), [informes]);
-  const usuarios = useMemo(() => [...new Set(informes.map(i => i.submitted_by_name).filter(Boolean))].sort(), [informes]);
-
-  // Bloques activos (que aparecen en algún informe)
   const bloquesActivos = useMemo(() => {
-    const activeSet = new Set();
-    informes.forEach(inf => {
-      Object.entries(inf.camaras_activas || {}).forEach(([k, v]) => {
-        if (v) { const b = CAM_TO_BLOCK[k]; if (b) activeSet.add(b.id); }
-      });
-    });
-    return CAM_BLOCKS.filter(b => activeSet.has(b.id));
+    const s = new Set();
+    informes.forEach(inf => Object.entries(inf.camaras_activas || {}).forEach(([k, v]) => { if (v) { const b = CAM_TO_BLOCK[k]; if (b) s.add(b.id); } }));
+    return CAM_BLOCKS.filter(b => s.has(b.id));
   }, [informes]);
 
-  // Informes filtrados
+  /* ── Apply / Reset ── */
+  const applyFilters = useCallback(() => {
+    setApplied({ jornada: pJornada, tecnico: pTecnico, encuentro: pEncuentro, bloques: pBloques, tipoInc: pTipoInc, um: pUM });
+  }, [pJornada, pTecnico, pEncuentro, pBloques, pTipoInc, pUM]);
+
+  const resetFilters = useCallback(() => {
+    setPJornada(''); setPTecnico(''); setPEncuentro(''); setPBloques([]); setPTipoInc(''); setPUM('');
+    setApplied({ jornada:'', tecnico:'', encuentro:'', bloques:[], tipoInc:'', um:'' });
+  }, []);
+
+  const toggleBloque = (id) => setPBloques(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+
+  /* ── Filtered data ── */
   const filtered = useMemo(() => {
     return informes.filter(inf => {
-      if (fJornada && String(inf.jornada) !== fJornada) return false;
-      if (fUM && inf.um !== fUM) return false;
-      if (fBloque) {
-        const block = CAM_BLOCKS.find(b => b.id === fBloque);
-        if (!block) return false;
+      if (applied.jornada && String(inf.jornada) !== applied.jornada) return false;
+      if (applied.um && inf.um !== applied.um) return false;
+      if (applied.tecnico && inf.submitted_by_name !== applied.tecnico) return false;
+      if (applied.encuentro && inf.encuentro !== applied.encuentro) return false;
+      if (applied.bloques.length > 0) {
         const activas = inf.camaras_activas || {};
-        if (!block.cams.some(c => activas[c])) return false;
+        const ok = applied.bloques.some(bId => { const b = CAM_BLOCKS.find(x => x.id === bId); return b && b.cams.some(c => activas[c]); });
+        if (!ok) return false;
       }
-      if (fUsuario && inf.submitted_by_name !== fUsuario) return false;
-      if (fOperador) {
-        const ops = Object.values(inf.operadores || {}).join(' ').toLowerCase();
-        if (!ops.includes(fOperador.toLowerCase())) return false;
-      }
-      if (fTipoInc === 'G' && !(inf.incidencias_graves > 0)) return false;
-      if (fTipoInc === 'L' && !(inf.incidencias_leves > 0)) return false;
-      if (fTipoInc === 'sin' && (inf.incidencias_graves > 0 || inf.incidencias_leves > 0)) return false;
+      if (applied.tipoInc === 'G' && !(inf.incidencias_graves > 0)) return false;
+      if (applied.tipoInc === 'L' && !(inf.incidencias_leves > 0)) return false;
+      if (applied.tipoInc === 'sin' && (inf.incidencias_graves > 0 || inf.incidencias_leves > 0)) return false;
       return true;
     });
-  }, [informes, fJornada, fUM, fBloque, fUsuario, fOperador, fTipoInc]);
+  }, [informes, applied]);
 
-  // Stats totales
+  /* ── Active filter chips ── */
+  const chips = useMemo(() => {
+    const c = [];
+    if (applied.jornada) c.push({ key: 'jornada', label: `J${applied.jornada}`, clear: () => setApplied(p => ({ ...p, jornada: '' })) });
+    if (applied.tecnico) c.push({ key: 'tecnico', label: applied.tecnico, clear: () => setApplied(p => ({ ...p, tecnico: '' })) });
+    if (applied.encuentro) c.push({ key: 'encuentro', label: applied.encuentro, clear: () => setApplied(p => ({ ...p, encuentro: '' })) });
+    applied.bloques.forEach(bId => {
+      const b = CAM_BLOCKS.find(x => x.id === bId);
+      if (b) c.push({ key: `bloque_${bId}`, label: `${b.icon} ${b.label}`, clear: () => setApplied(p => ({ ...p, bloques: p.bloques.filter(x => x !== bId) })) });
+    });
+    if (applied.tipoInc) c.push({ key: 'tipo', label: applied.tipoInc === 'G' ? 'Graves' : applied.tipoInc === 'L' ? 'Leves' : 'Sin inc.', clear: () => setApplied(p => ({ ...p, tipoInc: '' })) });
+    if (applied.um) c.push({ key: 'um', label: applied.um, clear: () => setApplied(p => ({ ...p, um: '' })) });
+    return c;
+  }, [applied]);
+
+  /* ── Computed stats ── */
   const totalG = filtered.reduce((s, i) => s + (i.incidencias_graves || 0), 0);
   const totalL = filtered.reduce((s, i) => s + (i.incidencias_leves || 0), 0);
-  const conInc = filtered.filter(i => i.incidencias_graves > 0 || i.incidencias_leves > 0).length;
+  const totalInc = totalG + totalL;
+  const sinInc = filtered.filter(i => !i.incidencias_graves && !i.incidencias_leves).length;
+  const partidos = new Set(filtered.map(i => i.encuentro).filter(Boolean)).size;
 
-  // Gráfica global: incidencias por jornada
-  const chartJornada = useMemo(() => {
-    const map = {};
-    informes.forEach(inf => {
-      const j = inf.jornada; if (!j) return;
-      if (!map[j]) map[j] = { jornada: j, graves: 0, leves: 0 };
-      map[j].graves += inf.incidencias_graves || 0;
-      map[j].leves  += inf.incidencias_leves  || 0;
-    });
-    return Object.values(map).sort((a, b) => a.jornada - b.jornada);
-  }, [informes]);
-
-  // Gráfica: incidencias por BLOQUE de cámara (items G+L dentro de cam_data)
-  const chartBloques = useMemo(() => {
-    const map = {};
+  /* ── Flat incidents list (for Incidencias tab) ── */
+  const incidenciasFlat = useMemo(() => {
+    const rows = [];
     filtered.forEach(inf => {
       const camData = inf.cam_data || {};
-      Object.entries(camData).forEach(([camId, cam]) => {
-        const block = CAM_TO_BLOCK[camId];
-        if (!block) return;
-        const items = cam.items || {};
-        const inc = Object.values(items).filter(v => v === 'G' || v === 'L').length;
-        if (!inc) return;
-        if (!map[block.id]) map[block.id] = { label: `${block.icon} ${block.label}`, val: 0 };
-        map[block.id].val += inc;
-      });
-    });
-    return Object.values(map).sort((a, b) => b.val - a.val).slice(0, 10);
-  }, [filtered]);
-
-  // Gráfica: técnicos con más incidencias
-  const chartTecnicos = useMemo(() => {
-    const map = {};
-    filtered.forEach(inf => {
-      const k = inf.submitted_by_name || 'Desconocido';
-      if (!map[k]) map[k] = { label: k, val: 0 };
-      map[k].val += (inf.incidencias_graves || 0) + (inf.incidencias_leves || 0);
-    });
-    return Object.values(map).filter(d => d.val > 0).sort((a, b) => b.val - a.val).slice(0, 8);
-  }, [filtered]);
-
-  // Estadísticas por modelo de equipo
-  const modelStats = useMemo(() => {
-    const map = {};
-    filtered.forEach(inf => {
-      const camData = inf.cam_data || {};
-      const camModels = inf.cam_models || {};
       const activas = inf.camaras_activas || {};
       Object.entries(activas).forEach(([camId, active]) => {
         if (!active) return;
-        const block = CAM_TO_BLOCK[camId];
-        if (!block) return;
-        // Si hay filtro de bloque, ceñirse solo a ese bloque
-        if (fBloque && block.id !== fBloque) return;
-        const modelRaw = camModels[camId] || {};
-        const modelo = Object.values(modelRaw).filter(Boolean).join(' / ') || '—';
-        const key = `${block.id}||${modelo}`;
-        const items = (camData[camId] || {}).items || {};
-        const incG = Object.values(items).filter(v => v === 'G').length;
-        const incL = Object.values(items).filter(v => v === 'L').length;
-        if (!map[key]) map[key] = { bloque: block.label, icon: block.icon, modelo, usos: 0, incG: 0, incL: 0 };
-        map[key].usos++;
-        map[key].incG += incG;
-        map[key].incL += incL;
+        const cam = camData[camId] || {};
+        const items = cam.items || {};
+        Object.entries(items).forEach(([item, status]) => {
+          if (status !== 'G' && status !== 'L') return;
+          rows.push({ jornada: inf.jornada, partido: inf.encuentro, fecha: inf.fecha, camId, elemento: item, tipo: status, tecnico: inf.submitted_by_name || '—', um: inf.um || '—', descripcion: cam.incidencias || '—' });
+        });
       });
     });
-    return Object.values(map)
-      .filter(d => d.modelo !== '—' || d.incG + d.incL > 0)
-      .sort((a, b) => a.bloque.localeCompare(b.bloque) || b.usos - a.usos);
-  }, [filtered, fBloque]);
+    return rows;
+  }, [filtered]);
 
-  const handleExport = async () => {
+  /* ── Stats por bloque de cámara ── */
+  const statsByCamera = useMemo(() => {
+    const map = {};
+    filtered.forEach(inf => {
+      const camData = inf.cam_data || {};
+      Object.entries(inf.camaras_activas || {}).forEach(([camId, active]) => {
+        if (!active) return;
+        const b = CAM_TO_BLOCK[camId]; if (!b) return;
+        const items = (camData[camId] || {}).items || {};
+        const g = Object.values(items).filter(v => v === 'G').length;
+        const l = Object.values(items).filter(v => v === 'L').length;
+        if (!map[b.id]) map[b.id] = { id: b.id, label: b.label, icon: b.icon, graves: 0, leves: 0 };
+        map[b.id].graves += g; map[b.id].leves += l;
+      });
+    });
+    return Object.values(map).sort((a, b) => (b.graves + b.leves) - (a.graves + a.leves));
+  }, [filtered]);
+
+  /* ── Elementos más problemáticos ── */
+  const elementosProblematicos = useMemo(() => {
+    const map = {};
+    filtered.forEach(inf => {
+      const camData = inf.cam_data || {};
+      Object.entries(inf.camaras_activas || {}).forEach(([camId, active]) => {
+        if (!active) return;
+        const b = CAM_TO_BLOCK[camId]; if (!b) return;
+        const items = (camData[camId] || {}).items || {};
+        Object.entries(items).forEach(([item, status]) => {
+          if (status !== 'G' && status !== 'L') return;
+          const k = `${b.id}||${item}`;
+          if (!map[k]) map[k] = { camId: b.id, cam: `${b.icon} ${b.label}`, elemento: item, leves: 0, graves: 0 };
+          if (status === 'G') map[k].graves++; else map[k].leves++;
+        });
+      });
+    });
+    return Object.values(map).map(d => ({ ...d, total: d.graves + d.leves, riesgo: d.graves * 2 + d.leves })).sort((a, b) => b.riesgo - a.riesgo);
+  }, [filtered]);
+
+  /* ── Ranking técnicos ── */
+  const rankingTecnicos = useMemo(() => {
+    const map = {};
+    filtered.forEach(inf => {
+      const k = inf.submitted_by_name || 'Desconocido';
+      if (!map[k]) map[k] = { tecnico: k, partidos: 0, incidencias: 0, graves: 0 };
+      map[k].partidos++;
+      map[k].incidencias += (inf.incidencias_graves || 0) + (inf.incidencias_leves || 0);
+      map[k].graves += inf.incidencias_graves || 0;
+    });
+    return Object.values(map)
+      .map(d => ({ ...d, ratio: d.partidos ? (d.incidencias / d.partidos).toFixed(1) : '0.0' }))
+      .sort((a, b) => b.incidencias - a.incidencias);
+  }, [filtered]);
+
+  /* ── Por jornada ── */
+  const porJornada = useMemo(() => {
+    const map = {};
+    filtered.forEach(inf => {
+      const j = inf.jornada; if (!j) return;
+      if (!map[j]) map[j] = { jornada: j, graves: 0, leves: 0, items: [] };
+      map[j].graves += inf.incidencias_graves || 0;
+      map[j].leves += inf.incidencias_leves || 0;
+      const camData = inf.cam_data || {};
+      Object.entries(inf.camaras_activas || {}).forEach(([camId, active]) => {
+        if (!active) return;
+        const b = CAM_TO_BLOCK[camId]; if (!b) return;
+        const items = (camData[camId] || {}).items || {};
+        Object.entries(items).forEach(([item, status]) => {
+          if (status === 'G' || status === 'L') map[j].items.push({ cam: b.label, item, status });
+        });
+      });
+    });
+    return Object.values(map).sort((a, b) => a.jornada - b.jornada);
+  }, [filtered]);
+
+  /* ── Heatmap data ── */
+  const heatmapData = useMemo(() => {
+    const map = {};
+    filtered.forEach(inf => {
+      const j = inf.jornada; if (!j) return;
+      const camData = inf.cam_data || {};
+      Object.entries(inf.camaras_activas || {}).forEach(([camId, active]) => {
+        if (!active) return;
+        const b = CAM_TO_BLOCK[camId]; if (!b) return;
+        const items = (camData[camId] || {}).items || {};
+        const inc = Object.values(items).filter(v => v === 'G' || v === 'L').length;
+        if (!map[b.id]) map[b.id] = { id: b.id, label: b.label, icon: b.icon, jornadas: {} };
+        map[b.id].jornadas[j] = (map[b.id].jornadas[j] || 0) + inc;
+      });
+    });
+    return Object.values(map);
+  }, [filtered]);
+
+  /* ── Exports ── */
+  const exportXLS = async () => {
     setExporting(true);
     try {
       const ids = filtered.map(i => i.id);
       const res = await apiFetch('/api/analisis/export', { method: 'POST', body: JSON.stringify({ ids }) });
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = 'analisis-ccee.xlsx';
+      const a = document.createElement('a'); a.href = url; a.download = 'analisis-ccee.xlsx';
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 500);
     } catch { alert('Error exportando Excel'); }
     setExporting(false);
   };
 
-  const clearFilters = () => { setFJornada(''); setFUM(''); setFBloque(''); setFUsuario(''); setFOperador(''); setFTipoInc(''); };
-  const hasFilters = fJornada || fUM || fBloque || fUsuario || fOperador || fTipoInc;
+  const exportCSVResumen = () => {
+    const rows = filtered.map(inf => ({
+      'Jornada': `J${inf.jornada || '—'}`, 'Encuentro': inf.encuentro || '—',
+      'Fecha': fmt(inf.fecha), 'UM': inf.um || '—', 'Técnico': inf.submitted_by_name || '—',
+      'Jefe Técnico': inf.jefe_tecnico || '—', 'Graves': inf.incidencias_graves || 0, 'Leves': inf.incidencias_leves || 0,
+    }));
+    downloadCSV('analisis-ccee-resumen.csv', toCSV(rows));
+  };
+
+  const exportCSVIncidencias = () => {
+    const rows = incidenciasFlat.map(r => ({
+      'Jornada': `J${r.jornada || '—'}`, 'Partido': r.partido || '—', 'Fecha': fmt(r.fecha),
+      'Cámara': r.camId, 'Elemento': r.elemento, 'Tipo': r.tipo === 'G' ? 'GRAVE' : 'LEVE',
+      'Técnico': r.tecnico, 'Equipo': r.um, 'Descripción': r.descripcion,
+    }));
+    downloadCSV('analisis-ccee-incidencias.csv', toCSV(rows));
+  };
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#7A7168', fontSize: 13 }}>Cargando análisis...</div>;
 
+  const jornadasFiltered = [...new Set(filtered.map(i => i.jornada).filter(Boolean))].sort((a, b) => a - b);
+
+  /* ════════════════ RENDER ════════════════ */
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 20px' }}>
+    <div style={{ display: 'flex', gap: 0, minHeight: '100vh', background: '#F5F0EC' }}>
 
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <SecTitle style={{ margin: 0 }}>Análisis de informes</SecTitle>
-        <BtnP onClick={handleExport} disabled={exporting || filtered.length === 0} style={{ height: 34, fontSize: 12, padding: '0 14px' }}>
-          {exporting ? 'Exportando...' : '⬇ Exportar Excel'}
-        </BtnP>
+      {/* ─── SIDEBAR DE FILTROS ─── */}
+      <div style={{ width: 220, flexShrink: 0, background: '#fff', borderRight: '1px solid #DDD5CE', padding: '16px 12px', position: 'sticky', top: 0, height: '100vh', overflowY: 'auto' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#E8392C', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14 }}>Filtros</div>
+
+        {/* Jornada */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={LBL}>Jornada</div>
+          <select value={pJornada} onChange={e => setPJornada(e.target.value)} style={SEL}>
+            <option value="">Todo</option>
+            {jornadas.map(j => <option key={j} value={j}>Jornada {j}</option>)}
+          </select>
+        </div>
+
+        {/* Técnico */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={LBL}>Técnico</div>
+          <select value={pTecnico} onChange={e => setPTecnico(e.target.value)} style={SEL}>
+            <option value="">Todos</option>
+            {tecnicos.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+
+        {/* Encuentro */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={LBL}>Encuentro</div>
+          <select value={pEncuentro} onChange={e => setPEncuentro(e.target.value)} style={SEL}>
+            <option value="">Todos</option>
+            {encuentros.map(e => <option key={e} value={e}>{e}</option>)}
+          </select>
+        </div>
+
+        {/* Cámara: checkboxes */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={LBL}>Tipo de cámara</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 200, overflowY: 'auto' }}>
+            {bloquesActivos.map(b => (
+              <label key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, color: '#1A1A1A', padding: '3px 4px', borderRadius: 4, background: pBloques.includes(b.id) ? '#FEF0EE' : 'transparent' }}>
+                <input type="checkbox" checked={pBloques.includes(b.id)} onChange={() => toggleBloque(b.id)} style={{ accentColor: '#E8392C', cursor: 'pointer' }} />
+                {b.icon} {b.label}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Tipo de incidencia */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={LBL}>Tipo de incidencia</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {[['', 'Todas'], ['sin', 'Sin incidencia'], ['L', 'Leve'], ['G', 'Grave']].map(([val, lbl]) => (
+              <label key={val} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, color: '#1A1A1A', padding: '3px 4px', borderRadius: 4, background: pTipoInc === val ? '#FEF0EE' : 'transparent' }}>
+                <input type="radio" name="tipoInc" value={val} checked={pTipoInc === val} onChange={() => setPTipoInc(val)} style={{ accentColor: '#E8392C', cursor: 'pointer' }} />
+                {lbl}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Equipo (UM) */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={LBL}>Equipo (UM)</div>
+          <select value={pUM} onChange={e => setPUM(e.target.value)} style={SEL}>
+            <option value="">Todos</option>
+            {ums.map(u => <option key={u} value={u}>{u}</option>)}
+          </select>
+        </div>
+
+        {/* Botones */}
+        <BtnP onClick={applyFilters} style={{ width: '100%', height: 34, fontSize: 12, marginBottom: 6 }}>Aplicar filtros</BtnP>
+        <button onClick={resetFilters} style={{ width: '100%', height: 30, fontSize: 11, color: '#7A7168', background: 'none', border: '1px solid #DDD5CE', borderRadius: 6, cursor: 'pointer' }}>Reset</button>
       </div>
 
-      {/* Stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
-        {[
-          { label: 'Informes', val: filtered.length, color: '#3b82f6' },
-          { label: 'Incidencias Graves', val: totalG, color: '#dc2626' },
-          { label: 'Incidencias Leves', val: totalL, color: '#f59e0b' },
-          { label: 'Con incidencias', val: conInc, color: '#8b5cf6' },
-        ].map(s => (
-          <Card key={s.label} style={{ padding: '14px 18px', borderTop: `3px solid ${s.color}` }}>
-            <div style={{ fontSize: 11, color: '#7A7168', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>{s.label}</div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: s.color }}>{s.val}</div>
-          </Card>
-        ))}
-      </div>
+      {/* ─── ÁREA PRINCIPAL ─── */}
+      <div style={{ flex: 1, minWidth: 0, padding: '20px 24px' }}>
 
-      {/* Gráficas */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 16, marginBottom: 20, alignItems: 'start' }}>
-        <Card style={{ padding: 16 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#7A7168', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Incidencias por jornada (global)</div>
-          <BarChart data={chartJornada} />
-        </Card>
-        {chartBloques.length > 0 && (
-          <Card style={{ padding: 16 }}>
-            <HBarChart title="Inc. por bloque de cámara" data={chartBloques} colorKey="#3b82f6" />
+        {/* Top bar */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#1A1A1A', marginBottom: 4 }}>Informes y Análisis</div>
+            <div style={{ fontSize: 11, color: '#7A7168' }}>
+              Mostrando <strong>{totalInc}</strong> incidencias en <strong>{partidos}</strong> partidos
+              &nbsp;·&nbsp;Datos actualizados el {new Date().toLocaleDateString('es-ES')}
+            </div>
+          </div>
+          {/* Export buttons */}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button onClick={exportCSVResumen} style={{ height: 32, padding: '0 12px', fontSize: 11, borderRadius: 6, border: '1px solid #DDD5CE', background: '#fff', color: '#7A7168', cursor: 'pointer', fontWeight: 600 }}>↓ CSV</button>
+            <button onClick={exportCSVIncidencias} disabled={incidenciasFlat.length === 0} style={{ height: 32, padding: '0 12px', fontSize: 11, borderRadius: 6, border: '1px solid #DDD5CE', background: '#fff', color: '#7A7168', cursor: 'pointer', fontWeight: 600 }}>↓ CSV Inc.</button>
+            <BtnP onClick={exportXLS} disabled={exporting || filtered.length === 0} style={{ height: 32, fontSize: 11, padding: '0 12px' }}>{exporting ? '...' : '↓ XLS'}</BtnP>
+          </div>
+        </div>
+
+        {/* Active filter chips */}
+        {chips.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+            {chips.map(chip => (
+              <span key={chip.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#FEF0EE', border: '1px solid #E8392C40', borderRadius: 12, padding: '3px 10px', fontSize: 11, color: '#E8392C', fontWeight: 600 }}>
+                {chip.label}
+                <button onClick={chip.clear} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#E8392C', padding: 0, fontSize: 12, lineHeight: 1, fontWeight: 700, marginLeft: 2 }}>×</button>
+              </span>
+            ))}
+            <button onClick={resetFilters} style={{ fontSize: 11, color: '#7A7168', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: '3px 0' }}>Limpiar todo</button>
+          </div>
+        )}
+
+        {/* ── Tabs ── */}
+        <div style={{ display: 'flex', borderBottom: '1px solid #DDD5CE', marginBottom: 20, overflowX: 'auto' }}>
+          {[['resumen','Resumen'], ['incidencias','Incidencias'], ['por_camara','Por Cámara'], ['por_tecnico','Por Técnico'], ['por_jornada','Por Jornada'], ['detalle','Detalle']].map(([id, lbl]) => (
+            <Tab key={id} label={lbl} active={activeTab === id} onClick={() => setActiveTab(id)} />
+          ))}
+        </div>
+
+        {/* ════════ TAB: RESUMEN ════════ */}
+        {activeTab === 'resumen' && (
+          <div>
+            {/* KPIs */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 10, marginBottom: 20 }}>
+              {[
+                { label: 'Incidencias', val: totalInc, color: '#E8392C' },
+                { label: 'Sin incidencia', val: sinInc, color: '#10b981' },
+                { label: 'Leves', val: totalL, color: '#f59e0b' },
+                { label: 'Graves', val: totalG, color: '#dc2626' },
+                { label: 'Partidos', val: partidos, color: '#3b82f6' },
+              ].map(s => (
+                <Card key={s.label} style={{ padding: '12px 14px', borderTop: `3px solid ${s.color}`, marginBottom: 0 }}>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: s.color }}>{s.val}</div>
+                  <div style={{ fontSize: 10, color: '#7A7168', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 4 }}>{s.label}</div>
+                </Card>
+              ))}
+            </div>
+
+            {/* Charts row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+              {/* Inc por cámara */}
+              <Card style={{ padding: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 12, color: '#1A1A1A' }}>Incidencias por cámara</div>
+                {statsByCamera.filter(c => c.graves + c.leves > 0).slice(0, 8).map(c => {
+                  const max = Math.max(...statsByCamera.map(x => x.graves + x.leves), 1);
+                  return (
+                    <div key={c.id} style={{ marginBottom: 4 }}>
+                      <HBar label={`${c.icon} ${c.label}`} val={c.graves + c.leves} max={max} color="#E8392C" />
+                    </div>
+                  );
+                })}
+                {statsByCamera.length === 0 && <div style={{ fontSize: 12, color: '#7A7168' }}>Sin datos</div>}
+              </Card>
+              {/* Distribución severidad */}
+              <Card style={{ padding: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 12, color: '#1A1A1A' }}>Distribución de severidad</div>
+                <DonutChart graves={totalG} leves={totalL} sinInc={filtered.length} />
+              </Card>
+            </div>
+
+            {/* Heatmap */}
+            {heatmapData.length > 0 && jornadasFiltered.length > 0 && (
+              <Card style={{ padding: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 12, color: '#1A1A1A' }}>Mapa de calor — Incidencias por cámara y jornada</div>
+                <Heatmap data={heatmapData} jornadas={jornadasFiltered} />
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* ════════ TAB: INCIDENCIAS ════════ */}
+        {activeTab === 'incidencias' && (
+          <Card style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid #DDD5CE', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>Listado de incidencias</span>
+              <Badge>{incidenciasFlat.length}</Badge>
+            </div>
+            {incidenciasFlat.length === 0 ? (
+              <div style={{ padding: 32, textAlign: 'center', fontSize: 13, color: '#7A7168' }}>No hay incidencias con los filtros aplicados.</div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr>{['Jornada','Partido','Cámara','Elemento','Tipo','Técnico','Equipo','Descripción'].map(h => <th key={h} style={TH}>{h}</th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {incidenciasFlat.map((r, i) => (
+                      <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#F5F0EC', borderBottom: '1px solid #EDE8E4' }}>
+                        <td style={TD}><span style={{ color: '#7A7168', fontFamily: 'monospace' }}>J{r.jornada}</span></td>
+                        <td style={{ ...TD, fontWeight: 500, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.partido}</td>
+                        <td style={TD}><CamBadge camId={r.camId} /></td>
+                        <td style={{ ...TD, fontWeight: 500 }}>{r.elemento}</td>
+                        <td style={TD}><TipoBadge tipo={r.tipo} /></td>
+                        <td style={TD}>{r.tecnico}</td>
+                        <td style={{ ...TD, color: '#7A7168' }}>{r.um}</td>
+                        <td style={{ ...TD, color: '#7A7168', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.descripcion}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </Card>
         )}
-        {chartTecnicos.length > 0 && (
-          <Card style={{ padding: 16 }}>
-            <HBarChart title="Incidencias por técnico" data={chartTecnicos} colorKey="#8b5cf6" />
-          </Card>
+
+        {/* ════════ TAB: POR CÁMARA ════════ */}
+        {activeTab === 'por_camara' && (
+          <div>
+            {/* Barras G y L por cámara */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+              <Card style={{ padding: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 12 }}>Graves por cámara</div>
+                {statsByCamera.filter(c => c.graves > 0).length === 0
+                  ? <div style={{ fontSize: 12, color: '#7A7168' }}>Sin graves</div>
+                  : statsByCamera.filter(c => c.graves > 0).map(c => <HBar key={c.id} label={`${c.icon} ${c.label}`} val={c.graves} max={Math.max(...statsByCamera.map(x => x.graves), 1)} color="#dc2626" />)}
+              </Card>
+              <Card style={{ padding: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 12 }}>Leves por cámara</div>
+                {statsByCamera.filter(c => c.leves > 0).length === 0
+                  ? <div style={{ fontSize: 12, color: '#7A7168' }}>Sin leves</div>
+                  : statsByCamera.filter(c => c.leves > 0).map(c => <HBar key={c.id} label={`${c.icon} ${c.label}`} val={c.leves} max={Math.max(...statsByCamera.map(x => x.leves), 1)} color="#f59e0b" />)}
+              </Card>
+            </div>
+
+            {/* Elementos problemáticos */}
+            <Card style={{ padding: 0, overflow: 'hidden' }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid #DDD5CE' }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Elementos más problemáticos</span>
+              </div>
+              {elementosProblematicos.length === 0
+                ? <div style={{ padding: 24, textAlign: 'center', fontSize: 13, color: '#7A7168' }}>Sin datos</div>
+                : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                      <thead>
+                        <tr>{['Cámara','Elemento','Leves','Graves','Total','Índice de riesgo'].map(h => <th key={h} style={{ ...TH, textAlign: ['Leves','Graves','Total'].includes(h) ? 'center' : 'left' }}>{h}</th>)}</tr>
+                      </thead>
+                      <tbody>
+                        {elementosProblematicos.map((d, i) => {
+                          const maxR = elementosProblematicos[0]?.riesgo || 1;
+                          return (
+                            <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#F5F0EC', borderBottom: '1px solid #EDE8E4' }}>
+                              <td style={TD}><CamBadge camId={d.camId} /></td>
+                              <td style={{ ...TD, fontWeight: 500 }}>{d.elemento}</td>
+                              <td style={{ ...TD, textAlign: 'center' }}>{d.leves > 0 ? <span style={{ color: '#d97706', fontWeight: 700 }}>↓ {d.leves}</span> : <span style={{ color: '#C2B9AD' }}>0</span>}</td>
+                              <td style={{ ...TD, textAlign: 'center' }}>{d.graves > 0 ? <span style={{ color: '#dc2626', fontWeight: 700 }}>⚠ {d.graves}</span> : <span style={{ color: '#C2B9AD' }}>0</span>}</td>
+                              <td style={{ ...TD, textAlign: 'center', fontWeight: 600 }}>{d.total}</td>
+                              <td style={{ ...TD }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <div style={{ flex: 1, background: '#EDE8E4', borderRadius: 3, height: 8, overflow: 'hidden' }}>
+                                    <div style={{ width: `${d.riesgo / maxR * 100}%`, height: '100%', background: d.graves > 0 ? '#dc2626' : '#f59e0b', borderRadius: 3 }} />
+                                  </div>
+                                  <span style={{ fontSize: 11, color: '#7A7168', minWidth: 16 }}>{d.riesgo}</span>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+            </Card>
+          </div>
         )}
-      </div>
 
-      {/* Filtros */}
-      <Card style={{ padding: 16, marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: '#7A7168' }}>Filtros</span>
-          {hasFilters && (
-            <button onClick={clearFilters} style={{ fontSize: 11, color: '#7A7168', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>
-              Limpiar
-            </button>
-          )}
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 10 }}>
+        {/* ════════ TAB: POR TÉCNICO ════════ */}
+        {activeTab === 'por_tecnico' && (
           <div>
-            <div style={LBL}>Jornada</div>
-            <select value={fJornada} onChange={e => setFJornada(e.target.value)} style={SEL}>
-              <option value="">Todas</option>
-              {jornadas.map(j => <option key={j} value={j}>Jornada {j}</option>)}
-            </select>
+            {/* Bar por técnico */}
+            <Card style={{ padding: 16, marginBottom: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 12 }}>Incidencias por técnico</div>
+              {rankingTecnicos.length === 0
+                ? <div style={{ fontSize: 12, color: '#7A7168' }}>Sin datos</div>
+                : rankingTecnicos.map(t => <HBar key={t.tecnico} label={t.tecnico} val={t.incidencias} max={Math.max(...rankingTecnicos.map(x => x.incidencias), 1)} color="#E8392C" />)}
+            </Card>
+            {/* Ranking */}
+            <Card style={{ padding: 0, overflow: 'hidden' }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid #DDD5CE' }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Ranking — Ratio incidencias/partido</span>
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr>{['#','Técnico','Partidos','Incidencias','Graves','Ratio'].map(h => <th key={h} style={{ ...TH, textAlign: h === '#' || h === 'Partidos' || h === 'Incidencias' || h === 'Graves' || h === 'Ratio' ? 'center' : 'left' }}>{h}</th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {rankingTecnicos.map((t, i) => (
+                      <tr key={t.tecnico} style={{ background: i % 2 === 0 ? '#fff' : '#F5F0EC', borderBottom: '1px solid #EDE8E4' }}>
+                        <td style={{ ...TD, textAlign: 'center', color: '#7A7168', fontWeight: 700 }}>#{String(i + 1).padStart(2, '0')}</td>
+                        <td style={{ ...TD, fontWeight: 600 }}>{t.tecnico}</td>
+                        <td style={{ ...TD, textAlign: 'center', color: '#7A7168' }}>{t.partidos}</td>
+                        <td style={{ ...TD, textAlign: 'center', fontWeight: 700 }}>{t.incidencias}</td>
+                        <td style={{ ...TD, textAlign: 'center' }}>{t.graves > 0 ? <span style={{ color: '#dc2626', fontWeight: 700 }}>{t.graves}</span> : <span style={{ color: '#C2B9AD' }}>0</span>}</td>
+                        <td style={{ ...TD, textAlign: 'center', fontWeight: 700, color: parseFloat(t.ratio) > 2 ? '#dc2626' : parseFloat(t.ratio) > 1 ? '#f59e0b' : '#10b981' }}>{t.ratio}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
           </div>
-          <div>
-            <div style={LBL}>Equipo (UM)</div>
-            <select value={fUM} onChange={e => setFUM(e.target.value)} style={SEL}>
-              <option value="">Todos</option>
-              {ums.map(u => <option key={u} value={u}>{u}</option>)}
-            </select>
-          </div>
-          <div>
-            <div style={LBL}>Bloque cámara</div>
-            <select value={fBloque} onChange={e => setFBloque(e.target.value)} style={SEL}>
-              <option value="">Todos</option>
-              {bloquesActivos.map(b => <option key={b.id} value={b.id}>{b.icon} {b.label}</option>)}
-            </select>
-          </div>
-          <div>
-            <div style={LBL}>Técnico</div>
-            <select value={fUsuario} onChange={e => setFUsuario(e.target.value)} style={SEL}>
-              <option value="">Todos</option>
-              {usuarios.map(u => <option key={u} value={u}>{u}</option>)}
-            </select>
-          </div>
-          <div>
-            <div style={LBL}>Operador</div>
-            <input value={fOperador} onChange={e => setFOperador(e.target.value)} placeholder="Buscar nombre..." style={SEL} />
-          </div>
-          <div>
-            <div style={LBL}>Incidencias</div>
-            <select value={fTipoInc} onChange={e => setFTipoInc(e.target.value)} style={SEL}>
-              <option value="">Todas</option>
-              <option value="G">Con Graves</option>
-              <option value="L">Con Leves</option>
-              <option value="sin">Sin incidencias</option>
-            </select>
-          </div>
-        </div>
-      </Card>
+        )}
 
-      {/* Tabla de informes */}
-      <Card style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
-        <div style={{ padding: '12px 16px', borderBottom: '1px solid #DDD5CE', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 13, fontWeight: 600 }}>Informes</span>
-          <Badge>{filtered.length}</Badge>
-        </div>
-        {filtered.length === 0 ? (
-          <div style={{ padding: 24, textAlign: 'center', fontSize: 13, color: '#7A7168' }}>No hay informes que coincidan con los filtros.</div>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr style={{ background: '#F5F0EC' }}>
-                  {['Jornada', 'Encuentro', 'Fecha', 'UM', 'Técnico', 'J. Técnico', 'Graves', 'Leves'].map(h => (
-                    <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#7A7168', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #DDD5CE', whiteSpace: 'nowrap' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((inf, i) => (
-                  <tr key={inf.id} style={{ borderBottom: i < filtered.length - 1 ? '1px solid #EDE8E4' : 'none', background: i % 2 === 0 ? '#fff' : '#F5F0EC' }}>
-                    <td style={{ padding: '8px 12px', color: '#7A7168' }}>J{inf.jornada || '—'}</td>
-                    <td style={{ padding: '8px 12px', fontWeight: 500 }}>{inf.encuentro || '—'}</td>
-                    <td style={{ padding: '8px 12px', color: '#7A7168', whiteSpace: 'nowrap' }}>{fmt(inf.fecha)}</td>
-                    <td style={{ padding: '8px 12px' }}>{inf.um || '—'}</td>
-                    <td style={{ padding: '8px 12px' }}>{inf.submitted_by_name || '—'}</td>
-                    <td style={{ padding: '8px 12px', color: '#7A7168' }}>{inf.jefe_tecnico || '—'}</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                      {inf.incidencias_graves > 0
-                        ? <span style={{ color: '#dc2626', fontWeight: 700 }}>⚠ {inf.incidencias_graves}</span>
-                        : <span style={{ color: '#d1d5db' }}>0</span>}
-                    </td>
-                    <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                      {inf.incidencias_leves > 0
-                        ? <span style={{ color: '#f59e0b', fontWeight: 700 }}>↓ {inf.incidencias_leves}</span>
-                        : <span style={{ color: '#d1d5db' }}>0</span>}
-                    </td>
-                  </tr>
+        {/* ════════ TAB: POR JORNADA ════════ */}
+        {activeTab === 'por_jornada' && (
+          <div>
+            {/* Bar chart */}
+            <Card style={{ padding: 16, marginBottom: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 12 }}>Evolución por jornada</div>
+              {porJornada.length === 0
+                ? <div style={{ fontSize: 12, color: '#7A7168' }}>Sin datos</div>
+                : <BarChart data={porJornada} />}
+            </Card>
+            {/* Timeline */}
+            <Card style={{ padding: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 12 }}>Timeline de incidencias</div>
+              {porJornada.length === 0
+                ? <div style={{ fontSize: 12, color: '#7A7168' }}>Sin datos</div>
+                : porJornada.map(j => (
+                  <div key={j.jornada} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 10 }}>
+                    <div style={{ minWidth: 36, height: 36, background: j.graves > 0 ? '#fef2f2' : j.leves > 0 ? '#fffbeb' : '#f0fdf4', border: `1px solid ${j.graves > 0 ? '#fca5a5' : j.leves > 0 ? '#fcd34d' : '#86efac'}`, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: j.graves > 0 ? '#dc2626' : j.leves > 0 ? '#d97706' : '#16a34a', flexShrink: 0 }}>J{j.jornada}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {j.items.slice(0, 12).map((it, idx) => (
+                          <span key={idx} style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, background: it.status === 'G' ? '#fef2f2' : '#fffbeb', color: it.status === 'G' ? '#dc2626' : '#d97706', border: `1px solid ${it.status === 'G' ? '#fca5a5' : '#fcd34d'}`, fontWeight: 600 }}>
+                            {it.cam} · {it.item}
+                          </span>
+                        ))}
+                        {j.items.length > 12 && <span style={{ fontSize: 10, color: '#7A7168', padding: '2px 6px' }}>+{j.items.length - 12} más</span>}
+                      </div>
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
+            </Card>
           </div>
         )}
-      </Card>
 
-      {/* Estadísticas por modelo */}
-      {modelStats.length > 0 && (
-        <Card style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
-          <div style={{ padding: '12px 16px', borderBottom: '1px solid #DDD5CE' }}>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>Estadísticas por modelo de equipo</span>
-            {fBloque && (() => { const b = CAM_BLOCKS.find(x => x.id === fBloque); return b ? <span style={{ marginLeft: 8, fontSize: 11, color: '#7A7168' }}>· {b.icon} {b.label}</span> : null; })()}
-          </div>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr style={{ background: '#F5F0EC' }}>
-                  {['Bloque', 'Modelo', 'Usos', 'Items G', 'Items L'].map(h => (
-                    <th key={h} style={{ padding: '8px 12px', textAlign: h === 'Usos' || h === 'Items G' || h === 'Items L' ? 'center' : 'left', fontSize: 10, fontWeight: 700, color: '#7A7168', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #DDD5CE', whiteSpace: 'nowrap' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {modelStats.map((m, i) => (
-                  <tr key={i} style={{ borderBottom: i < modelStats.length - 1 ? '1px solid #EDE8E4' : 'none', background: i % 2 === 0 ? '#fff' : '#F5F0EC' }}>
-                    <td style={{ padding: '7px 12px', fontWeight: 500 }}>{m.icon} {m.bloque}</td>
-                    <td style={{ padding: '7px 12px', fontFamily: 'monospace', fontSize: 11 }}>{m.modelo}</td>
-                    <td style={{ padding: '7px 12px', textAlign: 'center', color: '#7A7168' }}>{m.usos}</td>
-                    <td style={{ padding: '7px 12px', textAlign: 'center' }}>
-                      {m.incG > 0 ? <span style={{ color: '#dc2626', fontWeight: 700 }}>⚠ {m.incG}</span> : <span style={{ color: '#d1d5db' }}>0</span>}
-                    </td>
-                    <td style={{ padding: '7px 12px', textAlign: 'center' }}>
-                      {m.incL > 0 ? <span style={{ color: '#f59e0b', fontWeight: 700 }}>↓ {m.incL}</span> : <span style={{ color: '#d1d5db' }}>0</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
+        {/* ════════ TAB: DETALLE ════════ */}
+        {activeTab === 'detalle' && (
+          <Card style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid #DDD5CE' }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>Informe detallado por partido</span>
+            </div>
+            {filtered.length === 0 ? (
+              <div style={{ padding: 32, textAlign: 'center', fontSize: 13, color: '#7A7168' }}>Sin datos con los filtros aplicados.</div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr>{['Jornada','Partido','Fecha','Técnico','Cámaras','Checks','Leves','Graves','Estado'].map(h => <th key={h} style={{ ...TH, textAlign: ['Cámaras','Checks','Leves','Graves'].includes(h) ? 'center' : 'left' }}>{h}</th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((inf, i) => {
+                      const camData = inf.cam_data || {};
+                      const numCams = Object.entries(inf.camaras_activas || {}).filter(([, v]) => v).length;
+                      const totalChecks = Object.values(camData).reduce((s, d) => s + Object.keys(d.items || {}).length, 0);
+                      return (
+                        <tr key={inf.id} style={{ background: i % 2 === 0 ? '#fff' : '#F5F0EC', borderBottom: '1px solid #EDE8E4' }}>
+                          <td style={{ ...TD, color: '#7A7168', fontFamily: 'monospace' }}>J{inf.jornada}</td>
+                          <td style={{ ...TD, fontWeight: 500 }}>{inf.encuentro || '—'}</td>
+                          <td style={{ ...TD, color: '#7A7168', whiteSpace: 'nowrap' }}>{fmt(inf.fecha)}</td>
+                          <td style={TD}>{inf.submitted_by_name || '—'}</td>
+                          <td style={{ ...TD, textAlign: 'center' }}>{numCams}</td>
+                          <td style={{ ...TD, textAlign: 'center', color: '#7A7168' }}>{totalChecks}</td>
+                          <td style={{ ...TD, textAlign: 'center' }}>{inf.incidencias_leves > 0 ? <span style={{ color: '#d97706', fontWeight: 700 }}>↓ {inf.incidencias_leves}</span> : <span style={{ color: '#C2B9AD' }}>0</span>}</td>
+                          <td style={{ ...TD, textAlign: 'center' }}>{inf.incidencias_graves > 0 ? <span style={{ color: '#dc2626', fontWeight: 700 }}>⚠ {inf.incidencias_graves}</span> : <span style={{ color: '#C2B9AD' }}>0</span>}</td>
+                          <td style={TD}><EstadoBadge graves={inf.incidencias_graves} leves={inf.incidencias_leves} /></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        )}
+      </div>
     </div>
   );
 }
