@@ -581,7 +581,16 @@ export function generateInformePDF(informe) {
     const itemCells = Object.entries(items).map(([k,v])=>
       `<div class="ic${v==='G'?' ic-g':v==='L'?' ic-l':''}"><span>${k}</span><span style="color:${SC[v]||'#999'};font-weight:700">${v||'—'}</span></div>`
     ).join('');
-    const campos = d.campos ? Object.entries(d.campos).filter(([,v])=>v).map(([k,v])=>`<div class="ic"><span>${k}</span><span style="font-family:monospace">${v}</span></div>`).join('') : '';
+    const camposDef = cam.campos||[];
+    const camposHtml = camposDef.length>0
+      ? `<div class="campos-section">
+          <div class="campos-hdr">Parámetros técnicos</div>
+          <div class="campos-grid">${camposDef.map(k=>{
+            const v=(d.campos||{})[k]||'';
+            return `<div class="campo-row"><span class="campo-k">${k}</span><span class="campo-v">${v||'&nbsp;'}</span></div>`;
+          }).join('')}</div>
+        </div>`
+      : '';
     const eq = d.equipos?Object.values(d.equipos).filter(Boolean).join(' · '):(d.equipo||'');
     const statusDot = gv>0?`<span class="dot dot-g">G${gv}</span>`:lv>0?`<span class="dot dot-l">L${lv}</span>`:`<span class="dot dot-ok">OK</span>`;
     return `<div class="cam-block" style="border-left:3px solid ${cam.color||'#94a3b8'}">
@@ -589,7 +598,8 @@ export function generateInformePDF(informe) {
         <span style="color:${cam.color||'#374151'}">${cam.icon} ${cam.label}${eq?`<span style="font-family:monospace;font-weight:400;color:#555;margin-left:8px">${eq}</span>`:''}</span>
         ${statusDot}
       </div>
-      ${itemCells||campos?`<div class="ic-grid">${itemCells}${campos}</div>`:''}
+      ${itemCells?`<div class="ic-grid">${itemCells}</div>`:''}
+      ${camposHtml}
       ${d.incidencias?`<div class="obs">${d.incidencias}</div>`:''}
     </div>`;
   }).join('');
@@ -644,6 +654,12 @@ tr:nth-child(even) td{background:#f8fafc}
 .ic-g{background:#fff5f5}
 .ic-l{background:#fffdf0}
 .obs{padding:6px 12px;border-top:1px solid #fde68a;font-size:11px;color:#92400e;background:#fffbeb}
+.campos-section{border-top:1px solid #e2e8f0;padding:7px 12px 8px;background:#faf7ff}
+.campos-hdr{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#7c3aed;margin-bottom:5px}
+.campos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:5px 20px}
+.campo-row{display:flex;align-items:baseline;gap:6px;font-size:11px;min-width:0}
+.campo-k{color:#6b21a8;font-weight:600;white-space:nowrap;flex-shrink:0;font-size:10px;min-width:100px}
+.campo-v{font-family:'Courier New',monospace;color:#1e293b;border-bottom:1.5px dashed #a78bfa;flex:1;min-width:80px;padding-bottom:1px}
 .ftr{margin-top:24px;padding:10px 32px;border-top:1px solid #e2e8f0;font-size:10px;color:#94a3b8;display:flex;justify-content:space-between;background:#f8fafc}
 @media print{body{padding:0}.hdr-body{padding:12px 24px 10px}.content{padding:0 24px 24px}.hdr-bar{padding:10px 24px}.ftr{padding:8px 24px}}
 </style></head><body>
