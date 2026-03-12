@@ -1200,10 +1200,111 @@ function VehiculosSection() {
   );
 }
 
+const ROL_LABELS_PT = { jefe_tecnico:'J. Técnico UM', realizador:'Realizador', productor:'Productor' };
+const ROL_OPTS = Object.entries(ROL_LABELS_PT).map(([v,l])=>({value:v,label:l}));
+
+function PersonalTecnicoSection() {
+  const [lista,setLista] = useState([]);
+  const [editingId,setEditingId] = useState(null);
+  const [form,setForm] = useState({rol:'jefe_tecnico',nombre:'',telefono:''});
+  const [showNew,setShowNew] = useState(false);
+  const [saving,setSaving] = useState(false);
+  const [error,setError] = useState(null);
+
+  const load = useCallback(()=>{
+    apiFetch('/api/personal-tecnico').then(r=>r.json()).then(data=>setLista(Array.isArray(data)?data:[]));
+  },[]);
+  useEffect(()=>load(),[load]);
+
+  const startEdit = (p) => { setEditingId(p.id); setForm({rol:p.rol,nombre:p.nombre,telefono:p.telefono||''}); setShowNew(false); };
+  const startNew  = () => { setShowNew(true); setEditingId(null); setForm({rol:'jefe_tecnico',nombre:'',telefono:''}); };
+
+  const save = async () => {
+    if (!form.nombre.trim()) { setError('El nombre es obligatorio'); return; }
+    setSaving(true); setError(null);
+    try {
+      if (editingId) {
+        await apiFetch(`/api/personal-tecnico/${editingId}`,{method:'PUT',body:JSON.stringify({nombre:form.nombre,telefono:form.telefono})});
+      } else {
+        await apiFetch('/api/personal-tecnico',{method:'POST',body:JSON.stringify(form)});
+      }
+      setEditingId(null); setShowNew(false); load();
+    } catch { setError('Error al guardar'); }
+    finally { setSaving(false); }
+  };
+
+  const del = async (id) => {
+    if (!confirm('¿Eliminar persona?')) return;
+    await apiFetch(`/api/personal-tecnico/${id}`,{method:'DELETE'});
+    load();
+  };
+
+  const FormRow = () => (
+    <div style={{background:'#f8fafc',border:'1px solid #cbd5e1',borderRadius:8,padding:'14px 16px',marginBottom:12}}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 2fr 1fr',gap:10,marginBottom:10}}>
+        <Field label="Rol">
+          <Select value={form.rol} onChange={e=>setForm(f=>({...f,rol:e.target.value}))} disabled={!!editingId}>
+            {ROL_OPTS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+          </Select>
+        </Field>
+        <Field label="Nombre"><Input value={form.nombre} onChange={e=>setForm(f=>({...f,nombre:e.target.value}))} placeholder="Nombre completo" /></Field>
+        <Field label="Teléfono"><Input value={form.telefono} onChange={e=>setForm(f=>({...f,telefono:e.target.value}))} placeholder="Opcional" /></Field>
+      </div>
+      {error&&<div style={{color:'#dc2626',fontSize:12,marginBottom:8}}>{error}</div>}
+      <div style={{display:'flex',gap:8}}>
+        <BtnP onClick={save} disabled={saving} style={{opacity:saving?0.6:1,fontSize:12,height:30}}>
+          {saving?'Guardando...':editingId?'Actualizar':'Añadir'}
+        </BtnP>
+        <BtnO onClick={()=>{setShowNew(false);setEditingId(null);}} style={{fontSize:12,height:30}}>Cancelar</BtnO>
+      </div>
+    </div>
+  );
+
+  return (
+    <Card style={{marginBottom:20}}>
+      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+        <SecTitle style={{margin:0,flex:1}}>Personal técnico</SecTitle>
+        <BtnO onClick={startNew} style={{fontSize:12,height:30}}>+ Añadir</BtnO>
+      </div>
+      {showNew&&<FormRow />}
+      {lista.length===0&&!showNew&&(
+        <div style={{fontSize:13,color:'#71717a',padding:'20px 0',textAlign:'center'}}>No hay personal registrado.</div>
+      )}
+      {lista.length>0&&(
+        <div style={{border:'1px solid #e4e4e7',borderRadius:8,overflow:'hidden'}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 2fr 1fr auto',gap:0,background:'#f4f4f5',padding:'6px 12px',fontSize:11,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.06em'}}>
+            <span>Rol</span><span>Nombre</span><span>Teléfono</span><span></span>
+          </div>
+          {lista.map((p,i)=>(
+            <div key={p.id}>
+              {editingId===p.id ? (
+                <div style={{padding:'10px 12px',background:'#f0f9ff',borderTop:i>0?'1px solid #e4e4e7':'none'}}>
+                  <FormRow />
+                </div>
+              ) : (
+                <div style={{display:'grid',gridTemplateColumns:'1fr 2fr 1fr auto',gap:0,padding:'9px 12px',borderTop:i>0?'1px solid #e4e4e7':'none',alignItems:'center',background:i%2===0?'#fff':'#fafafa'}}>
+                  <span style={{fontSize:12,color:'#52525b'}}>{ROL_LABELS_PT[p.rol]||p.rol}</span>
+                  <span style={{fontSize:12,fontWeight:500}}>{p.nombre}</span>
+                  <span style={{fontSize:12,color:'#71717a'}}>{p.telefono||'—'}</span>
+                  <div style={{display:'flex',gap:4,justifyContent:'flex-end'}}>
+                    <button onClick={()=>startEdit(p)} style={{padding:'2px 8px',border:'1px solid #e4e4e7',borderRadius:5,background:'#fff',cursor:'pointer',fontSize:11}}>✏️</button>
+                    <button onClick={()=>del(p.id)} style={{padding:'2px 8px',border:'1px solid #fecaca',borderRadius:5,background:'#fef2f2',cursor:'pointer',fontSize:11,color:'#dc2626'}}>✕</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function BDView() {
   return (
     <div style={{maxWidth:900,margin:'0 auto',padding:'32px 20px'}}>
       <h2 style={{fontSize:20,fontWeight:600,margin:'0 0 24px'}}>Base de datos</h2>
+      <PersonalTecnicoSection />
       <VehiculosSection />
     </div>
   );

@@ -361,6 +361,42 @@ app.get('/api/personal-tecnico', requireAuth(['coordinador']), async (req, res) 
   }
 })
 
+// Crear/actualizar personal técnico (coordinador)
+app.post('/api/personal-tecnico', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const { rol, nombre, telefono } = req.body
+    if (!['jefe_tecnico','realizador','productor'].includes(rol)) return res.status(400).json({ error: 'Rol inválido' })
+    if (!nombre?.trim()) return res.status(400).json({ error: 'Nombre requerido' })
+    const r = await pool.query(
+      `INSERT INTO personal_tecnico (rol, nombre, telefono, updated_at)
+       VALUES ($1,$2,$3,NOW())
+       ON CONFLICT (rol, nombre) DO UPDATE SET telefono=$3, updated_at=NOW()
+       RETURNING *`,
+      [rol, nombre.trim(), telefono||'']
+    )
+    res.json({ ok: true, persona: r.rows[0] })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.put('/api/personal-tecnico/:id', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const { nombre, telefono } = req.body
+    if (!nombre?.trim()) return res.status(400).json({ error: 'Nombre requerido' })
+    await pool.query(
+      'UPDATE personal_tecnico SET nombre=$1, telefono=$2, updated_at=NOW() WHERE id=$3',
+      [nombre.trim(), telefono||'', req.params.id]
+    )
+    res.json({ ok: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.delete('/api/personal-tecnico/:id', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    await pool.query('DELETE FROM personal_tecnico WHERE id=$1', [req.params.id])
+    res.json({ ok: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
 // Helper: upsert one personal técnico entry (called internally on service save)
 async function upsertPersonalTecnico(rol, nombre, telefono) {
   if (!nombre?.trim()) return
@@ -917,7 +953,7 @@ app.get('/api/stats', requireAuth(['coordinador']), async (req, res) => {
 app.get('/api/analisis', requireAuth(['coordinador']), async (req, res) => {
   try {
     const r = await pool.query(`
-      SELECT i.*, u.name as submitted_by_name, s.cam_models
+      SELECT i.*, u.name as submitted_by_name, s.cam_models, s.tipo_servicio
       FROM informes i
       LEFT JOIN users u ON u.id = i.submitted_by
       LEFT JOIN servicios s ON s.id = i.servicio_id

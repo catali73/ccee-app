@@ -1,8 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
-import { apiFetch, Card, BtnP, Badge, SecTitle } from "./App.jsx";
+import { apiFetch, Card, BtnP, BtnO, Badge, SecTitle, CAMERA_CATALOG, TIPOS_SERVICIO } from "./App.jsx";
 
 /* ── helpers ── */
 const fmt = d => d ? new Date(d).toLocaleDateString('es-ES') : '—';
+
+// Orden de cámaras (mismo que CAMERA_CATALOG)
+const CAMERA_ORDER = Object.keys(CAMERA_CATALOG);
 
 /* ── Camera blocks: agrupación de posiciones L/R en bloques ── */
 const CAM_BLOCKS = [
@@ -18,19 +21,18 @@ const CAM_BLOCKS = [
   { id: 'AR_SKYCAM',   label: 'AR Skycam',   icon: '🔮', cams: ['AR_SKYCAM'] },
   { id: 'DRONE',       label: 'Drone',       icon: '🛸', cams: ['DRONE'] },
   { id: 'BODYCAM',     label: 'Bodycam',     icon: '👕', cams: ['BODYCAM'] },
-  { id: 'OTROS',       label: 'Otros',       icon: '📷', cams: ['OTROS'] },
+  { id: 'OTROS',       label: 'Otros',       icon: '🔧', cams: ['OTROS'] },
 ];
-// camId → block
 const CAM_TO_BLOCK = {};
 CAM_BLOCKS.forEach(b => b.cams.forEach(c => { CAM_TO_BLOCK[c] = b; }));
 
-/* ── BarChart SVG: incidencias por jornada (apilado G+L) ── */
-function BarChart({ data }) {
+/* ── Stacked bar chart: partidos clasificados por tipo de incidencia ── */
+function PartidosChart({ data }) {
   if (!data.length) return null;
   const W = 560, H = 180, PAD = { t: 16, r: 16, b: 36, l: 36 };
   const chartW = W - PAD.l - PAD.r;
   const chartH = H - PAD.t - PAD.b;
-  const maxVal = Math.max(...data.map(d => (d.graves || 0) + (d.leves || 0)), 1);
+  const maxVal = Math.max(...data.map(d => d.total), 1);
   const barW = Math.min(36, (chartW / data.length) - 6);
   const gap = chartW / data.length;
   return (
@@ -44,20 +46,24 @@ function BarChart({ data }) {
       })}
       {data.map((d, i) => {
         const x = PAD.l + i * gap + (gap - barW) / 2;
-        const gH = chartH * (d.graves || 0) / maxVal;
-        const lH = chartH * (d.leves || 0) / maxVal;
+        const gH = chartH * d.conGraves / maxVal;
+        const lH = chartH * d.soloLeves / maxVal;
+        const sH = chartH * d.sinInc / maxVal;
         return (
           <g key={d.jornada}>
-            <rect x={x} y={PAD.t + chartH - gH - lH} width={barW} height={gH} fill="#dc2626" rx={2} />
-            <rect x={x} y={PAD.t + chartH - lH} width={barW} height={lH} fill="#f59e0b" rx={2} />
+            <rect x={x} y={PAD.t + chartH - gH - lH - sH} width={barW} height={sH} fill="#16a34a" rx={2} />
+            <rect x={x} y={PAD.t + chartH - gH - lH} width={barW} height={lH} fill="#f59e0b" rx={2} />
+            <rect x={x} y={PAD.t + chartH - gH} width={barW} height={gH} fill="#dc2626" rx={2} />
             <text x={x + barW / 2} y={H - 6} fontSize={9} fill="#555" textAnchor="middle">J{d.jornada}</text>
           </g>
         );
       })}
       <rect x={PAD.l} y={H - 34} width={10} height={8} fill="#dc2626" rx={2} />
       <text x={PAD.l + 13} y={H - 27} fontSize={9} fill="#555">Graves</text>
-      <rect x={PAD.l + 52} y={H - 34} width={10} height={8} fill="#f59e0b" rx={2} />
-      <text x={PAD.l + 65} y={H - 27} fontSize={9} fill="#555">Leves</text>
+      <rect x={PAD.l + 55} y={H - 34} width={10} height={8} fill="#f59e0b" rx={2} />
+      <text x={PAD.l + 68} y={H - 27} fontSize={9} fill="#555">Solo leves</text>
+      <rect x={PAD.l + 118} y={H - 34} width={10} height={8} fill="#16a34a" rx={2} />
+      <text x={PAD.l + 131} y={H - 27} fontSize={9} fill="#555">Sin inc.</text>
     </svg>
   );
 }
@@ -94,18 +100,22 @@ function HBarChart({ title, data, colorKey = '#3b82f6' }) {
 const SEL = { width: '100%', height: 32, borderRadius: 6, border: '1px solid #d4d4d8', fontSize: 12, paddingLeft: 8, background: '#fff', color: '#18181b' };
 const LBL = { fontSize: 10, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 };
 
+const TIPO_LABELS = {};
+TIPOS_SERVICIO.forEach(t => { TIPO_LABELS[t.id] = `${t.icon} ${t.label}`; });
+
 /* ── Main AnalisisView ── */
 export default function AnalisisView() {
   const [informes, setInformes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [expandedId, setExpandedId] = useState(null);
 
   // Filters
+  const [fTipo, setFTipo] = useState('');
   const [fJornada, setFJornada] = useState('');
   const [fUM, setFUM] = useState('');
-  const [fBloque, setFBloque] = useState('');   // block id
-  const [fUsuario, setFUsuario] = useState('');
-  const [fOperador, setFOperador] = useState('');
+  const [fBloque, setFBloque] = useState('');
+  const [fModelo, setFModelo] = useState('');
   const [fTipoInc, setFTipoInc] = useState('');
 
   useEffect(() => {
@@ -118,9 +128,9 @@ export default function AnalisisView() {
   // Opciones únicas de filtros
   const jornadas = useMemo(() => [...new Set(informes.map(i => i.jornada).filter(Boolean))].sort((a, b) => a - b), [informes]);
   const ums = useMemo(() => [...new Set(informes.map(i => i.um).filter(Boolean))].sort(), [informes]);
-  const usuarios = useMemo(() => [...new Set(informes.map(i => i.submitted_by_name).filter(Boolean))].sort(), [informes]);
+  const tiposActivos = useMemo(() => [...new Set(informes.map(i => i.tipo_servicio).filter(Boolean))].sort(), [informes]);
 
-  // Bloques activos (que aparecen en algún informe)
+  // Bloques activos
   const bloquesActivos = useMemo(() => {
     const activeSet = new Set();
     informes.forEach(inf => {
@@ -134,6 +144,7 @@ export default function AnalisisView() {
   // Informes filtrados
   const filtered = useMemo(() => {
     return informes.filter(inf => {
+      if (fTipo && inf.tipo_servicio !== fTipo) return false;
       if (fJornada && String(inf.jornada) !== fJornada) return false;
       if (fUM && inf.um !== fUM) return false;
       if (fBloque) {
@@ -142,36 +153,61 @@ export default function AnalisisView() {
         const activas = inf.camaras_activas || {};
         if (!block.cams.some(c => activas[c])) return false;
       }
-      if (fUsuario && inf.submitted_by_name !== fUsuario) return false;
-      if (fOperador) {
-        const ops = Object.values(inf.operadores || {}).join(' ').toLowerCase();
-        if (!ops.includes(fOperador.toLowerCase())) return false;
+      if (fModelo) {
+        const camModels = inf.cam_models || {};
+        const hasModel = Object.values(camModels).some(m => Object.values(m).includes(fModelo));
+        if (!hasModel) return false;
       }
       if (fTipoInc === 'G' && !(inf.incidencias_graves > 0)) return false;
-      if (fTipoInc === 'L' && !(inf.incidencias_leves > 0)) return false;
+      if (fTipoInc === 'L' && !(inf.incidencias_leves > 0 && inf.incidencias_graves === 0)) return false;
       if (fTipoInc === 'sin' && (inf.incidencias_graves > 0 || inf.incidencias_leves > 0)) return false;
       return true;
     });
-  }, [informes, fJornada, fUM, fBloque, fUsuario, fOperador, fTipoInc]);
+  }, [informes, fTipo, fJornada, fUM, fBloque, fModelo, fTipoInc]);
+
+  // Modelos disponibles (calculados sobre informes filtrados por todo salvo fModelo)
+  const modelosDisponibles = useMemo(() => {
+    const base = informes.filter(inf => {
+      if (fTipo && inf.tipo_servicio !== fTipo) return false;
+      if (fJornada && String(inf.jornada) !== fJornada) return false;
+      if (fUM && inf.um !== fUM) return false;
+      if (fBloque) {
+        const block = CAM_BLOCKS.find(b => b.id === fBloque);
+        if (!block) return false;
+        const activas = inf.camaras_activas || {};
+        if (!block.cams.some(c => activas[c])) return false;
+      }
+      return true;
+    });
+    const set = new Set();
+    base.forEach(inf => {
+      Object.values(inf.cam_models || {}).forEach(m => Object.values(m).filter(Boolean).forEach(v => set.add(v)));
+    });
+    return [...set].sort();
+  }, [informes, fTipo, fJornada, fUM, fBloque]);
 
   // Stats totales
   const totalG = filtered.reduce((s, i) => s + (i.incidencias_graves || 0), 0);
   const totalL = filtered.reduce((s, i) => s + (i.incidencias_leves || 0), 0);
-  const conInc = filtered.filter(i => i.incidencias_graves > 0 || i.incidencias_leves > 0).length;
+  const conGraves = filtered.filter(i => i.incidencias_graves > 0).length;
+  const soloLeves = filtered.filter(i => i.incidencias_graves === 0 && i.incidencias_leves > 0).length;
+  const sinInc    = filtered.filter(i => i.incidencias_graves === 0 && i.incidencias_leves === 0).length;
 
-  // Gráfica global: incidencias por jornada
-  const chartJornada = useMemo(() => {
+  // Gráfica de partidos: clasificados por tipo de incidencia por jornada
+  const chartPartidos = useMemo(() => {
     const map = {};
-    informes.forEach(inf => {
+    filtered.forEach(inf => {
       const j = inf.jornada; if (!j) return;
-      if (!map[j]) map[j] = { jornada: j, graves: 0, leves: 0 };
-      map[j].graves += inf.incidencias_graves || 0;
-      map[j].leves  += inf.incidencias_leves  || 0;
+      if (!map[j]) map[j] = { jornada: j, sinInc: 0, soloLeves: 0, conGraves: 0, total: 0 };
+      map[j].total++;
+      if (inf.incidencias_graves > 0) map[j].conGraves++;
+      else if (inf.incidencias_leves > 0) map[j].soloLeves++;
+      else map[j].sinInc++;
     });
     return Object.values(map).sort((a, b) => a.jornada - b.jornada);
-  }, [informes]);
+  }, [filtered]);
 
-  // Gráfica: incidencias por BLOQUE de cámara (items G+L dentro de cam_data)
+  // Gráfica: incidencias por BLOQUE de cámara
   const chartBloques = useMemo(() => {
     const map = {};
     filtered.forEach(inf => {
@@ -187,17 +223,6 @@ export default function AnalisisView() {
       });
     });
     return Object.values(map).sort((a, b) => b.val - a.val).slice(0, 10);
-  }, [filtered]);
-
-  // Gráfica: técnicos con más incidencias
-  const chartTecnicos = useMemo(() => {
-    const map = {};
-    filtered.forEach(inf => {
-      const k = inf.submitted_by_name || 'Desconocido';
-      if (!map[k]) map[k] = { label: k, val: 0 };
-      map[k].val += (inf.incidencias_graves || 0) + (inf.incidencias_leves || 0);
-    });
-    return Object.values(map).filter(d => d.val > 0).sort((a, b) => b.val - a.val).slice(0, 8);
   }, [filtered]);
 
   // Estadísticas por modelo de equipo
@@ -243,8 +268,8 @@ export default function AnalisisView() {
     setExporting(false);
   };
 
-  const clearFilters = () => { setFJornada(''); setFUM(''); setFBloque(''); setFUsuario(''); setFOperador(''); setFTipoInc(''); };
-  const hasFilters = fJornada || fUM || fBloque || fUsuario || fOperador || fTipoInc;
+  const clearFilters = () => { setFTipo(''); setFJornada(''); setFUM(''); setFBloque(''); setFModelo(''); setFTipoInc(''); };
+  const hasFilters = fTipo || fJornada || fUM || fBloque || fModelo || fTipoInc;
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#71717a', fontSize: 13 }}>Cargando análisis...</div>;
 
@@ -260,12 +285,13 @@ export default function AnalisisView() {
       </div>
 
       {/* Stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12, marginBottom: 20 }}>
         {[
-          { label: 'Informes', val: filtered.length, color: '#3b82f6' },
-          { label: 'Incidencias Graves', val: totalG, color: '#dc2626' },
-          { label: 'Incidencias Leves', val: totalL, color: '#f59e0b' },
-          { label: 'Con incidencias', val: conInc, color: '#8b5cf6' },
+          { label: 'Partidos', val: filtered.length, color: '#3b82f6' },
+          { label: 'Con graves', val: conGraves, color: '#dc2626' },
+          { label: 'Solo leves', val: soloLeves, color: '#f59e0b' },
+          { label: 'Sin incidencias', val: sinInc, color: '#16a34a' },
+          { label: 'Items G acum.', val: totalG, color: '#7c3aed' },
         ].map(s => (
           <Card key={s.label} style={{ padding: '14px 18px', borderTop: `3px solid ${s.color}` }}>
             <div style={{ fontSize: 11, color: '#71717a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>{s.label}</div>
@@ -275,19 +301,14 @@ export default function AnalisisView() {
       </div>
 
       {/* Gráficas */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 16, marginBottom: 20, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, marginBottom: 20, alignItems: 'start' }}>
         <Card style={{ padding: 16 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Incidencias por jornada (global)</div>
-          <BarChart data={chartJornada} />
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Partidos por jornada · clasificados por incidencia</div>
+          <PartidosChart data={chartPartidos} />
         </Card>
         {chartBloques.length > 0 && (
           <Card style={{ padding: 16 }}>
             <HBarChart title="Inc. por bloque de cámara" data={chartBloques} colorKey="#3b82f6" />
-          </Card>
-        )}
-        {chartTecnicos.length > 0 && (
-          <Card style={{ padding: 16 }}>
-            <HBarChart title="Incidencias por técnico" data={chartTecnicos} colorKey="#8b5cf6" />
           </Card>
         )}
       </div>
@@ -303,6 +324,13 @@ export default function AnalisisView() {
           )}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 10 }}>
+          <div>
+            <div style={LBL}>Tipo de servicio</div>
+            <select value={fTipo} onChange={e => setFTipo(e.target.value)} style={SEL}>
+              <option value="">Todos</option>
+              {tiposActivos.map(t => <option key={t} value={t}>{TIPO_LABELS[t]||t}</option>)}
+            </select>
+          </div>
           <div>
             <div style={LBL}>Jornada</div>
             <select value={fJornada} onChange={e => setFJornada(e.target.value)} style={SEL}>
@@ -325,22 +353,18 @@ export default function AnalisisView() {
             </select>
           </div>
           <div>
-            <div style={LBL}>Técnico</div>
-            <select value={fUsuario} onChange={e => setFUsuario(e.target.value)} style={SEL}>
+            <div style={LBL}>Modelo equipo</div>
+            <select value={fModelo} onChange={e => setFModelo(e.target.value)} style={SEL}>
               <option value="">Todos</option>
-              {usuarios.map(u => <option key={u} value={u}>{u}</option>)}
+              {modelosDisponibles.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
-          </div>
-          <div>
-            <div style={LBL}>Operador</div>
-            <input value={fOperador} onChange={e => setFOperador(e.target.value)} placeholder="Buscar nombre..." style={SEL} />
           </div>
           <div>
             <div style={LBL}>Incidencias</div>
             <select value={fTipoInc} onChange={e => setFTipoInc(e.target.value)} style={SEL}>
               <option value="">Todas</option>
               <option value="G">Con Graves</option>
-              <option value="L">Con Leves</option>
+              <option value="L">Solo Leves</option>
               <option value="sin">Sin incidencias</option>
             </select>
           </div>
@@ -385,8 +409,9 @@ export default function AnalisisView() {
       {/* Tabla de informes */}
       <Card style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: '12px 16px', borderBottom: '1px solid #e4e4e7', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 13, fontWeight: 600 }}>Informes</span>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>Partidos</span>
           <Badge>{filtered.length}</Badge>
+          <span style={{ fontSize: 11, color: '#71717a' }}>Haz clic en un partido para ver el detalle de incidencias</span>
         </div>
         {filtered.length === 0 ? (
           <div style={{ padding: 24, textAlign: 'center', fontSize: 13, color: '#71717a' }}>No hay informes que coincidan con los filtros.</div>
@@ -395,32 +420,99 @@ export default function AnalisisView() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ background: '#fafafa' }}>
-                  {['Jornada', 'Encuentro', 'Fecha', 'UM', 'Técnico', 'J. Técnico', 'Graves', 'Leves'].map(h => (
+                  {['Jornada', 'Encuentro', 'Fecha', 'UM', 'J. Técnico', 'Estado'].map(h => (
                     <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e4e4e7', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((inf, i) => (
-                  <tr key={inf.id} style={{ borderBottom: i < filtered.length - 1 ? '1px solid #f4f4f5' : 'none', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                    <td style={{ padding: '8px 12px', color: '#71717a' }}>J{inf.jornada || '—'}</td>
-                    <td style={{ padding: '8px 12px', fontWeight: 500 }}>{inf.encuentro || '—'}</td>
-                    <td style={{ padding: '8px 12px', color: '#71717a', whiteSpace: 'nowrap' }}>{fmt(inf.fecha)}</td>
-                    <td style={{ padding: '8px 12px' }}>{inf.um || '—'}</td>
-                    <td style={{ padding: '8px 12px' }}>{inf.submitted_by_name || '—'}</td>
-                    <td style={{ padding: '8px 12px', color: '#71717a' }}>{inf.jefe_tecnico || '—'}</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                      {inf.incidencias_graves > 0
-                        ? <span style={{ color: '#dc2626', fontWeight: 700 }}>⚠ {inf.incidencias_graves}</span>
-                        : <span style={{ color: '#d1d5db' }}>0</span>}
-                    </td>
-                    <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                      {inf.incidencias_leves > 0
-                        ? <span style={{ color: '#f59e0b', fontWeight: 700 }}>↓ {inf.incidencias_leves}</span>
-                        : <span style={{ color: '#d1d5db' }}>0</span>}
-                    </td>
-                  </tr>
-                ))}
+                {filtered.map((inf, i) => {
+                  const isExpanded = expandedId === inf.id;
+                  // Cámaras en orden correcto con incidencias
+                  const activeCamsOrdered = CAMERA_ORDER
+                    .filter(id => (inf.camaras_activas || {})[id])
+                    .map(id => ({ id, cam: CAMERA_CATALOG[id], d: (inf.cam_data || {})[id] || {} }));
+                  const camsWithIssues = activeCamsOrdered.filter(({ d }) => {
+                    const items = d.items || {};
+                    return Object.values(items).some(v => v === 'G' || v === 'L') || d.incidencias;
+                  });
+                  return (
+                    <>
+                      <tr key={inf.id}
+                        onClick={() => setExpandedId(isExpanded ? null : inf.id)}
+                        style={{ borderBottom: '1px solid #f4f4f5', background: isExpanded ? '#f0f9ff' : i % 2 === 0 ? '#fff' : '#fafafa', cursor: 'pointer' }}
+                        onMouseEnter={e => { if (!isExpanded) e.currentTarget.style.background = '#f8fafc'; }}
+                        onMouseLeave={e => { if (!isExpanded) e.currentTarget.style.background = i % 2 === 0 ? '#fff' : '#fafafa'; }}>
+                        <td style={{ padding: '8px 12px', color: '#71717a' }}>J{inf.jornada || '—'}</td>
+                        <td style={{ padding: '8px 12px', fontWeight: 500 }}>{inf.encuentro || '—'}</td>
+                        <td style={{ padding: '8px 12px', color: '#71717a', whiteSpace: 'nowrap' }}>{fmt(inf.fecha)}</td>
+                        <td style={{ padding: '8px 12px' }}>{inf.um || '—'}</td>
+                        <td style={{ padding: '8px 12px', color: '#71717a' }}>{inf.jefe_tecnico || '—'}</td>
+                        <td style={{ padding: '8px 12px' }}>
+                          {inf.incidencias_graves > 0
+                            ? <span style={{ color: '#dc2626', fontWeight: 700 }}>⚠ {inf.incidencias_graves}G {inf.incidencias_leves > 0 ? `+ ${inf.incidencias_leves}L` : ''}</span>
+                            : inf.incidencias_leves > 0
+                              ? <span style={{ color: '#f59e0b', fontWeight: 700 }}>↓ {inf.incidencias_leves}L</span>
+                              : <span style={{ color: '#16a34a', fontWeight: 600 }}>✓ Sin incidencias</span>}
+                          <span style={{ marginLeft: 6, color: '#a1a1aa', fontSize: 10 }}>{isExpanded ? '▲' : '▼'}</span>
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr key={`${inf.id}-detail`}>
+                          <td colSpan={6} style={{ padding: '0 12px 12px', background: '#f0f9ff', borderBottom: '2px solid #bfdbfe' }}>
+                            {camsWithIssues.length === 0 ? (
+                              <div style={{ padding: '10px 0', fontSize: 12, color: '#16a34a' }}>✓ Sin incidencias en ningún equipo.</div>
+                            ) : (
+                              <div style={{ paddingTop: 10 }}>
+                                {camsWithIssues.map(({ id, cam, d }) => {
+                                  if (!cam) return null;
+                                  const items = d.items || {};
+                                  const koItems = Object.entries(items).filter(([, v]) => v === 'G' || v === 'L');
+                                  return (
+                                    <div key={id} style={{ marginBottom: 8, background: '#fff', borderRadius: 6, border: '1px solid #e4e4e7', overflow: 'hidden' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: '#fafafa', borderBottom: '1px solid #f0f0f0' }}>
+                                        <span style={{ fontSize: 13 }}>{cam.icon}</span>
+                                        <span style={{ fontSize: 12, fontWeight: 600, flex: 1 }}>{cam.label}</span>
+                                        {/* Modelo asignado */}
+                                        {(() => {
+                                          const m = inf.cam_models?.[id];
+                                          const ms = m ? Object.values(m).filter(Boolean).join(' · ') : '';
+                                          return ms ? <span style={{ fontSize: 10, color: '#71717a', fontFamily: 'monospace' }}>{ms}</span> : null;
+                                        })()}
+                                        {koItems.filter(([,v])=>v==='G').length>0 && <Badge variant="grave">⚠{koItems.filter(([,v])=>v==='G').length}G</Badge>}
+                                        {koItems.filter(([,v])=>v==='L').length>0 && <Badge variant="leve">↓{koItems.filter(([,v])=>v==='L').length}L</Badge>}
+                                      </div>
+                                      {koItems.length > 0 && (
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, padding: '6px 10px' }}>
+                                          {koItems.map(([item, v]) => (
+                                            <span key={item} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: v === 'G' ? '#fef2f2' : '#fffbeb', color: v === 'G' ? '#dc2626' : '#d97706', border: `1px solid ${v === 'G' ? '#fecaca' : '#fde68a'}`, fontWeight: 600 }}>
+                                              {item}: {v}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      )}
+                                      {d.incidencias && (
+                                        <div style={{ padding: '5px 10px 8px', fontSize: 11, color: '#52525b', borderTop: koItems.length > 0 ? '1px solid #f0f0f0' : 'none' }}>
+                                          {d.incidencias}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                                {/* Incidencias de logística */}
+                                {inf.logistica?.incidencias && (
+                                  <div style={{ marginTop: 4, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '6px 10px', fontSize: 11, color: '#92400e' }}>
+                                    <strong>Logística:</strong> {inf.logistica.incidencias}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  );
+                })}
               </tbody>
             </table>
           </div>
