@@ -216,6 +216,7 @@ export default function AnalisisView() {
   const [loading,    setLoading]    = useState(true);
   const [exporting,  setExporting]  = useState(false);
   const [activeTab,  setActiveTab]  = useState('resumen');
+  const [expandedId, setExpandedId] = useState(null);
 
   /* ── Pending filters ── */
   const [pServicio,  setPServicio]  = useState('');
@@ -766,6 +767,7 @@ export default function AnalisisView() {
           <Card style={{ padding:0, overflow:'hidden' }}>
             <div style={{ padding:'12px 16px', borderBottom:'1px solid #DDD5CE' }}>
               <span style={{ fontSize:13, fontWeight:600 }}>Informe detallado por partido</span>
+              <span style={{ fontSize:11, color:'#7A7168', marginLeft:8 }}>Haz clic en una fila para ver el detalle de cámaras</span>
             </div>
             {filtered.length===0
               ? <div style={{ padding:32, textAlign:'center', fontSize:13, color:'#7A7168' }}>Sin datos.</div>
@@ -773,28 +775,86 @@ export default function AnalisisView() {
                 <div style={{ overflowX:'auto' }}>
                   <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                     <thead>
-                      <tr>{['Jornada','Partido','Fecha','Equipo','Tipo servicio','Cámaras','Checks','Leves','Graves','Estado'].map(h=><th key={h} style={{ ...TH, textAlign:['Cámaras','Checks','Leves','Graves'].includes(h)?'center':'left' }}>{h}</th>)}</tr>
+                      <tr>{['','Jornada','Partido','Fecha','Equipo','Tipo servicio','Cámaras','Leves','Graves','Estado'].map(h=><th key={h} style={{ ...TH, textAlign:['Cámaras','Leves','Graves'].includes(h)?'center':'left', width:h===''?28:undefined }}>{h}</th>)}</tr>
                     </thead>
                     <tbody>
                       {filtered.map((inf,i) => {
-                        const camData   = inf.cam_data||{};
-                        const numCams   = Object.entries(inf.camaras_activas||{}).filter(([,v])=>v).length;
-                        const totalChecks = Object.values(camData).reduce((s,d)=>s+Object.keys(d.items||{}).length,0);
-                        const ts = TIPOS_SERVICIO.find(t=>t.id===inf.tipo_servicio);
-                        return (
-                          <tr key={inf.id} style={{ background:i%2===0?'#fff':'#F5F0EC', borderBottom:'1px solid #EDE8E4' }}>
+                        const camData  = inf.cam_data||{};
+                        const numCams  = Object.entries(inf.camaras_activas||{}).filter(([,v])=>v).length;
+                        const ts       = TIPOS_SERVICIO.find(t=>t.id===inf.tipo_servicio);
+                        const isOpen   = expandedId === inf.id;
+                        const rowBg    = i%2===0?'#fff':'#F5F0EC';
+
+                        /* cameras with G/L items OR incident text, in canonical order */
+                        const activeCamsDetail = CAM_ORDER
+                          .filter(camId => (inf.camaras_activas||{})[camId])
+                          .map(camId => {
+                            const d = camData[camId]||{};
+                            const koItems = Object.entries(d.items||{}).filter(([,v])=>v==='G'||v==='L');
+                            return { camId, d, koItems };
+                          })
+                          .filter(({ koItems, d }) => koItems.length > 0 || d.incidencias);
+
+                        return [
+                          <tr key={inf.id}
+                            onClick={()=>setExpandedId(isOpen?null:inf.id)}
+                            style={{ background:rowBg, borderBottom:isOpen?'none':'1px solid #EDE8E4', cursor:'pointer' }}
+                          >
+                            <td style={{ ...TD, textAlign:'center', color:'#7A7168', fontSize:10, padding:'8px 4px' }}>{isOpen?'▼':'▶'}</td>
                             <td style={{ ...TD, color:'#7A7168', fontFamily:'monospace' }}>J{inf.jornada}</td>
                             <td style={{ ...TD, fontWeight:500 }}>{inf.encuentro||'—'}</td>
                             <td style={{ ...TD, color:'#7A7168', whiteSpace:'nowrap' }}>{fmt(inf.fecha)}</td>
                             <td style={TD}>{inf.um||'—'}</td>
                             <td style={{ ...TD, color:'#7A7168' }}>{ts?`${ts.icon} ${ts.label}`:'—'}</td>
                             <td style={{ ...TD, textAlign:'center' }}>{numCams}</td>
-                            <td style={{ ...TD, textAlign:'center', color:'#7A7168' }}>{totalChecks}</td>
                             <td style={{ ...TD, textAlign:'center' }}>{inf.incidencias_leves>0?<span style={{ color:'#d97706',fontWeight:700 }}>↓ {inf.incidencias_leves}</span>:<span style={{ color:'#C2B9AD' }}>0</span>}</td>
                             <td style={{ ...TD, textAlign:'center' }}>{inf.incidencias_graves>0?<span style={{ color:'#dc2626',fontWeight:700 }}>⚠ {inf.incidencias_graves}</span>:<span style={{ color:'#C2B9AD' }}>0</span>}</td>
                             <td style={TD}><EstadoBadge graves={inf.incidencias_graves} leves={inf.incidencias_leves}/></td>
-                          </tr>
-                        );
+                          </tr>,
+                          isOpen && (
+                            <tr key={`${inf.id}_detail`}>
+                              <td colSpan={10} style={{ background:'#fafaf8', borderBottom:'2px solid #DDD5CE', padding:'12px 16px 16px 28px' }}>
+                                {activeCamsDetail.length === 0
+                                  ? <div style={{ fontSize:12, color:'#10b981', fontWeight:600 }}>✓ Sin incidencias en ninguna cámara</div>
+                                  : (
+                                    <div style={{ display:'flex', flexWrap:'wrap', gap:12 }}>
+                                      {activeCamsDetail.map(({ camId, d, koItems }) => {
+                                        const block  = CAM_TO_BLOCK[camId];
+                                        const color  = CAM_COLORS[camId] || '#7A7168';
+                                        const model  = d.equipos ? Object.values(d.equipos).filter(Boolean).join(' · ') : (d.equipo||'');
+                                        return (
+                                          <div key={camId} style={{ background:'#fff', border:`1px solid ${color}30`, borderLeft:`3px solid ${color}`, borderRadius:6, padding:'8px 12px', minWidth:200, maxWidth:280 }}>
+                                            <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
+                                              <span style={{ fontSize:11, fontWeight:700, color }}>{block?.icon} {block?.label||camId}</span>
+                                              {model && <span style={{ fontSize:10, color:'#7A7168', fontFamily:'monospace' }}>{model}</span>}
+                                            </div>
+                                            {koItems.length > 0 && (
+                                              <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginBottom: d.incidencias ? 6 : 0 }}>
+                                                {koItems.map(([item,v])=>(
+                                                  <span key={item} style={{ fontSize:10, padding:'2px 6px', borderRadius:3, background:v==='G'?'#fef2f2':'#fffbeb', color:v==='G'?'#dc2626':'#d97706', border:`1px solid ${v==='G'?'#fca5a5':'#fcd34d'}`, fontWeight:700 }}>
+                                                    {item}
+                                                  </span>
+                                                ))}
+                                              </div>
+                                            )}
+                                            {d.incidencias && (
+                                              <div style={{ fontSize:11, color:'#92400e', background:'#fffbeb', borderRadius:4, padding:'4px 6px', marginTop:2 }}>{d.incidencias}</div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                {/* Logística incidents */}
+                                {(inf.logistica||{}).incidencias && (
+                                  <div style={{ marginTop:10, fontSize:11, color:'#7A7168' }}>
+                                    <span style={{ fontWeight:600 }}>Logística: </span>{inf.logistica.incidencias}
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          ),
+                        ];
                       })}
                     </tbody>
                   </table>
