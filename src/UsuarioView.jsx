@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import {
-  apiFetch, Input, Select, Textarea, Label, Card, SecTitle, BtnP, BtnO, Badge,
+  apiFetch, generateInformePDF, Input, Select, Textarea, Label, Card, SecTitle, BtnP, BtnO, Badge,
   Field, Sep, StatusToggle, CameraSection, initItems, STATUS,
   CAMERA_CATALOG, OPERATOR_GROUPS, LOGISTICA_ITEMS
 } from "./App.jsx";
@@ -208,7 +208,7 @@ function Header({ user, onLogout, onHome }) {
 }
 
 /* ── SERVICIOS LIST ────────────────────────────────────────── */
-function ServiciosList({ onSelect, onViewInforme }) {
+function ServiciosList({ onSelect, onViewInforme, readonly=false }) {
   const [servicios,setServicios] = useState([]);
   const [informeMap,setInformeMap] = useState({}); // servicioId → informe (más reciente)
   const [loading,setLoading] = useState(true);
@@ -277,6 +277,37 @@ function ServiciosList({ onSelect, onViewInforme }) {
   const SectionHeader = ({label,count}) => (
     <div style={{fontSize:11,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10}}>{label} · {count}</div>
   );
+
+  // Vista readonly: lista de todos los servicios con botón hoja PDF
+  if (readonly) {
+    return (
+      <div style={{maxWidth:760,margin:'0 auto',padding:'24px 20px 80px'}}>
+        <div style={{marginBottom:24}}>
+          <h1 style={{fontSize:22,fontWeight:600,margin:0,marginBottom:4}}>Servicios</h1>
+          <p style={{fontSize:13,color:'#71717a',margin:0}}>Vista de solo lectura · Temporada 25/26</p>
+        </div>
+        {servicios.length===0?(
+          <Card style={{textAlign:'center',padding:'48px 20px'}}>
+            <div style={{fontSize:13,color:'#71717a'}}>No hay servicios disponibles.</div>
+          </Card>
+        ):(
+          <Card style={{padding:0,overflow:'hidden'}}>
+            {servicios.map((s,i)=>(
+              <div key={s.id} style={{borderBottom:i<servicios.length-1?'1px solid #e4e4e7':'none'}}>
+                <ServiceRow s={s} canClick={false}
+                  badge={
+                    <button onClick={()=>generateServicioPDF(s)}
+                      style={{padding:'3px 10px',border:'1px solid #e4e4e7',borderRadius:6,background:'#fff',cursor:'pointer',fontSize:11,fontWeight:500}}>
+                      📄 Hoja
+                    </button>
+                  } />
+              </div>
+            ))}
+          </Card>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div style={{maxWidth:760,margin:'0 auto',padding:'24px 20px 80px'}}>
@@ -412,7 +443,14 @@ function FillReport({ servicioId, draftInformeId, onBack }) {
   const {g,l} = countInc();
 
   const handleSave = async (draft=false) => {
-    setSaving(true); setSaveError(null);
+    setSaveError(null);
+    if (!draft) {
+      if (!logistica.inicio_md || !logistica.fin_md) {
+        setSaveError('Los campos Inicio MD y Fin MD son obligatorios para enviar el informe.');
+        return;
+      }
+    }
+    setSaving(true);
     try {
       const res = await apiFetch('/api/informes',{
         method:'POST',
@@ -425,19 +463,25 @@ function FillReport({ servicioId, draftInformeId, onBack }) {
     finally { setSaving(false); }
   };
 
-  if (sent) return (
-    <div style={{maxWidth:760,margin:'0 auto',padding:'80px 20px',textAlign:'center',display:'flex',flexDirection:'column',alignItems:'center',gap:12}}>
-      <div style={{width:48,height:48,borderRadius:'50%',background:'#f0fdf4',border:'1px solid #bbf7d0',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22}}>✓</div>
-      <div style={{fontSize:18,fontWeight:600}}>Informe enviado</div>
-      <div style={{fontSize:13,color:'#71717a'}}>{servicio.encuentro} · {servicio.jornada}</div>
-      <div style={{display:'flex',gap:6,marginTop:4}}>
-        {g>0&&<Badge variant="grave">⚠ {g} graves</Badge>}
-        {l>0&&<Badge variant="leve">↓ {l} leves</Badge>}
-        {g===0&&l===0&&<Badge variant="ok">Sin incidencias</Badge>}
+  if (sent) {
+    const informeForPrint = { ...servicio, logistica, cam_data: camData, incidencias_graves: g, incidencias_leves: l };
+    return (
+      <div style={{maxWidth:760,margin:'0 auto',padding:'80px 20px',textAlign:'center',display:'flex',flexDirection:'column',alignItems:'center',gap:12}}>
+        <div style={{width:48,height:48,borderRadius:'50%',background:'#f0fdf4',border:'1px solid #bbf7d0',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22}}>✓</div>
+        <div style={{fontSize:18,fontWeight:600}}>Informe enviado</div>
+        <div style={{fontSize:13,color:'#71717a'}}>{servicio.encuentro} · {servicio.jornada}</div>
+        <div style={{display:'flex',gap:6,marginTop:4}}>
+          {g>0&&<Badge variant="grave">⚠ {g} graves</Badge>}
+          {l>0&&<Badge variant="leve">↓ {l} leves</Badge>}
+          {g===0&&l===0&&<Badge variant="ok">Sin incidencias</Badge>}
+        </div>
+        <div style={{display:'flex',gap:8,marginTop:12}}>
+          <BtnO onClick={()=>generateInformePDF(informeForPrint)}>🖨️ Imprimir informe</BtnO>
+          <BtnP onClick={onBack}>← Volver a mis servicios</BtnP>
+        </div>
       </div>
-      <BtnP onClick={onBack} style={{marginTop:12}}>← Volver a mis servicios</BtnP>
-    </div>
-  );
+    );
+  }
 
   return (
     <div style={{maxWidth:760,margin:'0 auto',padding:'28px 20px 80px'}}>
@@ -533,8 +577,8 @@ function FillReport({ servicioId, draftInformeId, onBack }) {
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
               <Field label="Inicio MD-1"><Input type="time" value={logistica.inicio_md1||''} onChange={e=>setLogistica(l=>({...l,inicio_md1:e.target.value}))} /></Field>
               <Field label="Fin MD-1"><Input type="time" value={logistica.fin_md1||''} onChange={e=>setLogistica(l=>({...l,fin_md1:e.target.value}))} /></Field>
-              <Field label="Inicio MD"><Input type="time" value={logistica.inicio_md||''} onChange={e=>setLogistica(l=>({...l,inicio_md:e.target.value}))} /></Field>
-              <Field label="Fin MD"><Input type="time" value={logistica.fin_md||''} onChange={e=>setLogistica(l=>({...l,fin_md:e.target.value}))} /></Field>
+              <Field label={<span>Inicio MD <span style={{color:'#dc2626'}}>*</span></span>}><Input type="time" value={logistica.inicio_md||''} onChange={e=>setLogistica(l=>({...l,inicio_md:e.target.value}))} style={!logistica.inicio_md?{borderColor:'#fca5a5'}:{}} /></Field>
+              <Field label={<span>Fin MD <span style={{color:'#dc2626'}}>*</span></span>}><Input type="time" value={logistica.fin_md||''} onChange={e=>setLogistica(l=>({...l,fin_md:e.target.value}))} style={!logistica.fin_md?{borderColor:'#fca5a5'}:{}} /></Field>
             </div>
           </Card>
 
@@ -750,21 +794,23 @@ function InformeUsuarioView({ informeId, onBack }) {
         );
       })}
 
-      <div style={{marginTop:20}}>
+      <div style={{marginTop:20,display:'flex',gap:8,flexWrap:'wrap'}}>
         <BtnO onClick={onBack}>← Volver a mis servicios</BtnO>
+        <BtnO onClick={()=>generateInformePDF(informe)}>🖨️ Imprimir informe</BtnO>
       </div>
     </div>
   );
 }
 
 /* ── USUARIO VIEW ROOT ─────────────────────────────────────── */
-export default function UsuarioView({ user, onLogout }) {
+export default function UsuarioView({ user, onLogout, readonly=false }) {
   const [view,setView] = useState('list'); // 'list' | 'filling' | 'view_informe'
   const [selectedServicioId,setSelectedServicioId] = useState(null);
   const [draftInformeId,setDraftInformeId] = useState(null);
   const [viewInformeId,setViewInformeId] = useState(null);
 
   const handleSelect = (servicioId, draftId) => {
+    if (readonly) return;
     setSelectedServicioId(servicioId);
     setDraftInformeId(draftId||null);
     setView('filling');
@@ -775,8 +821,8 @@ export default function UsuarioView({ user, onLogout }) {
   return (
     <div style={{minHeight:'100vh',background:'#fafafa'}}>
       <Header user={user} onLogout={onLogout} onHome={view!=='list'?handleBack:null} />
-      {view==='list'&&<ServiciosList onSelect={handleSelect} onViewInforme={handleViewInforme} />}
-      {view==='filling'&&selectedServicioId&&<FillReport servicioId={selectedServicioId} draftInformeId={draftInformeId} onBack={handleBack} />}
+      {view==='list'&&<ServiciosList onSelect={handleSelect} onViewInforme={handleViewInforme} readonly={readonly} />}
+      {!readonly&&view==='filling'&&selectedServicioId&&<FillReport servicioId={selectedServicioId} draftInformeId={draftInformeId} onBack={handleBack} />}
       {view==='view_informe'&&viewInformeId&&<InformeUsuarioView informeId={viewInformeId} onBack={handleBack} />}
     </div>
   );

@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import AnalisisView from "./AnalisisView.jsx";
 import {
-  apiFetch, Input, Select, Textarea, Label, Card, SecTitle, BtnP, BtnO, Badge,
+  apiFetch, generateInformePDF, Input, Select, Textarea, Label, Card, SecTitle, BtnP, BtnO, Badge,
   Field, Sep, Steps, StatusToggle, CameraToggle, CameraSection, initItems, STATUS,
   CAMERA_CATALOG, OPERATOR_GROUPS, PERSONAL, TIPOS_SERVICIO, LIGA_PARTIDOS, LOGISTICA_ITEMS
 } from "./App.jsx";
@@ -24,102 +24,6 @@ async function downloadHojaPDF(servicioId, encuentro) {
   } catch { alert('Error generando PDF'); }
 }
 
-/* ── PDF GENERATOR ─────────────────────────────────────────── */
-function generatePDF(informe) {
-  const fmtD = (d) => d ? new Date(d).toLocaleDateString('es-ES') : '—';
-  const SC = { OK:'#16a34a', G:'#dc2626', L:'#d97706', '—':'#999' };
-  const ops = informe.operadores || {};
-  const log = informe.logistica || {};
-  const logItems = log.items || {};
-  const camData = informe.cam_data || {};
-  const activeCams = Object.entries(CAMERA_CATALOG).filter(([id]) => camData[id]);
-
-  const cell = (label,val) => `<div class="cell"><div class="cl">${label}</div><div class="cv">${val||'—'}</div></div>`;
-
-  const opRows = OPERATOR_GROUPS.flatMap(g => g.roles.filter(r=>ops[r.key]).map(r=>
-    `<tr><td>${r.label}</td><td><strong>${ops[r.key]}</strong></td></tr>`
-  )).join('');
-
-  const logRows = LOGISTICA_ITEMS.map(item => {
-    const v = logItems[item]||'—';
-    return `<tr><td>${item}</td><td style="color:${SC[v]||'#999'};font-weight:700;text-align:center">${v}</td></tr>`;
-  }).join('');
-
-  const camSections = activeCams.map(([id,cam]) => {
-    const d = camData[id]||{}; const items = d.items||{};
-    const gv=Object.values(items).filter(v=>v==='G').length;
-    const lv=Object.values(items).filter(v=>v==='L').length;
-    const itemCells = Object.entries(items).map(([k,v])=>
-      `<div class="ic"><span>${k}</span><span style="color:${SC[v]||'#999'};font-weight:700">${v||'—'}</span></div>`
-    ).join('');
-    return `<div class="cam-block">
-      <div class="cam-head">
-        <span>${cam.icon} ${cam.label}${(()=>{const eq=d.equipos?Object.values(d.equipos).filter(Boolean).join(' · '):(d.equipo||'');return eq?` · <span style="font-family:monospace;font-weight:400">${eq}</span>`:''})()}</span>
-        <span style="font-size:11px">${gv>0?`⚠ ${gv}G  `:''}${lv>0?`↓ ${lv}L`:''} ${gv===0&&lv===0?'✓ OK':''}</span>
-      </div>
-      ${itemCells?`<div class="ic-grid">${itemCells}</div>`:''}
-      ${d.incidencias?`<div class="obs">${d.incidencias}</div>`:''}
-    </div>`;
-  }).join('');
-
-  const inc = informe.incidencias_graves>0||informe.incidencias_leves>0
-    ? `${informe.incidencias_graves>0?`<span style="color:#dc2626;font-weight:700">⚠ ${informe.incidencias_graves} Graves</span>  `:''}${informe.incidencias_leves>0?`<span style="color:#d97706;font-weight:700">↓ ${informe.incidencias_leves} Leves</span>`:''}`
-    : `<span style="color:#16a34a;font-weight:700">✓ Sin incidencias</span>`;
-
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-<title>Informe CCEE · ${informe.encuentro||''}</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#1a1a1a;padding:28px 32px}
-.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #111}
-.title{font-size:20px;font-weight:700;margin-bottom:3px}
-.sub{font-size:12px;color:#555}
-.brand{font-size:11px;font-weight:700;text-align:right;color:#555}
-h2{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#888;border-bottom:1px solid #e0e0e0;padding-bottom:4px;margin:16px 0 8px}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
-.cell{background:#f7f7f7;border:1px solid #e5e5e5;border-radius:4px;padding:6px 9px}
-.cl{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#999;margin-bottom:2px}
-.cv{font-size:11px;font-weight:600}
-table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px}
-td{border:1px solid #e5e5e5;padding:5px 9px}
-tr:nth-child(even) td{background:#fafafa}
-.cam-block{border:1px solid #ddd;border-radius:6px;overflow:hidden;margin-bottom:10px;page-break-inside:avoid}
-.cam-head{background:#f0f0f0;padding:7px 11px;display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:12px}
-.ic-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));border-top:1px solid #e5e5e5}
-.ic{display:flex;justify-content:space-between;align-items:center;padding:4px 10px;border-right:1px solid #e5e5e5;border-bottom:1px solid #e5e5e5;font-size:11px}
-.obs{padding:5px 11px;border-top:1px solid #eee;font-size:11px;color:#666;background:#fffbeb}
-.ftr{margin-top:24px;padding-top:10px;border-top:1px solid #e0e0e0;font-size:10px;color:#aaa;display:flex;justify-content:space-between}
-@media print{body{padding:16px 20px}}
-</style></head><body>
-<div class="hdr">
-  <div>
-    <div class="title">${informe.encuentro||'—'}</div>
-    <div class="sub">${informe.jornada||''} · ${fmtD(informe.fecha)}</div>
-    <div style="margin-top:10px">${inc}</div>
-  </div>
-  <div class="brand">MEDIAPRO · CCEE<br><span style="font-weight:400">Cámaras Especiales · Temporada 25/26</span></div>
-</div>
-<h2>Datos del partido</h2>
-<div class="grid">
-  ${[['Jornada',informe.jornada],['Encuentro',informe.encuentro],['Fecha',fmtD(informe.fecha)],['Hora partido',informe.hora_partido],['Hora citación',informe.hora_citacion],['Horario citación MD-1',informe.horario_md1]].map(([k,v])=>cell(k,v)).join('')}
-</div>
-<h2>Equipo técnico</h2>
-<div class="grid">
-  ${[['Responsable CCEE',informe.responsable],['Unidad Móvil',informe.um],['J. Técnico UM',informe.jefe_tecnico],['Realizador',informe.realizador],['Productor',informe.productor]].map(([k,v])=>cell(k,v)).join('')}
-</div>
-${opRows?`<h2>Operadores</h2><table><tbody>${opRows}</tbody></table>`:''}
-${Object.keys(logItems).length>0?`<h2>Logística</h2><table><tbody>${logRows}</tbody></table>${log.incidencias?`<div class="obs" style="margin-bottom:10px">${log.incidencias}</div>`:''}`:''}
-${activeCams.length>0?`<h2>Cámaras · ${activeCams.length} activas</h2>${camSections}`:''}
-<div class="ftr">
-  <span>MEDIAPRO · Cámaras Especiales</span>
-  <span>Generado: ${new Date().toLocaleString('es-ES')}</span>
-</div>
-<script>window.onload=function(){window.print();}<\/script>
-</body></html>`;
-
-  const win = window.open('','_blank','width=900,height=750');
-  if (win) { win.document.write(html); win.document.close(); }
-}
 
 const initOperators = () => {
   const o = {};
@@ -133,6 +37,7 @@ function Header({ user, onLogout, view, setView }) {
     { id:'dashboard', label:'Dashboard' },
     { id:'new-servicio', label:'+ Nuevo servicio' },
     { id:'users', label:'Usuarios' },
+    { id:'bd', label:'Base de datos' },
     { id:'analisis', label:'Análisis' },
   ];
   return (
@@ -198,7 +103,7 @@ function InformeModal({ informe, onClose, onDeleted }) {
             {informe.incidencias_leves>0&&<Badge variant="leve">↓ {informe.incidencias_leves}L</Badge>}
             {!informe.incidencias_graves&&!informe.incidencias_leves&&<Badge variant="ok">✓ Sin incidencias</Badge>}
           </div>
-          <button onClick={()=>generatePDF(informe)}
+          <button onClick={()=>generateInformePDF(informe)}
             style={{padding:'0 12px',height:30,borderRadius:6,border:'1px solid #e4e4e7',background:'#fff',color:'#18181b',fontSize:12,cursor:'pointer',fontWeight:500}}>
             📄 PDF
           </button>
@@ -597,6 +502,8 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
     return m;
   });
   const [assignedTo,setAssignedTo] = useState(initialData?.assigned_to?String(initialData.assigned_to):'');
+  const [vehiculoId,setVehiculoId] = useState(initialData?.vehiculo_id?String(initialData.vehiculo_id):'');
+  const [vehiculos,setVehiculos] = useState([]);
   const [usuarios,setUsuarios] = useState([]);
   const [saving,setSaving] = useState(false);
   const [saveError,setSaveError] = useState(null);
@@ -622,6 +529,9 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
     }).catch(()=>{});
     apiFetch('/api/personal-tecnico').then(r=>r.json()).then(data=>{
       setPersonalTecnico(Array.isArray(data)?data:[]);
+    }).catch(()=>{});
+    apiFetch('/api/vehiculos').then(r=>r.json()).then(data=>{
+      setVehiculos(Array.isArray(data)?data:[]);
     }).catch(()=>{});
   },[]);
 
@@ -658,6 +568,22 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
   const activeOpGroups = OPERATOR_GROUPS.filter(g=>g.cams.some(c=>selectedCams[c]));
   const tipoActual = TIPOS_SERVICIO.find(tp=>tp.id===tipoServicio);
 
+  const [quickSaved, setQuickSaved] = useState(false);
+  const handleQuickSave = async () => {
+    if (!isEdit || !assignedTo) return;
+    setSaving(true); setSaveError(null); setQuickSaved(false);
+    try {
+      const res = await apiFetch(`/api/servicios/${servicioId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ match, selectedCams, cam_models: camModels, operators, assigned_to: parseInt(assignedTo), tipo_servicio: tipoServicio, vehiculo_id: vehiculoId?parseInt(vehiculoId):null })
+      });
+      const data = await res.json();
+      if (data.ok) setQuickSaved(true);
+      else setSaveError(data.error||'Error al guardar');
+    } catch { setSaveError('Error de conexión'); }
+    finally { setSaving(false); }
+  };
+
   const handleSave = async () => {
     setSaving(true); setSaveError(null);
     try {
@@ -665,7 +591,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
       const method = isEdit ? 'PUT' : 'POST';
       const res = await apiFetch(url, {
         method,
-        body: JSON.stringify({ match, selectedCams, cam_models: camModels, operators, assigned_to: parseInt(assignedTo), tipo_servicio: tipoServicio })
+        body: JSON.stringify({ match, selectedCams, cam_models: camModels, operators, assigned_to: parseInt(assignedTo), tipo_servicio: tipoServicio, vehiculo_id: vehiculoId?parseInt(vehiculoId):null })
       });
       const data = await res.json();
       if (data.ok) {
@@ -785,9 +711,14 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
             </div>
           </Card>
           {isEdit&&<DocumentosSection servicioId={servicioId} />}
+          {isEdit&&quickSaved&&<div style={{padding:'8px 12px',background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,fontSize:12,color:'#16a34a',marginBottom:8}}>✓ Cambios guardados</div>}
+          {saveError&&<div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:12,color:'#dc2626'}}>{saveError}</div>}
           <div style={{display:'flex',justifyContent:'space-between'}}>
             <BtnO onClick={onCancel}>← Cancelar</BtnO>
-            <BtnP onClick={()=>setStep(2)}>Seleccionar cámaras →</BtnP>
+            <div style={{display:'flex',gap:8}}>
+              {isEdit&&<BtnO onClick={handleQuickSave} disabled={saving} style={{opacity:saving?0.6:1}}>💾 Guardar</BtnO>}
+              <BtnP onClick={()=>setStep(2)}>Seleccionar cámaras →</BtnP>
+            </div>
           </div>
         </>
       )}
@@ -841,7 +772,10 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
           )}
           <div style={{display:'flex',justifyContent:'space-between'}}>
             <BtnO onClick={()=>setStep(1)}>← Atrás</BtnO>
-            <BtnP style={{opacity:activeCams.length===0?0.45:1}} onClick={()=>activeCams.length>0&&setStep(3)}>Asignar operadores →</BtnP>
+            <div style={{display:'flex',gap:8}}>
+              {isEdit&&<BtnO onClick={handleQuickSave} disabled={saving} style={{opacity:saving?0.6:1}}>💾 Guardar</BtnO>}
+              <BtnP style={{opacity:activeCams.length===0?0.45:1}} onClick={()=>activeCams.length>0&&setStep(3)}>Asignar operadores →</BtnP>
+            </div>
           </div>
         </>
       )}
@@ -900,7 +834,10 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
           )}
           <div style={{display:'flex',justifyContent:'space-between'}}>
             <BtnO onClick={()=>setStep(2)}>← Atrás</BtnO>
-            <BtnP onClick={()=>setStep(4)}>Asignar a técnico →</BtnP>
+            <div style={{display:'flex',gap:8}}>
+              {isEdit&&<BtnO onClick={handleQuickSave} disabled={saving} style={{opacity:saving?0.6:1}}>💾 Guardar</BtnO>}
+              <BtnP onClick={()=>setStep(4)}>Asignar a técnico →</BtnP>
+            </div>
           </div>
         </>
       )}
@@ -925,6 +862,18 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
               )}
             </Field>
           </Card>
+
+          {vehiculos.length>0&&(
+            <Card>
+              <SecTitle>Vehículo asignado <span style={{fontWeight:400,color:'#71717a'}}>(opcional)</span></SecTitle>
+              <Field label="Vehículo">
+                <Select value={vehiculoId} onChange={e=>setVehiculoId(e.target.value)}>
+                  <option value="">— Sin asignar —</option>
+                  {vehiculos.map(v=><option key={v.id} value={v.id}>{v.referencia} · {v.articulo} · {v.modelo}</option>)}
+                </Select>
+              </Field>
+            </Card>
+          )}
 
           <Card>
             <SecTitle>Resumen del servicio</SecTitle>
@@ -994,6 +943,9 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
 }
 
 /* ── USER MANAGEMENT ───────────────────────────────────────── */
+const ROLE_LABELS = { coordinador:'Coordinador', usuario:'Técnico', readonly:'Solo lectura' };
+const ROLE_BADGE = { coordinador:'default', usuario:'ok', readonly:'leve' };
+
 function UserManagement({ currentUser }) {
   const [users,setUsers] = useState([]);
   const [loading,setLoading] = useState(true);
@@ -1001,6 +953,10 @@ function UserManagement({ currentUser }) {
   const [error,setError] = useState(null);
   const [success,setSuccess] = useState(null);
   const [creating,setCreating] = useState(false);
+  const [editingUser,setEditingUser] = useState(null); // user object being edited
+  const [editForm,setEditForm] = useState({name:'',email:'',role:'',new_password:''});
+  const [editError,setEditError] = useState(null);
+  const [editSaving,setEditSaving] = useState(false);
 
   const loadUsers = async () => {
     const r = await apiFetch('/api/users');
@@ -1026,6 +982,19 @@ function UserManagement({ currentUser }) {
     setCreating(false);
   };
 
+  const startEdit = (u) => { setEditingUser(u); setEditForm({name:u.name,email:u.email,role:u.role,new_password:''}); setEditError(null); };
+
+  const saveEdit = async () => {
+    setEditSaving(true); setEditError(null);
+    const payload = { name:editForm.name, email:editForm.email, role:editForm.role };
+    if (editForm.new_password.trim()) payload.new_password = editForm.new_password.trim();
+    const res = await apiFetch(`/api/users/${editingUser.id}`,{method:'PUT',body:JSON.stringify(payload)});
+    const data = await res.json();
+    if (data.ok) { setEditingUser(null); loadUsers(); }
+    else setEditError(data.error||'Error al guardar');
+    setEditSaving(false);
+  };
+
   const deactivate = async (id) => {
     if (!confirm('¿Desactivar este usuario?')) return;
     await apiFetch(`/api/users/${id}`,{ method:'DELETE' });
@@ -1044,6 +1013,40 @@ function UserManagement({ currentUser }) {
         <p style={{fontSize:13,color:'#71717a',margin:0}}>Crea y administra las cuentas del equipo</p>
       </div>
 
+      {editingUser&&(
+        <Card style={{marginBottom:16,border:'1px solid #bfdbfe',background:'#eff6ff'}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+            <SecTitle style={{margin:0,flex:1}}>Editar usuario</SecTitle>
+            <button onClick={()=>setEditingUser(null)} style={{background:'none',border:'none',cursor:'pointer',color:'#71717a',fontSize:18}}>✕</button>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}}>
+            <Field label="Nombre completo">
+              <Input value={editForm.name} onChange={e=>setEditForm(f=>({...f,name:e.target.value}))} />
+            </Field>
+            <Field label="Email">
+              <Input type="email" value={editForm.email} onChange={e=>setEditForm(f=>({...f,email:e.target.value}))} />
+            </Field>
+            <Field label="Rol">
+              <Select value={editForm.role} onChange={e=>setEditForm(f=>({...f,role:e.target.value}))}>
+                <option value="usuario">Técnico</option>
+                <option value="coordinador">Coordinador</option>
+                <option value="readonly">Solo lectura</option>
+              </Select>
+            </Field>
+            <Field label="Nueva contraseña (dejar vacío para no cambiar)">
+              <Input type="password" value={editForm.new_password} onChange={e=>setEditForm(f=>({...f,new_password:e.target.value}))} placeholder="Nueva contraseña…" />
+            </Field>
+          </div>
+          {editError&&<div style={{fontSize:12,color:'#dc2626',marginBottom:8}}>{editError}</div>}
+          <div style={{display:'flex',gap:8}}>
+            <BtnP onClick={saveEdit} disabled={editSaving} style={{opacity:editSaving?0.6:1}}>
+              {editSaving?'Guardando...':'Guardar cambios'}
+            </BtnP>
+            <BtnO onClick={()=>setEditingUser(null)}>Cancelar</BtnO>
+          </div>
+        </Card>
+      )}
+
       <Card>
         <SecTitle>Crear nuevo usuario</SecTitle>
         <form onSubmit={createUser}>
@@ -1059,8 +1062,9 @@ function UserManagement({ currentUser }) {
             </Field>
             <Field label="Rol">
               <Select value={form.role} onChange={e=>setForm({...form,role:e.target.value})}>
-                <option value="usuario">Usuario (técnico)</option>
+                <option value="usuario">Técnico</option>
                 <option value="coordinador">Coordinador</option>
+                <option value="readonly">Solo lectura</option>
               </Select>
             </Field>
           </div>
@@ -1079,21 +1083,128 @@ function UserManagement({ currentUser }) {
         ):users.length===0?(
           <div style={{padding:24,textAlign:'center',fontSize:13,color:'#71717a'}}>No hay usuarios todavía.</div>
         ):users.map((u,i)=>(
-          <div key={u.id} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',borderBottom:i<users.length-1?'1px solid #e4e4e7':'none',background:u.active?'#fff':'#fafafa',opacity:u.active?1:0.6}}>
+          <div key={u.id} style={{display:'flex',alignItems:'center',gap:10,padding:'12px 16px',borderBottom:i<users.length-1?'1px solid #e4e4e7':'none',background:u.active?'#fff':'#fafafa',opacity:u.active?1:0.65}}>
             <div style={{flex:1}}>
               <div style={{fontSize:13,fontWeight:500}}>{u.name}</div>
               <div style={{fontSize:11,color:'#71717a',marginTop:2}}>{u.email}</div>
             </div>
-            <Badge variant={u.role==='coordinador'?'default':'ok'}>{u.role==='coordinador'?'Coordinador':'Técnico'}</Badge>
+            <Badge variant={ROLE_BADGE[u.role]||'default'}>{ROLE_LABELS[u.role]||u.role}</Badge>
             {!u.active&&<Badge>Inactivo</Badge>}
             {u.id!==currentUser.id&&(
-              u.active
-                ? <BtnO onClick={()=>deactivate(u.id)} style={{height:28,fontSize:11,padding:'0 10px',color:'#dc2626',borderColor:'#fecaca'}}>Desactivar</BtnO>
-                : <BtnO onClick={()=>activate(u.id)} style={{height:28,fontSize:11,padding:'0 10px'}}>Reactivar</BtnO>
+              <>
+                <BtnO onClick={()=>startEdit(u)} style={{height:28,fontSize:11,padding:'0 10px'}}>✏️ Editar</BtnO>
+                {u.active
+                  ? <BtnO onClick={()=>deactivate(u.id)} style={{height:28,fontSize:11,padding:'0 10px',color:'#dc2626',borderColor:'#fecaca'}}>Desactivar</BtnO>
+                  : <BtnO onClick={()=>activate(u.id)} style={{height:28,fontSize:11,padding:'0 10px'}}>Reactivar</BtnO>
+                }
+              </>
             )}
           </div>
         ))}
       </Card>
+    </div>
+  );
+}
+
+/* ── BD VIEW: VEHÍCULOS ────────────────────────────────────── */
+function VehiculosSection() {
+  const [vehiculos,setVehiculos] = useState([]);
+  const [editingId,setEditingId] = useState(null);
+  const [form,setForm] = useState({referencia:'',articulo:'',modelo:''});
+  const [showNew,setShowNew] = useState(false);
+  const [saving,setSaving] = useState(false);
+  const [error,setError] = useState(null);
+
+  const load = useCallback(()=>{
+    apiFetch('/api/vehiculos').then(r=>r.json()).then(setVehiculos);
+  },[]);
+  useEffect(()=>load(),[load]);
+
+  const startEdit = (v) => { setEditingId(v.id); setForm({referencia:v.referencia,articulo:v.articulo,modelo:v.modelo}); setShowNew(false); };
+  const startNew = () => { setShowNew(true); setEditingId(null); setForm({referencia:'',articulo:'',modelo:''}); };
+
+  const save = async () => {
+    if (!form.referencia||!form.articulo||!form.modelo) { setError('Todos los campos son obligatorios'); return; }
+    setSaving(true); setError(null);
+    try {
+      if (editingId) {
+        await apiFetch(`/api/vehiculos/${editingId}`,{method:'PUT',body:JSON.stringify(form)});
+      } else {
+        await apiFetch('/api/vehiculos',{method:'POST',body:JSON.stringify(form)});
+      }
+      setEditingId(null); setShowNew(false); load();
+    } catch { setError('Error al guardar'); }
+    finally { setSaving(false); }
+  };
+
+  const del = async (id) => {
+    if (!confirm('¿Eliminar vehículo?')) return;
+    await apiFetch(`/api/vehiculos/${id}`,{method:'DELETE'});
+    load();
+  };
+
+  const FormRow = () => (
+    <div style={{background:'#f8fafc',border:'1px solid #cbd5e1',borderRadius:8,padding:'14px 16px',marginBottom:12}}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 2fr 2fr',gap:10,marginBottom:10}}>
+        <Field label="Referencia"><Input value={form.referencia} onChange={e=>setForm(f=>({...f,referencia:e.target.value}))} placeholder="REF-001" /></Field>
+        <Field label="Artículo"><Input value={form.articulo} onChange={e=>setForm(f=>({...f,articulo:e.target.value}))} placeholder="Nombre del vehículo" /></Field>
+        <Field label="Modelo"><Input value={form.modelo} onChange={e=>setForm(f=>({...f,modelo:e.target.value}))} placeholder="Marca y modelo" /></Field>
+      </div>
+      {error&&<div style={{color:'#dc2626',fontSize:12,marginBottom:8}}>{error}</div>}
+      <div style={{display:'flex',gap:8}}>
+        <BtnP onClick={save} disabled={saving} style={{opacity:saving?0.6:1,fontSize:12,height:30}}>
+          {saving?'Guardando...':editingId?'Actualizar':'Añadir vehículo'}
+        </BtnP>
+        <BtnO onClick={()=>{setShowNew(false);setEditingId(null);}} style={{fontSize:12,height:30}}>Cancelar</BtnO>
+      </div>
+    </div>
+  );
+
+  return (
+    <Card>
+      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+        <SecTitle style={{margin:0,flex:1}}>Vehículos</SecTitle>
+        <BtnO onClick={startNew} style={{fontSize:12,height:30}}>+ Añadir</BtnO>
+      </div>
+      {showNew&&<FormRow />}
+      {vehiculos.length===0&&!showNew&&(
+        <div style={{fontSize:13,color:'#71717a',padding:'20px 0',textAlign:'center'}}>No hay vehículos registrados.</div>
+      )}
+      {vehiculos.length>0&&(
+        <div style={{border:'1px solid #e4e4e7',borderRadius:8,overflow:'hidden'}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 2fr 2fr auto',gap:0,background:'#f4f4f5',padding:'6px 12px',fontSize:11,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.06em'}}>
+            <span>Referencia</span><span>Artículo</span><span>Modelo</span><span></span>
+          </div>
+          {vehiculos.map((v,i)=>(
+            <div key={v.id}>
+              {editingId===v.id ? (
+                <div style={{padding:'10px 12px',background:'#f0f9ff',borderTop:i>0?'1px solid #e4e4e7':'none'}}>
+                  <FormRow />
+                </div>
+              ) : (
+                <div style={{display:'grid',gridTemplateColumns:'1fr 2fr 2fr auto',gap:0,padding:'9px 12px',borderTop:i>0?'1px solid #e4e4e7':'none',alignItems:'center',background:i%2===0?'#fff':'#fafafa'}}>
+                  <span style={{fontSize:12,fontFamily:"'Geist Mono',monospace"}}>{v.referencia}</span>
+                  <span style={{fontSize:12}}>{v.articulo}</span>
+                  <span style={{fontSize:12,color:'#52525b'}}>{v.modelo}</span>
+                  <div style={{display:'flex',gap:4,justifyContent:'flex-end'}}>
+                    <button onClick={()=>startEdit(v)} style={{padding:'2px 8px',border:'1px solid #e4e4e7',borderRadius:5,background:'#fff',cursor:'pointer',fontSize:11}}>✏️</button>
+                    <button onClick={()=>del(v.id)} style={{padding:'2px 8px',border:'1px solid #fecaca',borderRadius:5,background:'#fef2f2',cursor:'pointer',fontSize:11,color:'#dc2626'}}>✕</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function BDView() {
+  return (
+    <div style={{maxWidth:900,margin:'0 auto',padding:'32px 20px'}}>
+      <h2 style={{fontSize:20,fontWeight:600,margin:'0 0 24px'}}>Base de datos</h2>
+      <VehiculosSection />
     </div>
   );
 }
@@ -1141,6 +1252,9 @@ export default function CoordView({ user, onLogout }) {
       )}
       {view==='users'&&(
         <UserManagement currentUser={user} />
+      )}
+      {view==='bd'&&(
+        <BDView />
       )}
       {view==='analisis'&&(
         <AnalisisView />

@@ -64,6 +64,8 @@ const PERSONAL = {
   BODYCAM:      ["DAVID VAZQUEZ LUNA","HECTOR RODRIGUEZ ESPAÑA"],
   MINICAMS:     ["GORKA DAPIA FERNÁNDEZ","MARCOS SANCHEZ MARTI","MOHAMED TAJ BELHORMA"],
   TEC_PTZ:      [], // Añadir operadores PTZ
+  OP_UHS:       [], // Añadir operadores Cámara UHS
+  PERSONAL_OBVAN:[], // Añadir personal OBVAN CCEE
 };
 
 /* ─── OPERATOR GROUPS — cada grupo sabe a qué cámaras pertenece ── */
@@ -107,7 +109,15 @@ const OPERATOR_GROUPS = [
       {key:"ptz1_op",label:"PTZ 1 Operador",pool:"TEC_PTZ", cam:"PTZ_1"},
       {key:"ptz2_op",label:"PTZ 2 Operador",pool:"TEC_PTZ", cam:"PTZ_2"},
     ]},
-  // OBVAN_CCEE: vehículo sin personal asignado, no aparece en operadores
+  { id:"uhs",     label:"Cámara UHS",       icon:"📷", cams:["CAMARA_UHS"],
+    roles:[{key:"uhs_op",label:"Operador",pool:"OP_UHS"}] },
+  { id:"obvan",   label:"OBVAN CCEE",       icon:"🚐", cams:["OBVAN_CCEE"],
+    roles:[
+      {key:"obvan_jefe_tec",      label:"Jefe Técnico OBVAN",  pool:"PERSONAL_OBVAN"},
+      {key:"obvan_resp_montaje",  label:"Responsable Montaje", pool:"PERSONAL_OBVAN"},
+      {key:"obvan_aux1",          label:"Auxiliar 1",          pool:"PERSONAL_OBVAN"},
+      {key:"obvan_aux2",          label:"Auxiliar 2",          pool:"PERSONAL_OBVAN"},
+    ]},
 ];
 
 const initOperators = () => {
@@ -468,6 +478,111 @@ export async function apiFetch(path, options = {}) {
   return res;
 }
 
+/* ─── SHARED PDF GENERATOR ────────────────────────────────── */
+export function generateInformePDF(informe) {
+  const fmtD = (d) => d ? new Date(d).toLocaleDateString('es-ES') : '—';
+  const SC = { OK:'#16a34a', G:'#dc2626', L:'#d97706', '—':'#999' };
+  const ops = informe.operadores || {};
+  const log = informe.logistica || {};
+  const logItems = log.items || {};
+  const camData = informe.cam_data || {};
+  const activeCams = Object.entries(CAMERA_CATALOG).filter(([id]) => camData[id]);
+
+  const cell = (label,val) => `<div class="cell"><div class="cl">${label}</div><div class="cv">${val||'—'}</div></div>`;
+
+  const opRows = OPERATOR_GROUPS.flatMap(g => g.roles.filter(r=>ops[r.key]).map(r=>
+    `<tr><td>${r.label}</td><td><strong>${ops[r.key]}</strong></td></tr>`
+  )).join('');
+
+  const logRows = LOGISTICA_ITEMS.map(item => {
+    const v = logItems[item]||'—';
+    return `<tr><td>${item}</td><td style="color:${SC[v]||'#999'};font-weight:700;text-align:center">${v}</td></tr>`;
+  }).join('');
+
+  const camSections = activeCams.map(([id,cam]) => {
+    const d = camData[id]||{}; const items = d.items||{};
+    const gv=Object.values(items).filter(v=>v==='G').length;
+    const lv=Object.values(items).filter(v=>v==='L').length;
+    const itemCells = Object.entries(items).map(([k,v])=>
+      `<div class="ic"><span>${k}</span><span style="color:${SC[v]||'#999'};font-weight:700">${v||'—'}</span></div>`
+    ).join('');
+    const campos = d.campos ? Object.entries(d.campos).filter(([,v])=>v).map(([k,v])=>`<div class="ic"><span>${k}</span><span style="font-family:monospace">${v}</span></div>`).join('') : '';
+    const eq = d.equipos?Object.values(d.equipos).filter(Boolean).join(' · '):(d.equipo||'');
+    return `<div class="cam-block">
+      <div class="cam-head">
+        <span>${cam.icon} ${cam.label}${eq?` · <span style="font-family:monospace;font-weight:400">${eq}</span>`:''}</span>
+        <span style="font-size:11px">${gv>0?`⚠ ${gv}G  `:''}${lv>0?`↓ ${lv}L`:''} ${gv===0&&lv===0?'✓ OK':''}</span>
+      </div>
+      ${itemCells||campos?`<div class="ic-grid">${itemCells}${campos}</div>`:''}
+      ${d.incidencias?`<div class="obs">${d.incidencias}</div>`:''}
+    </div>`;
+  }).join('');
+
+  const inc = informe.incidencias_graves>0||informe.incidencias_leves>0
+    ? `${informe.incidencias_graves>0?`<span style="color:#dc2626;font-weight:700">⚠ ${informe.incidencias_graves} Graves</span>  `:''}${informe.incidencias_leves>0?`<span style="color:#d97706;font-weight:700">↓ ${informe.incidencias_leves} Leves</span>`:''}`
+    : `<span style="color:#16a34a;font-weight:700">✓ Sin incidencias</span>`;
+
+  const schedRows = [['Inicio MD-1',log.inicio_md1],['Fin MD-1',log.fin_md1],['Inicio MD',log.inicio_md],['Fin MD',log.fin_md]].filter(([,v])=>v);
+  const schedHtml = schedRows.length>0
+    ? `<h2>Horarios de jornada</h2><div class="grid">${schedRows.map(([k,v])=>cell(k,v)).join('')}</div>`
+    : '';
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>Informe CCEE · ${informe.encuentro||''}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#1a1a1a;padding:28px 32px}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #111}
+.title{font-size:20px;font-weight:700;margin-bottom:3px}
+.sub{font-size:12px;color:#555}
+.brand{font-size:11px;font-weight:700;text-align:right;color:#555}
+h2{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#888;border-bottom:1px solid #e0e0e0;padding-bottom:4px;margin:16px 0 8px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.cell{background:#f7f7f7;border:1px solid #e5e5e5;border-radius:4px;padding:6px 9px}
+.cl{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#999;margin-bottom:2px}
+.cv{font-size:11px;font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px}
+td{border:1px solid #e5e5e5;padding:5px 9px}
+tr:nth-child(even) td{background:#fafafa}
+.cam-block{border:1px solid #ddd;border-radius:6px;overflow:hidden;margin-bottom:10px;page-break-inside:avoid}
+.cam-head{background:#f0f0f0;padding:7px 11px;display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:12px}
+.ic-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));border-top:1px solid #e5e5e5}
+.ic{display:flex;justify-content:space-between;align-items:center;padding:4px 10px;border-right:1px solid #e5e5e5;border-bottom:1px solid #e5e5e5;font-size:11px}
+.obs{padding:5px 11px;border-top:1px solid #eee;font-size:11px;color:#666;background:#fffbeb}
+.ftr{margin-top:24px;padding-top:10px;border-top:1px solid #e0e0e0;font-size:10px;color:#aaa;display:flex;justify-content:space-between}
+@media print{body{padding:16px 20px}}
+</style></head><body>
+<div class="hdr">
+  <div>
+    <div class="title">${informe.encuentro||'—'}</div>
+    <div class="sub">${informe.jornada||''} · ${fmtD(informe.fecha)}</div>
+    <div style="margin-top:10px">${inc}</div>
+  </div>
+  <div class="brand">MEDIAPRO · CCEE<br><span style="font-weight:400">Cámaras Especiales · Temporada 25/26</span></div>
+</div>
+<h2>Datos del partido</h2>
+<div class="grid">
+  ${[['Jornada',informe.jornada],['Encuentro',informe.encuentro],['Fecha',fmtD(informe.fecha)],['Hora partido',informe.hora_partido],['Hora citación',informe.hora_citacion],['Horario citación MD-1',informe.horario_md1]].map(([k,v])=>cell(k,v)).join('')}
+</div>
+<h2>Equipo técnico</h2>
+<div class="grid">
+  ${[['Responsable CCEE',informe.responsable],['Unidad Móvil',informe.um],['J. Técnico UM',informe.jefe_tecnico],['Realizador',informe.realizador],['Productor',informe.productor]].map(([k,v])=>cell(k,v)).join('')}
+</div>
+${schedHtml}
+${opRows?`<h2>Operadores</h2><table><tbody>${opRows}</tbody></table>`:''}
+${Object.keys(logItems).length>0?`<h2>Logística</h2><table><tbody>${logRows}</tbody></table>${log.incidencias?`<div class="obs" style="margin-bottom:10px">${log.incidencias}</div>`:''}`:''}
+${activeCams.length>0?`<h2>Cámaras · ${activeCams.length} activas</h2>${camSections}`:''}
+<div class="ftr">
+  <span>MEDIAPRO · Cámaras Especiales</span>
+  <span>Generado: ${new Date().toLocaleString('es-ES')}</span>
+</div>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+
+  const win = window.open('','_blank','width=900,height=750');
+  if (win) { win.document.write(html); win.document.close(); }
+}
+
 /* ─── NAMED EXPORTS (shared components / data) ────────────── */
 export { Input, Select, Textarea, Label, Card, SecTitle, BtnP, BtnO, Badge, Field, Sep, Steps, StatusToggle, CameraToggle, CameraSection, initItems, STATUS, CAMERA_CATALOG, OPERATOR_GROUPS, PERSONAL, TIPOS_SERVICIO, LIGA_PARTIDOS, LOGISTICA_ITEMS };
 
@@ -547,7 +662,7 @@ export default function App() {
     <Suspense fallback={<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,color:'#71717a'}}>Cargando...</div>}>
       {user.role === 'coordinador'
         ? <CoordView user={user} onLogout={handleLogout} />
-        : <UsuarioView user={user} onLogout={handleLogout} />
+        : <UsuarioView user={user} onLogout={handleLogout} readonly={user.role==='readonly'} />
       }
     </Suspense>
   );
