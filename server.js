@@ -122,7 +122,7 @@ async function initDB() {
       email         VARCHAR(255) UNIQUE NOT NULL,
       password_hash VARCHAR(255) NOT NULL,
       name          VARCHAR(100) NOT NULL,
-      role          VARCHAR(20) NOT NULL CHECK (role IN ('coordinador','usuario')),
+      role          VARCHAR(20) NOT NULL CHECK (role IN ('coordinador','usuario','readonly')),
       active        BOOLEAN DEFAULT true,
       created_at    TIMESTAMP DEFAULT NOW()
     )
@@ -173,8 +173,34 @@ async function initDB() {
   await pool.query(`ALTER TABLE informes ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'enviado'`)
   await pool.query(`UPDATE informes SET status='enviado' WHERE status IS NULL`)
 
+  // Ampliar rol para incluir 'readonly' (para bases de datos existentes)
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name='users_role_check') THEN
+        ALTER TABLE users DROP CONSTRAINT users_role_check;
+      END IF;
+      ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('coordinador','usuario','readonly'));
+    END $$
+  `)
+
   // cam_models: modelos de equipo seleccionados por el coordinador
   await pool.query(`ALTER TABLE servicios ADD COLUMN IF NOT EXISTS cam_models JSONB DEFAULT '{}'::jsonb`)
+
+  // Tabla de vehículos
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS vehiculos (
+      id         SERIAL PRIMARY KEY,
+      referencia VARCHAR(100) NOT NULL,
+      articulo   VARCHAR(200) NOT NULL,
+      modelo     VARCHAR(200) NOT NULL,
+      activo     BOOLEAN DEFAULT true,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `)
+
+  // Asignación de vehículo al servicio
+  await pool.query(`ALTER TABLE servicios ADD COLUMN IF NOT EXISTS vehiculo_id INTEGER REFERENCES vehiculos(id)`)
 
   // Teléfonos de contacto del equipo técnico
   await pool.query(`ALTER TABLE servicios ADD COLUMN IF NOT EXISTS tel_jefe_tecnico VARCHAR(50) DEFAULT ''`)
@@ -247,7 +273,7 @@ app.post('/api/users', requireAuth(['coordinador']), async (req, res) => {
   try {
     const { email, password, name, role } = req.body
     if (!email || !password || !name) return res.status(400).json({ error: 'Faltan campos obligatorios' })
-    if (!['coordinador', 'usuario'].includes(role)) return res.status(400).json({ error: 'Rol inválido' })
+    if (!['coordinador', 'usuario', 'readonly'].includes(role)) return res.status(400).json({ error: 'Rol inválido' })
 
     const hash = await bcrypt.hash(password, 10)
     const r = await pool.query(
@@ -298,6 +324,31 @@ app.patch('/api/users/:id/activate', requireAuth(['coordinador']), async (req, r
   }
 })
 
+// Editar usuario (nombre, email, rol) + restablecer contraseña opcional
+app.put('/api/users/:id', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const { name, email, role, new_password } = req.body
+    if (!name || !email || !role) return res.status(400).json({ error: 'Faltan campos obligatorios' })
+    if (!['coordinador', 'usuario', 'readonly'].includes(role)) return res.status(400).json({ error: 'Rol inválido' })
+    if (new_password) {
+      const hash = await bcrypt.hash(new_password, 10)
+      await pool.query(
+        'UPDATE users SET name=$1, email=$2, role=$3, password_hash=$4 WHERE id=$5',
+        [name, email.toLowerCase(), role, hash, req.params.id]
+      )
+    } else {
+      await pool.query(
+        'UPDATE users SET name=$1, email=$2, role=$3 WHERE id=$4',
+        [name, email.toLowerCase(), role, req.params.id]
+      )
+    }
+    res.json({ ok: true })
+  } catch (err) {
+    if (err.code === '23505') return res.status(400).json({ error: 'El email ya está en uso' })
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // ── PERSONAL TÉCNICO ROUTES ────────────────────────────────
 
 // Listar personal técnico (coordinador)
@@ -310,6 +361,42 @@ app.get('/api/personal-tecnico', requireAuth(['coordinador']), async (req, res) 
   }
 })
 
+// Crear/actualizar personal técnico (coordinador)
+app.post('/api/personal-tecnico', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const { rol, nombre, telefono } = req.body
+    if (!['jefe_tecnico','realizador','productor'].includes(rol)) return res.status(400).json({ error: 'Rol inválido' })
+    if (!nombre?.trim()) return res.status(400).json({ error: 'Nombre requerido' })
+    const r = await pool.query(
+      `INSERT INTO personal_tecnico (rol, nombre, telefono, updated_at)
+       VALUES ($1,$2,$3,NOW())
+       ON CONFLICT (rol, nombre) DO UPDATE SET telefono=$3, updated_at=NOW()
+       RETURNING *`,
+      [rol, nombre.trim(), telefono||'']
+    )
+    res.json({ ok: true, persona: r.rows[0] })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.put('/api/personal-tecnico/:id', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const { nombre, telefono } = req.body
+    if (!nombre?.trim()) return res.status(400).json({ error: 'Nombre requerido' })
+    await pool.query(
+      'UPDATE personal_tecnico SET nombre=$1, telefono=$2, updated_at=NOW() WHERE id=$3',
+      [nombre.trim(), telefono||'', req.params.id]
+    )
+    res.json({ ok: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.delete('/api/personal-tecnico/:id', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    await pool.query('DELETE FROM personal_tecnico WHERE id=$1', [req.params.id])
+    res.json({ ok: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
 // Helper: upsert one personal técnico entry (called internally on service save)
 async function upsertPersonalTecnico(rol, nombre, telefono) {
   if (!nombre?.trim()) return
@@ -320,19 +407,56 @@ async function upsertPersonalTecnico(rol, nombre, telefono) {
   `, [rol, nombre.trim(), telefono || ''])
 }
 
+// ── VEHÍCULOS ROUTES ──────────────────────────────────────
+app.get('/api/vehiculos', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM vehiculos WHERE activo=true ORDER BY referencia ASC')
+    res.json(r.rows)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.post('/api/vehiculos', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const { referencia, articulo, modelo } = req.body
+    const r = await pool.query(
+      'INSERT INTO vehiculos (referencia, articulo, modelo) VALUES ($1,$2,$3) RETURNING *',
+      [referencia, articulo, modelo]
+    )
+    res.json({ ok: true, vehiculo: r.rows[0] })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.put('/api/vehiculos/:id', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const { referencia, articulo, modelo } = req.body
+    await pool.query(
+      'UPDATE vehiculos SET referencia=$1, articulo=$2, modelo=$3 WHERE id=$4',
+      [referencia, articulo, modelo, req.params.id]
+    )
+    res.json({ ok: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.delete('/api/vehiculos/:id', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    await pool.query('UPDATE vehiculos SET activo=false WHERE id=$1', [req.params.id])
+    res.json({ ok: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
 // ── SERVICIOS ROUTES ───────────────────────────────────────
 
 // Crear servicio (coordinador: pasos 1-3 + asignación)
 app.post('/api/servicios', requireAuth(['coordinador']), async (req, res) => {
   try {
-    const { match, selectedCams, operators, assigned_to, tipo_servicio, cam_models } = req.body
+    const { match, selectedCams, operators, assigned_to, tipo_servicio, cam_models, vehiculo_id } = req.body
     const r = await pool.query(`
       INSERT INTO servicios (
         tipo_servicio, jornada, encuentro, fecha, hora_partido, hora_citacion,
         responsable, um, jefe_tecnico, tel_jefe_tecnico, realizador, tel_realizador,
         productor, tel_productor, horario_md1,
-        operadores, camaras_activas, cam_models, assigned_to, created_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+        operadores, camaras_activas, cam_models, assigned_to, created_by, vehiculo_id
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
       RETURNING id
     `, [
       tipo_servicio,
@@ -343,7 +467,7 @@ app.post('/api/servicios', requireAuth(['coordinador']), async (req, res) => {
       match.productor, match.tel_productor||'', match.horario_md1,
       JSON.stringify(operators), JSON.stringify(selectedCams),
       JSON.stringify(cam_models || {}),
-      assigned_to, req.user.id
+      assigned_to, req.user.id, vehiculo_id || null
     ])
     // Guardar/actualizar directorio de personal técnico para reutilización futura
     await Promise.all([
@@ -362,20 +486,24 @@ app.post('/api/servicios', requireAuth(['coordinador']), async (req, res) => {
 app.get('/api/servicios', requireAuth(), async (req, res) => {
   try {
     let query, params
-    if (req.user.role === 'coordinador') {
+    if (req.user.role === 'coordinador' || req.user.role === 'readonly') {
       query = `
-        SELECT s.*, u.name as assigned_to_name, c.name as created_by_name
+        SELECT s.*, u.name as assigned_to_name, c.name as created_by_name,
+               v.referencia as vehiculo_referencia, v.articulo as vehiculo_articulo, v.modelo as vehiculo_modelo
         FROM servicios s
         LEFT JOIN users u ON s.assigned_to = u.id
         LEFT JOIN users c ON s.created_by = c.id
+        LEFT JOIN vehiculos v ON s.vehiculo_id = v.id
         ORDER BY s.created_at DESC`
       params = []
     } else {
       query = `
-        SELECT s.*, u.name as assigned_to_name, c.name as created_by_name
+        SELECT s.*, u.name as assigned_to_name, c.name as created_by_name,
+               v.referencia as vehiculo_referencia, v.articulo as vehiculo_articulo, v.modelo as vehiculo_modelo
         FROM servicios s
         LEFT JOIN users u ON s.assigned_to = u.id
         LEFT JOIN users c ON s.created_by = c.id
+        LEFT JOIN vehiculos v ON s.vehiculo_id = v.id
         WHERE s.assigned_to = $1
         ORDER BY s.created_at DESC`
       params = [req.user.id]
@@ -391,10 +519,12 @@ app.get('/api/servicios', requireAuth(), async (req, res) => {
 app.get('/api/servicios/:id', requireAuth(), async (req, res) => {
   try {
     const r = await pool.query(`
-      SELECT s.*, u.name as assigned_to_name, c.name as created_by_name
+      SELECT s.*, u.name as assigned_to_name, c.name as created_by_name,
+             v.referencia as vehiculo_referencia, v.articulo as vehiculo_articulo, v.modelo as vehiculo_modelo
       FROM servicios s
       LEFT JOIN users u ON s.assigned_to = u.id
       LEFT JOIN users c ON s.created_by = c.id
+      LEFT JOIN vehiculos v ON s.vehiculo_id = v.id
       WHERE s.id = $1
     `, [req.params.id])
     if (r.rows.length === 0) return res.status(404).json({ error: 'No encontrado' })
@@ -402,6 +532,7 @@ app.get('/api/servicios/:id', requireAuth(), async (req, res) => {
     if (req.user.role === 'usuario' && servicio.assigned_to !== req.user.id) {
       return res.status(403).json({ error: 'Sin permisos' })
     }
+    // readonly: can view any service
     res.json(servicio)
   } catch (err) {
     res.status(500).json({ error: err.message })
@@ -687,15 +818,15 @@ app.get('/api/informes/:id', requireAuth(), async (req, res) => {
 // Actualizar servicio (coordinador)
 app.put('/api/servicios/:id', requireAuth(['coordinador']), async (req, res) => {
   try {
-    const { match, selectedCams, operators, assigned_to, tipo_servicio, cam_models } = req.body
+    const { match, selectedCams, operators, assigned_to, tipo_servicio, cam_models, vehiculo_id } = req.body
     await pool.query(`
       UPDATE servicios SET
         tipo_servicio=$1, jornada=$2, encuentro=$3, fecha=$4, hora_partido=$5,
         hora_citacion=$6, responsable=$7, um=$8, jefe_tecnico=$9, tel_jefe_tecnico=$10,
         realizador=$11, tel_realizador=$12, productor=$13, tel_productor=$14,
         horario_md1=$15, operadores=$16, camaras_activas=$17,
-        cam_models=$18, assigned_to=$19
-      WHERE id=$20
+        cam_models=$18, assigned_to=$19, vehiculo_id=$20
+      WHERE id=$21
     `, [
       tipo_servicio,
       match.jornada, match.encuentro, match.fecha || null,
@@ -705,7 +836,7 @@ app.put('/api/servicios/:id', requireAuth(['coordinador']), async (req, res) => 
       match.productor, match.tel_productor||'', match.horario_md1,
       JSON.stringify(operators), JSON.stringify(selectedCams),
       JSON.stringify(cam_models || {}),
-      assigned_to, req.params.id
+      assigned_to, vehiculo_id || null, req.params.id
     ])
     // Actualizar directorio de personal técnico
     await Promise.all([
