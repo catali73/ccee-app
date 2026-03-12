@@ -419,6 +419,13 @@ function FillReport({ servicioId, draftInformeId, onBack }) {
   const {g,l} = countInc();
 
   const handleSave = async (draft=false) => {
+    // Validar horarios obligatorios antes de enviar
+    if (!draft) {
+      if (!logistica.inicio_md || !logistica.fin_md) {
+        setSaveError('Los campos Inicio MD y Fin MD son obligatorios para enviar el informe.');
+        return;
+      }
+    }
     setSaving(true); setSaveError(null);
     try {
       const res = await apiFetch('/api/informes',{

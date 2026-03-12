@@ -822,7 +822,7 @@ app.get('/api/stats', requireAuth(['coordinador']), async (req, res) => {
 app.get('/api/analisis', requireAuth(['coordinador']), async (req, res) => {
   try {
     const r = await pool.query(`
-      SELECT i.*, u.name as submitted_by_name, s.cam_models
+      SELECT i.*, u.name as submitted_by_name, s.cam_models, s.tipo_servicio
       FROM informes i
       LEFT JOIN users u ON u.id = i.submitted_by
       LEFT JOIN servicios s ON s.id = i.servicio_id

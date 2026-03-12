@@ -212,7 +212,7 @@ const CAMERA_CATALOG = {
                   items:["EQUIPO","CABLEADO","ALIMENTACIÓN","INTERCOM"] },
 };
 
-const LOGISTICA_ITEMS = ["VEHICULOS","HORA DE LLEGADA","HOTEL","CABLEADO UM","MATERIAL EXTERNO"];
+const LOGISTICA_ITEMS = ["VEHICULOS","HORA DE LLEGADA","HOTEL","CABLEADO UM","MATERIAL EXTERNO","ACCESOS"];
 const TIPOS_SERVICIO = [
   { id:"liga",label:"LaLiga",icon:"⚽" },
   { id:"champions",label:"Champions",icon:"🏆" },
