@@ -30,27 +30,32 @@ const CAMERA_LABELS = {
   DRONE:'Drone', BODYCAM:'Bodycam', PTZ_1:'PTZ 1', PTZ_2:'PTZ 2', OTROS:'Otros'
 }
 const OPERATOR_ROLES_ORDERED = [
-  {key:'skycam_piloto',  label:'Piloto'},
-  {key:'skycam_operador',label:'Operador'},
-  {key:'skycam_auxiliar',label:'Auxiliar'},
-  {key:'ar_tec1',        label:'Técnico AR 1'},
-  {key:'ar_tec2',        label:'Técnico AR 2'},
-  {key:'steady_l',       label:'Steady L'},
-  {key:'steady_r',       label:'Steady R'},
-  {key:'steady_perso',   label:'Steady Perso'},
-  {key:'rf_l',           label:'RF L'},
-  {key:'rf_r',           label:'RF R'},
-  {key:'rf_perso',       label:'RF Perso'},
-  {key:'polecam_l',      label:'Polecam L'},
-  {key:'polecam_r',      label:'Polecam R'},
-  {key:'foquista_l',     label:'Foquista L'},
-  {key:'foquista_r',     label:'Foquista R'},
-  {key:'drone_piloto',   label:'Piloto (Drone)'},
-  {key:'drone_tec',      label:'Técnico (Drone)'},
-  {key:'bodycam',        label:'Operador (Bodycam)'},
-  {key:'minicams',       label:'Operador (Minicams)'},
-  {key:'ptz1_op',        label:'PTZ 1 Operador'},
-  {key:'ptz2_op',        label:'PTZ 2 Operador'},
+  {key:'obvan_jefe_tec',      label:'Jefe Técnico OBVAN'},
+  {key:'obvan_resp_montaje',  label:'Responsable Montaje OBVAN'},
+  {key:'obvan_aux1',          label:'Auxiliar 1 OBVAN'},
+  {key:'obvan_aux2',          label:'Auxiliar 2 OBVAN'},
+  {key:'skycam_piloto',       label:'Piloto'},
+  {key:'skycam_operador',     label:'Operador'},
+  {key:'skycam_auxiliar',     label:'Auxiliar'},
+  {key:'ar_tec1',             label:'Técnico AR 1'},
+  {key:'ar_tec2',             label:'Técnico AR 2'},
+  {key:'steady_l',            label:'Steady L'},
+  {key:'steady_r',            label:'Steady R'},
+  {key:'steady_perso',        label:'Steady Perso'},
+  {key:'rf_l',                label:'RF L'},
+  {key:'rf_r',                label:'RF R'},
+  {key:'rf_perso',            label:'RF Perso'},
+  {key:'polecam_l',           label:'Polecam L'},
+  {key:'polecam_r',           label:'Polecam R'},
+  {key:'foquista_l',          label:'Foquista L'},
+  {key:'foquista_r',          label:'Foquista R'},
+  {key:'drone_piloto',        label:'Piloto (Drone)'},
+  {key:'drone_tec',           label:'Técnico (Drone)'},
+  {key:'bodycam',             label:'Operador (Bodycam)'},
+  {key:'minicams',            label:'Operador (Minicams)'},
+  {key:'ptz1_op',             label:'PTZ 1 Operador'},
+  {key:'ptz2_op',             label:'PTZ 2 Operador'},
+  {key:'uhs_op',              label:'Operador UHS'},
 ]
 
 const { Pool } = pg
@@ -197,6 +202,14 @@ async function initDB() {
       activo     BOOLEAN DEFAULT true,
       created_at TIMESTAMP DEFAULT NOW()
     )
+  `)
+  // Migración: renombrar articulo → matricula
+  await pool.query(`
+    DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='vehiculos' AND column_name='articulo') THEN
+        ALTER TABLE vehiculos RENAME COLUMN articulo TO matricula;
+      END IF;
+    END $$;
   `)
 
   // Asignación de vehículo al servicio
@@ -417,10 +430,10 @@ app.get('/api/vehiculos', requireAuth(['coordinador']), async (req, res) => {
 
 app.post('/api/vehiculos', requireAuth(['coordinador']), async (req, res) => {
   try {
-    const { referencia, articulo, modelo } = req.body
+    const { referencia, matricula, modelo } = req.body
     const r = await pool.query(
-      'INSERT INTO vehiculos (referencia, articulo, modelo) VALUES ($1,$2,$3) RETURNING *',
-      [referencia, articulo, modelo]
+      'INSERT INTO vehiculos (referencia, matricula, modelo) VALUES ($1,$2,$3) RETURNING *',
+      [referencia, matricula, modelo]
     )
     res.json({ ok: true, vehiculo: r.rows[0] })
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -428,10 +441,10 @@ app.post('/api/vehiculos', requireAuth(['coordinador']), async (req, res) => {
 
 app.put('/api/vehiculos/:id', requireAuth(['coordinador']), async (req, res) => {
   try {
-    const { referencia, articulo, modelo } = req.body
+    const { referencia, matricula, modelo } = req.body
     await pool.query(
-      'UPDATE vehiculos SET referencia=$1, articulo=$2, modelo=$3 WHERE id=$4',
-      [referencia, articulo, modelo, req.params.id]
+      'UPDATE vehiculos SET referencia=$1, matricula=$2, modelo=$3 WHERE id=$4',
+      [referencia, matricula, modelo, req.params.id]
     )
     res.json({ ok: true })
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -489,7 +502,7 @@ app.get('/api/servicios', requireAuth(), async (req, res) => {
     if (req.user.role === 'coordinador' || req.user.role === 'readonly') {
       query = `
         SELECT s.*, u.name as assigned_to_name, c.name as created_by_name,
-               v.referencia as vehiculo_referencia, v.articulo as vehiculo_articulo, v.modelo as vehiculo_modelo
+               v.referencia as vehiculo_referencia, v.matricula as vehiculo_matricula, v.modelo as vehiculo_modelo
         FROM servicios s
         LEFT JOIN users u ON s.assigned_to = u.id
         LEFT JOIN users c ON s.created_by = c.id
@@ -499,7 +512,7 @@ app.get('/api/servicios', requireAuth(), async (req, res) => {
     } else {
       query = `
         SELECT s.*, u.name as assigned_to_name, c.name as created_by_name,
-               v.referencia as vehiculo_referencia, v.articulo as vehiculo_articulo, v.modelo as vehiculo_modelo
+               v.referencia as vehiculo_referencia, v.matricula as vehiculo_matricula, v.modelo as vehiculo_modelo
         FROM servicios s
         LEFT JOIN users u ON s.assigned_to = u.id
         LEFT JOIN users c ON s.created_by = c.id
@@ -520,7 +533,7 @@ app.get('/api/servicios/:id', requireAuth(), async (req, res) => {
   try {
     const r = await pool.query(`
       SELECT s.*, u.name as assigned_to_name, c.name as created_by_name,
-             v.referencia as vehiculo_referencia, v.articulo as vehiculo_articulo, v.modelo as vehiculo_modelo
+             v.referencia as vehiculo_referencia, v.matricula as vehiculo_matricula, v.modelo as vehiculo_modelo
       FROM servicios s
       LEFT JOIN users u ON s.assigned_to = u.id
       LEFT JOIN users c ON s.created_by = c.id
@@ -543,8 +556,11 @@ app.get('/api/servicios/:id', requireAuth(), async (req, res) => {
 app.get('/api/servicios/:id/hoja-pdf', requireAuth(), async (req, res) => {
   try {
     const r = await pool.query(`
-      SELECT s.*, u.name as assigned_to_name
-      FROM servicios s LEFT JOIN users u ON s.assigned_to = u.id
+      SELECT s.*, u.name as assigned_to_name,
+             v.referencia as vehiculo_referencia, v.matricula as vehiculo_matricula, v.modelo as vehiculo_modelo
+      FROM servicios s
+      LEFT JOIN users u ON s.assigned_to = u.id
+      LEFT JOIN vehiculos v ON s.vehiculo_id = v.id
       WHERE s.id = $1
     `, [req.params.id])
     if (r.rows.length === 0) return res.status(404).json({ error: 'No encontrado' })
@@ -657,6 +673,16 @@ app.get('/api/servicios/:id/hoja-pdf', requireAuth(), async (req, res) => {
       ['Realizador', sv.realizador], ['Teléfono', sv.tel_realizador || '—'], ['', ''],
       ['Productor', sv.productor], ['Teléfono', sv.tel_productor || '—'], ['', ''],
     ])
+
+    // ── VEHÍCULO ──
+    if (sv.vehiculo_referencia) {
+      sec('Vehículo asignado')
+      grid([
+        ['Referencia', sv.vehiculo_referencia],
+        ['Matrícula',  sv.vehiculo_matricula],
+        ['Modelo',     sv.vehiculo_modelo],
+      ])
+    }
 
     // ── CÁMARAS Y MODELOS ──
     if (activeCamIds.length > 0) {
@@ -953,10 +979,12 @@ app.get('/api/stats', requireAuth(['coordinador']), async (req, res) => {
 app.get('/api/analisis', requireAuth(['coordinador']), async (req, res) => {
   try {
     const r = await pool.query(`
-      SELECT i.*, u.name as submitted_by_name, s.cam_models, s.tipo_servicio
+      SELECT i.*, u.name as submitted_by_name, s.cam_models, s.tipo_servicio,
+             v.referencia as vehiculo_referencia, v.matricula as vehiculo_matricula, v.modelo as vehiculo_modelo
       FROM informes i
       LEFT JOIN users u ON u.id = i.submitted_by
       LEFT JOIN servicios s ON s.id = i.servicio_id
+      LEFT JOIN vehiculos v ON v.id = s.vehiculo_id
       WHERE i.status = 'enviado'
       ORDER BY i.jornada ASC, i.created_at ASC
     `)

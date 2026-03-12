@@ -877,7 +877,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
               <Field label="Vehículo">
                 <Select value={vehiculoId} onChange={e=>setVehiculoId(e.target.value)}>
                   <option value="">— Sin asignar —</option>
-                  {vehiculos.map(v=><option key={v.id} value={v.id}>{v.referencia} · {v.articulo} · {v.modelo}</option>)}
+                  {vehiculos.map(v=><option key={v.id} value={v.id}>{v.referencia} · {v.matricula} · {v.modelo}</option>)}
                 </Select>
               </Field>
             </Card>
@@ -1118,7 +1118,7 @@ function UserManagement({ currentUser }) {
 function VehiculosSection() {
   const [vehiculos,setVehiculos] = useState([]);
   const [editingId,setEditingId] = useState(null);
-  const [form,setForm] = useState({referencia:'',articulo:'',modelo:''});
+  const [form,setForm] = useState({referencia:'',matricula:'',modelo:''});
   const [showNew,setShowNew] = useState(false);
   const [saving,setSaving] = useState(false);
   const [error,setError] = useState(null);
@@ -1128,11 +1128,11 @@ function VehiculosSection() {
   },[]);
   useEffect(()=>load(),[load]);
 
-  const startEdit = (v) => { setEditingId(v.id); setForm({referencia:v.referencia,articulo:v.articulo,modelo:v.modelo}); setShowNew(false); };
-  const startNew = () => { setShowNew(true); setEditingId(null); setForm({referencia:'',articulo:'',modelo:''}); };
+  const startEdit = (v) => { setEditingId(v.id); setForm({referencia:v.referencia,matricula:v.matricula,modelo:v.modelo}); setShowNew(false); };
+  const startNew = () => { setShowNew(true); setEditingId(null); setForm({referencia:'',matricula:'',modelo:''}); };
 
   const save = async () => {
-    if (!form.referencia||!form.articulo||!form.modelo) { setError('Todos los campos son obligatorios'); return; }
+    if (!form.referencia||!form.matricula||!form.modelo) { setError('Todos los campos son obligatorios'); return; }
     setSaving(true); setError(null);
     try {
       if (editingId) {
@@ -1155,7 +1155,7 @@ function VehiculosSection() {
     <div style={{background:'#f8fafc',border:'1px solid #cbd5e1',borderRadius:8,padding:'14px 16px',marginBottom:12}}>
       <div style={{display:'grid',gridTemplateColumns:'1fr 2fr 2fr',gap:10,marginBottom:10}}>
         <Field label="Referencia"><Input value={form.referencia} onChange={e=>setForm(f=>({...f,referencia:e.target.value}))} placeholder="REF-001" /></Field>
-        <Field label="Artículo"><Input value={form.articulo} onChange={e=>setForm(f=>({...f,articulo:e.target.value}))} placeholder="Nombre del vehículo" /></Field>
+        <Field label="Matrícula"><Input value={form.matricula} onChange={e=>setForm(f=>({...f,matricula:e.target.value}))} placeholder="0000-XXX" /></Field>
         <Field label="Modelo"><Input value={form.modelo} onChange={e=>setForm(f=>({...f,modelo:e.target.value}))} placeholder="Marca y modelo" /></Field>
       </div>
       {error&&<div style={{color:'#dc2626',fontSize:12,marginBottom:8}}>{error}</div>}
@@ -1181,7 +1181,7 @@ function VehiculosSection() {
       {vehiculos.length>0&&(
         <div style={{border:'1px solid #e4e4e7',borderRadius:8,overflow:'hidden'}}>
           <div style={{display:'grid',gridTemplateColumns:'1fr 2fr 2fr auto',gap:0,background:'#f4f4f5',padding:'6px 12px',fontSize:11,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.06em'}}>
-            <span>Referencia</span><span>Artículo</span><span>Modelo</span><span></span>
+            <span>Referencia</span><span>Matrícula</span><span>Modelo</span><span></span>
           </div>
           {vehiculos.map((v,i)=>(
             <div key={v.id}>
@@ -1192,7 +1192,7 @@ function VehiculosSection() {
               ) : (
                 <div style={{display:'grid',gridTemplateColumns:'1fr 2fr 2fr auto',gap:0,padding:'9px 12px',borderTop:i>0?'1px solid #e4e4e7':'none',alignItems:'center',background:i%2===0?'#fff':'#fafafa'}}>
                   <span style={{fontSize:12,fontFamily:"'Geist Mono',monospace"}}>{v.referencia}</span>
-                  <span style={{fontSize:12}}>{v.articulo}</span>
+                  <span style={{fontSize:12}}>{v.matricula}</span>
                   <span style={{fontSize:12,color:'#52525b'}}>{v.modelo}</span>
                   <div style={{display:'flex',gap:4,justifyContent:'flex-end'}}>
                     <button onClick={()=>startEdit(v)} style={{padding:'2px 8px',border:'1px solid #e4e4e7',borderRadius:5,background:'#fff',cursor:'pointer',fontSize:11}}>✏️</button>

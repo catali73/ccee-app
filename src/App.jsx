@@ -77,6 +77,13 @@ const PERSONAL = {
 // cam: cámara específica del rol → el rol solo aparece si esa cámara está activa
 // Sin cam: rol aparece si cualquier cámara del grupo está activa
 const OPERATOR_GROUPS = [
+  { id:"obvan",   label:"OBVAN CCEE",       icon:"🚐", cams:["OBVAN_CCEE"],
+    roles:[
+      {key:"obvan_jefe_tec",      label:"Jefe Técnico OBVAN",  pool:"PERSONAL_OBVAN"},
+      {key:"obvan_resp_montaje",  label:"Responsable Montaje", pool:"PERSONAL_OBVAN"},
+      {key:"obvan_aux1",          label:"Auxiliar 1",          pool:"PERSONAL_OBVAN"},
+      {key:"obvan_aux2",          label:"Auxiliar 2",          pool:"PERSONAL_OBVAN"},
+    ]},
   { id:"skycam",  label:"4SkyCam",         icon:"🚁", cams:["SKYCAM_4"],
     roles:[{key:"skycam_piloto",label:"Piloto",pool:"OP_SKYCAM"},{key:"skycam_operador",label:"Operador",pool:"OP_SKYCAM"},{key:"skycam_auxiliar",label:"Auxiliar",pool:"TEC_SKYCAM"}] },
   { id:"ar",      label:"AR Skycam",        icon:"🔮", cams:["AR_SKYCAM"],
@@ -116,13 +123,6 @@ const OPERATOR_GROUPS = [
     ]},
   { id:"uhs",     label:"Cámara UHS",       icon:"📷", cams:["CAMARA_UHS"],
     roles:[{key:"uhs_op",label:"Operador",pool:"OP_UHS"}] },
-  { id:"obvan",   label:"OBVAN CCEE",       icon:"🚐", cams:["OBVAN_CCEE"],
-    roles:[
-      {key:"obvan_jefe_tec",      label:"Jefe Técnico OBVAN",  pool:"PERSONAL_OBVAN"},
-      {key:"obvan_resp_montaje",  label:"Responsable Montaje", pool:"PERSONAL_OBVAN"},
-      {key:"obvan_aux1",          label:"Auxiliar 1",          pool:"PERSONAL_OBVAN"},
-      {key:"obvan_aux2",          label:"Auxiliar 2",          pool:"PERSONAL_OBVAN"},
-    ]},
 ];
 
 const initOperators = () => {
@@ -404,11 +404,8 @@ function CameraSection({ camId,cam,data,onChange,usedModels,readOnly }) {
             {cam.campos.map((campo,idx)=>(
               <div key={campo} style={{display:"flex",alignItems:"center",gap:12,padding:"8px 12px",background:idx%2===0?"#fff":"#F5F0EC",borderBottom:idx<cam.campos.length-1?"1px solid #DDD5CE":"none"}}>
                 <div style={{flex:1,fontSize:12,color:"#7A7168"}}>{campo}</div>
-                {readOnly
-                  ? <span style={{fontSize:12,fontFamily:"'Courier New',monospace",color:"#1A1A1A"}}>{data.campos?.[campo]||'—'}</span>
-                  : <input type="text" value={data.campos?.[campo]||''} onChange={e=>onChange(camId,"campo",campo,e.target.value)}
-                      style={{height:28,borderRadius:6,border:"1px solid #DDD5CE",fontSize:12,paddingLeft:8,width:160,outline:"none"}} placeholder="—" />
-                }
+                <input type="text" value={data.campos?.[campo]||''} onChange={e=>onChange(camId,"campo",campo,e.target.value)}
+                  style={{height:28,borderRadius:6,border:"1px solid #DDD5CE",fontSize:12,paddingLeft:8,width:160,outline:"none"}} placeholder="—" />
               </div>
             ))}
           </div>
@@ -607,6 +604,10 @@ export function generateInformePDF(informe) {
     ? `<h2>Horarios de jornada</h2><div class="grid">${schedRows.map(([k,v])=>cell(k,v)).join('')}</div>`
     : '';
 
+  const vehiculoHtml = informe.vehiculo_referencia
+    ? `<h2>Vehículo asignado</h2><div class="grid">${[['Referencia',informe.vehiculo_referencia],['Matrícula',informe.vehiculo_matricula||'—'],['Modelo',informe.vehiculo_modelo||'—']].map(([k,v])=>cell(k,v)).join('')}</div>`
+    : '';
+
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
 <title>Informe CCEE · ${informe.encuentro||''}</title>
 <style>
@@ -667,6 +668,7 @@ tr:nth-child(even) td{background:#f8fafc}
 <div class="grid">
   ${[['Responsable CCEE',informe.responsable],['Unidad Móvil',informe.um],['J. Técnico UM',informe.jefe_tecnico],['Realizador',informe.realizador],['Productor',informe.productor]].map(([k,v])=>cell(k,v)).join('')}
 </div>
+${vehiculoHtml}
 ${schedHtml}
 ${opRows?`<h2>Operadores</h2><table><thead><tr><th>Rol</th><th>Nombre</th></tr></thead><tbody>${opRows}</tbody></table>`:''}
 ${Object.keys(logItems).length>0?`<h2>Logística</h2><table><thead><tr><th>Elemento</th><th style="width:60px;text-align:center">Estado</th></tr></thead><tbody>${logRows}</tbody></table>${log.incidencias?`<div class="obs" style="margin-bottom:10px;border-radius:5px;border:1px solid #fde68a">${log.incidencias}</div>`:''}`:''}
