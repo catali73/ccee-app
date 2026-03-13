@@ -1505,14 +1505,47 @@ function ModelosSection() {
   );
 }
 
+const BD_TABS = [
+  { id:'personal',   label:'Personal técnico', icon:'👤' },
+  { id:'operadores', label:'Operadores',        icon:'🎥' },
+  { id:'vehiculos',  label:'Vehículos',         icon:'🚐' },
+  { id:'equipos',    label:'Modelos de equipo', icon:'📡' },
+];
+
 function BDView() {
+  const [tab, setTab] = useState('personal');
   return (
     <div style={{maxWidth:900,margin:'0 auto',padding:'32px 20px'}}>
-      <h2 style={{fontSize:20,fontWeight:600,margin:'0 0 24px'}}>Base de datos</h2>
-      <PersonalTecnicoSection />
-      <VehiculosSection />
-      <OperadoresSection />
-      <ModelosSection />
+      <h2 style={{fontSize:20,fontWeight:600,margin:'0 0 20px'}}>Base de datos</h2>
+
+      {/* ── Pestañas ── */}
+      <div style={{display:'flex',gap:4,marginBottom:24,borderBottom:'2px solid #DDD5CE',paddingBottom:0}}>
+        {BD_TABS.map(t=>{
+          const active = tab===t.id;
+          return (
+            <button key={t.id} onClick={()=>setTab(t.id)} style={{
+              display:'flex',alignItems:'center',gap:6,
+              padding:'8px 16px',border:'none',borderRadius:'8px 8px 0 0',
+              background: active ? '#fff' : 'transparent',
+              color: active ? '#E8392C' : '#7A7168',
+              fontWeight: active ? 700 : 500,
+              fontSize:13,fontFamily:"'Montserrat',-apple-system,sans-serif",
+              cursor:'pointer',
+              borderBottom: active ? '2px solid #E8392C' : '2px solid transparent',
+              marginBottom:-2,
+              transition:'color 0.15s,background 0.15s',
+            }}>
+              <span>{t.icon}</span>{t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Contenido ── */}
+      {tab==='personal'   && <PersonalTecnicoSection />}
+      {tab==='operadores' && <OperadoresSection />}
+      {tab==='vehiculos'  && <VehiculosSection />}
+      {tab==='equipos'    && <ModelosSection />}
     </div>
   );
 }
