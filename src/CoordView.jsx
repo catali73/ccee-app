@@ -1188,7 +1188,7 @@ function VehiculosSection() {
     load();
   };
 
-  const FormRow = () => (
+  const formRow = (
     <div style={{background:'#f8fafc',border:'1px solid #cbd5e1',borderRadius:8,padding:'14px 16px',marginBottom:12}}>
       <div style={{display:'grid',gridTemplateColumns:'1fr 2fr 2fr',gap:10,marginBottom:10}}>
         <Field label="Referencia"><Input value={form.referencia} onChange={e=>setForm(f=>({...f,referencia:e.target.value}))} placeholder="REF-001" /></Field>
@@ -1211,7 +1211,7 @@ function VehiculosSection() {
         <SecTitle style={{margin:0,flex:1}}>Vehículos</SecTitle>
         <BtnO onClick={startNew} style={{fontSize:12,height:30}}>+ Añadir</BtnO>
       </div>
-      {showNew&&<FormRow />}
+      {showNew&&formRow}
       {vehiculos.length===0&&!showNew&&(
         <div style={{fontSize:13,color:'#71717a',padding:'20px 0',textAlign:'center'}}>No hay vehículos registrados.</div>
       )}
@@ -1224,7 +1224,7 @@ function VehiculosSection() {
             <div key={v.id}>
               {editingId===v.id ? (
                 <div style={{padding:'10px 12px',background:'#f0f9ff',borderTop:i>0?'1px solid #e4e4e7':'none'}}>
-                  <FormRow />
+                  {formRow}
                 </div>
               ) : (
                 <div style={{display:'grid',gridTemplateColumns:'1fr 2fr 2fr auto',gap:0,padding:'9px 12px',borderTop:i>0?'1px solid #e4e4e7':'none',alignItems:'center',background:i%2===0?'#fff':'#fafafa'}}>
@@ -1284,7 +1284,7 @@ function PersonalTecnicoSection() {
     load();
   };
 
-  const FormRow = () => (
+  const formRow = (
     <div style={{background:'#f8fafc',border:'1px solid #cbd5e1',borderRadius:8,padding:'14px 16px',marginBottom:12}}>
       <div style={{display:'grid',gridTemplateColumns:'1fr 2fr 1fr',gap:10,marginBottom:10}}>
         <Field label="Rol">
@@ -1311,7 +1311,7 @@ function PersonalTecnicoSection() {
         <SecTitle style={{margin:0,flex:1}}>Personal técnico</SecTitle>
         <BtnO onClick={startNew} style={{fontSize:12,height:30}}>+ Añadir</BtnO>
       </div>
-      {showNew&&<FormRow />}
+      {showNew&&formRow}
       {lista.length===0&&!showNew&&(
         <div style={{fontSize:13,color:'#71717a',padding:'20px 0',textAlign:'center'}}>No hay personal registrado.</div>
       )}
@@ -1324,7 +1324,7 @@ function PersonalTecnicoSection() {
             <div key={p.id}>
               {editingId===p.id ? (
                 <div style={{padding:'10px 12px',background:'#f0f9ff',borderTop:i>0?'1px solid #e4e4e7':'none'}}>
-                  <FormRow />
+                  {formRow}
                 </div>
               ) : (
                 <div style={{display:'grid',gridTemplateColumns:'1fr 2fr 1fr auto',gap:0,padding:'9px 12px',borderTop:i>0?'1px solid #e4e4e7':'none',alignItems:'center',background:i%2===0?'#fff':'#fafafa'}}>
