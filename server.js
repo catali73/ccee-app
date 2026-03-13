@@ -197,8 +197,8 @@ async function initDB() {
     CREATE TABLE IF NOT EXISTS vehiculos (
       id         SERIAL PRIMARY KEY,
       referencia VARCHAR(100) NOT NULL,
-      articulo   VARCHAR(200) NOT NULL,
-      modelo     VARCHAR(200) NOT NULL,
+      matricula  VARCHAR(200) NOT NULL DEFAULT '',
+      modelo     VARCHAR(200) NOT NULL DEFAULT '',
       activo     BOOLEAN DEFAULT true,
       created_at TIMESTAMP DEFAULT NOW()
     )
@@ -211,9 +211,6 @@ async function initDB() {
       END IF;
     END $$;
   `)
-
-  // Asignación de vehículo al servicio (legacy — se mantiene para la migración)
-  await pool.query(`ALTER TABLE servicios ADD COLUMN IF NOT EXISTS vehiculo_id INTEGER REFERENCES vehiculos(id)`)
 
   // Tabla junction: múltiples vehículos por servicio
   await pool.query(`
@@ -236,70 +233,78 @@ async function initDB() {
     END $$;
   `)
 
-  // Seed: importar 58 vehículos si la tabla está vacía
-  const seedChk = await pool.query('SELECT COUNT(*) FROM vehiculos')
-  if (parseInt(seedChk.rows[0].count) === 0) {
-    await pool.query(`
-      INSERT INTO vehiculos (referencia, matricula, modelo) VALUES
-      ('CCEE 03','3007 LHK','FORD TRANSIT'),
-      ('CCEE 04','6473 NGP','RENAULT TRAFIC'),
-      ('CCEE 05','1282 KZL','FORD TRANSIT'),
-      ('CCEE 07','8441 MJF','RENAULT TRAFIC'),
-      ('CCEE 08','2673 LJP','PEUGEOT 308'),
-      ('CCEE 10','2291 KDS','RENAULT MASTER'),
-      ('CCEE 11','2286 KDS','RENAULT MASTER'),
-      ('CCEE 12','9968 MKN',''),
-      ('CCEE 14','2477 LKN','FORD TRANSIT'),
-      ('CCEE 15','4096 MLJ','PEUGEOT EXPERT'),
-      ('PPV 16','2193 MJL','SKODA SCALA'),
-      ('PPV 17','2555 LKN','FORD TRANSIT'),
-      ('CCEE 18','4481 MFB','RENAULT EXPRESS'),
-      ('CCEE 19','2203 LZC','CITROEN BERLINGO'),
-      ('CCEE 20','1377 NFR','OPEL MOVANO'),
-      ('CCEE 22','5675 MDS','SKODA SCALA'),
-      ('CCEE 23','8494 MBX','SEAT LEON'),
-      ('CCEE 24','5678 MDS','SKODA SCALA'),
-      ('PPV 26','3981 MTY','RENAULT MEGANE'),
-      ('CCEE 28','8674 MLL','RENAULT MEGANE'),
-      ('CCEE 29','5679 MDS','SKODA SCALA'),
-      ('CCEE 30','6798 LBH','FORD TRANSIT'),
-      ('CCEE 31','6474 NGP','RENAULT TRAFIC'),
-      ('PPV 32','8959 LKZ','FORD TRANSIT'),
-      ('CCEE 33','6352 MCY','SKODA SCALA'),
-      ('CCEE 34','2314 MKL','SKODA SCALA'),
-      ('CCEE 35','6721 MKL','FIAT DOBLO'),
-      ('CCEE 36','6135 MLK','OPEL VIVARO'),
-      ('CCEE 37','4748 MSW','NISAN INTERSTAR'),
-      ('CCEE 38','2002 NFP','NISAN INTERSTAR'),
-      ('CCEE 39','1109 NFX','CITROEN JUMPY'),
-      ('CCEE 43','4724 MSW','RENAULT TRAFIC'),
-      ('44 FEM','1577 MBS','IVECO DAYLY'),
-      ('OB70','0756 DZG','RENAULT'),
-      ('APOYO OB70','6875 DKD','RENAULT'),
-      ('DRONE 01','1191-LXN','Renault Kangoo (Madrid)'),
-      ('DRONE 02','9988-FKF','Nissan Navara (Madrid)'),
-      ('DRONE 03','0337-KWK','Kia Niro (Madrid)'),
-      ('DRONE 04','1392-MHH','Hyundai Kona (Madrid)'),
-      ('DRONE 05','1394-MHH','Hyundai Kona (Madrid)'),
-      ('DRONE 06','0842-FND','Mercedes Sprinter E334 (Madrid)'),
-      ('DRONE 07','1819-FTY','Volkswagen Crafter E344 (Madrid)'),
-      ('DRONE 08','1194-MND','Mercedes Vito (Madrid)'),
-      ('DRONE 09','0465-MGW','Toyota Corolla (Madrid)'),
-      ('DRONE 10','4093-MJD','Toyota Corolla (Madrid)'),
-      ('DRONE 11','4098-MJD','Toyota Corolla (Madrid)'),
-      ('DRONE 12','4100-MJD','Toyota Corolla (Madrid)'),
-      ('DRONE 13','1411-LXS','Renault Kangoo (Bilbao)'),
-      ('DRONE 14','9357-CSD','Mercedes Vito E91 (Bilbao)'),
-      ('DRONE 15','1200-LXN','Renault Kangoo (Sevilla)'),
-      ('DRONE 16','0480-MCW','Toyota Corolla (Sevilla)'),
-      ('DRONE 17','8373-BGK','Mercedes Sprinter E78 (Santiago)'),
-      ('DRONE 18','4995-FGL','Volkswagen Crafter E302 (Santiago)'),
-      ('DRONE 19','2329-MKK','Peugeot Partner (Valencia)'),
-      ('DRONE 20','4099-MJD','Toyota Corolla (Valencia)'),
-      ('DRONE 21','1925-FKR','Volkswagen Caddy (Valencia)'),
-      ('DRONE 22','5245-GJP','Mercedes Vito E96 (Mallorca)'),
-      ('DRONE 23','1410-LXS','Renault Kangoo (Barcelona)')
-    `)
+  // Seed: importar 58 vehículos del Excel — idempotente (comprueba por referencia)
+  try {
+    const VEHICLE_SEED = [
+      ['CCEE 03','3007 LHK','FORD TRANSIT'],
+      ['CCEE 04','6473 NGP','RENAULT TRAFIC'],
+      ['CCEE 05','1282 KZL','FORD TRANSIT'],
+      ['CCEE 07','8441 MJF','RENAULT TRAFIC'],
+      ['CCEE 08','2673 LJP','PEUGEOT 308'],
+      ['CCEE 10','2291 KDS','RENAULT MASTER'],
+      ['CCEE 11','2286 KDS','RENAULT MASTER'],
+      ['CCEE 12','9968 MKN',''],
+      ['CCEE 14','2477 LKN','FORD TRANSIT'],
+      ['CCEE 15','4096 MLJ','PEUGEOT EXPERT'],
+      ['PPV 16','2193 MJL','SKODA SCALA'],
+      ['PPV 17','2555 LKN','FORD TRANSIT'],
+      ['CCEE 18','4481 MFB','RENAULT EXPRESS'],
+      ['CCEE 19','2203 LZC','CITROEN BERLINGO'],
+      ['CCEE 20','1377 NFR','OPEL MOVANO'],
+      ['CCEE 22','5675 MDS','SKODA SCALA'],
+      ['CCEE 23','8494 MBX','SEAT LEON'],
+      ['CCEE 24','5678 MDS','SKODA SCALA'],
+      ['PPV 26','3981 MTY','RENAULT MEGANE'],
+      ['CCEE 28','8674 MLL','RENAULT MEGANE'],
+      ['CCEE 29','5679 MDS','SKODA SCALA'],
+      ['CCEE 30','6798 LBH','FORD TRANSIT'],
+      ['CCEE 31','6474 NGP','RENAULT TRAFIC'],
+      ['PPV 32','8959 LKZ','FORD TRANSIT'],
+      ['CCEE 33','6352 MCY','SKODA SCALA'],
+      ['CCEE 34','2314 MKL','SKODA SCALA'],
+      ['CCEE 35','6721 MKL','FIAT DOBLO'],
+      ['CCEE 36','6135 MLK','OPEL VIVARO'],
+      ['CCEE 37','4748 MSW','NISAN INTERSTAR'],
+      ['CCEE 38','2002 NFP','NISAN INTERSTAR'],
+      ['CCEE 39','1109 NFX','CITROEN JUMPY'],
+      ['CCEE 43','4724 MSW','RENAULT TRAFIC'],
+      ['44 FEM','1577 MBS','IVECO DAYLY'],
+      ['OB70','0756 DZG','RENAULT'],
+      ['APOYO OB70','6875 DKD','RENAULT'],
+      ['DRONE 01','1191-LXN','Renault Kangoo (Madrid)'],
+      ['DRONE 02','9988-FKF','Nissan Navara (Madrid)'],
+      ['DRONE 03','0337-KWK','Kia Niro (Madrid)'],
+      ['DRONE 04','1392-MHH','Hyundai Kona (Madrid)'],
+      ['DRONE 05','1394-MHH','Hyundai Kona (Madrid)'],
+      ['DRONE 06','0842-FND','Mercedes Sprinter E334 (Madrid)'],
+      ['DRONE 07','1819-FTY','Volkswagen Crafter E344 (Madrid)'],
+      ['DRONE 08','1194-MND','Mercedes Vito (Madrid)'],
+      ['DRONE 09','0465-MGW','Toyota Corolla (Madrid)'],
+      ['DRONE 10','4093-MJD','Toyota Corolla (Madrid)'],
+      ['DRONE 11','4098-MJD','Toyota Corolla (Madrid)'],
+      ['DRONE 12','4100-MJD','Toyota Corolla (Madrid)'],
+      ['DRONE 13','1411-LXS','Renault Kangoo (Bilbao)'],
+      ['DRONE 14','9357-CSD','Mercedes Vito E91 (Bilbao)'],
+      ['DRONE 15','1200-LXN','Renault Kangoo (Sevilla)'],
+      ['DRONE 16','0480-MCW','Toyota Corolla (Sevilla)'],
+      ['DRONE 17','8373-BGK','Mercedes Sprinter E78 (Santiago)'],
+      ['DRONE 18','4995-FGL','Volkswagen Crafter E302 (Santiago)'],
+      ['DRONE 19','2329-MKK','Peugeot Partner (Valencia)'],
+      ['DRONE 20','4099-MJD','Toyota Corolla (Valencia)'],
+      ['DRONE 21','1925-FKR','Volkswagen Caddy (Valencia)'],
+      ['DRONE 22','5245-GJP','Mercedes Vito E96 (Mallorca)'],
+      ['DRONE 23','1410-LXS','Renault Kangoo (Barcelona)'],
+    ]
+    const existing = await pool.query('SELECT referencia FROM vehiculos')
+    const existingSet = new Set(existing.rows.map(r => r.referencia))
+    const toInsert = VEHICLE_SEED.filter(v => !existingSet.has(v[0]))
+    if (toInsert.length > 0) {
+      const ph = toInsert.map((_, i) => `($${i*3+1},$${i*3+2},$${i*3+3})`).join(',')
+      await pool.query(`INSERT INTO vehiculos (referencia, matricula, modelo) VALUES ${ph}`, toInsert.flat())
+      console.log(`✓ Seed: ${toInsert.length} vehículos importados`)
+    }
+  } catch (seedErr) {
+    console.error('⚠ Seed vehículos falló (no crítico):', seedErr.message)
   }
 
   // Teléfonos de contacto del equipo técnico
