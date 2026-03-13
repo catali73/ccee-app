@@ -443,12 +443,13 @@ export default function AnalisisView() {
     setExportingInc(true);
     try {
       const res = await apiFetch('/api/export/incidencias');
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || res.statusText); }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href=url; a.download='incidencias-ccee.xlsx';
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 500);
-    } catch { alert('Error exportando incidencias'); }
+    } catch(e) { alert('Error exportando incidencias: ' + e.message); }
     setExportingInc(false);
   };
 

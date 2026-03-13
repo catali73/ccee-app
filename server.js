@@ -1466,44 +1466,33 @@ app.get('/api/export/incidencias', requireAuth(['coordinador', 'readonly']), asy
       byJornada[key].push(inf)
     }
 
+    // Use exactly the same json_to_sheet pattern as the working analisis export
     const wb = XLSX.utils.book_new()
 
-    const jornadas = Object.keys(byJornada)
-    if (jornadas.length === 0) {
-      const ws = { A1: { v:'No hay informes enviados todavía.', t:'s' }, '!ref':'A1' }
-      XLSX.utils.book_append_sheet(wb, ws, 'Sin datos')
+    if (Object.keys(byJornada).length === 0) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{ Info: 'Sin informes enviados' }]), 'Sin datos')
     }
 
-    for (const jornada of jornadas) {
-      const rows = byJornada[jornada]
+    for (const [jornada, rows] of Object.entries(byJornada)) {
       const sheetName = String(jornada).slice(0, 31)
-
-      // Build AOA: row 0 = title (null = skip cell for merge), row 1 = headers, row 2+ = data
-      const aoa = [
-        ['INFORMACIÓN INCIDENCIAS CCEE', null, null, null, null],
-        ['FECHA EVENTO', 'KO', 'LOCAL', 'VISITANTE', 'INCIDENCIAS'],
-        ...rows.map(inf => {
-          const fecha = inf.fecha ? new Date(inf.fecha).toLocaleDateString('es-ES') : ''
-          const ko    = inf.hora_partido || ''
-          const parts = (inf.encuentro || ' vs ').split(' vs ')
-          const local     = (parts[0] || '').trim().toUpperCase()
-          const visitante = (parts[1] || '').trim().toUpperCase()
-          return [fecha, ko, local, visitante, buildIncidencias(inf)]
-        })
-      ]
-
-      const ws = XLSX.utils.aoa_to_sheet(aoa)
-
-      // Merge title row A1:E1
-      ws['!merges'] = [{ s:{r:0,c:0}, e:{r:0,c:4} }]
-
-      // Column widths (chars)
-      ws['!cols'] = [{ wch:16 }, { wch:10 }, { wch:24 }, { wch:24 }, { wch:70 }]
-
-      XLSX.utils.book_append_sheet(wb, ws, sheetName)
+      const data = rows.map(inf => {
+        const fecha = inf.fecha ? new Date(inf.fecha).toLocaleDateString('es-ES') : ''
+        const ko    = inf.hora_partido || ''
+        const parts = (inf.encuentro || ' vs ').split(' vs ')
+        const local     = (parts[0] || '').trim().toUpperCase()
+        const visitante = (parts[1] || '').trim().toUpperCase()
+        return {
+          'FECHA EVENTO': fecha,
+          'KO':           ko,
+          'LOCAL':        local,
+          'VISITANTE':    visitante,
+          'INCIDENCIAS':  buildIncidencias(inf),
+        }
+      })
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), sheetName)
     }
 
-    const buf = XLSX.write(wb, { type:'buffer', bookType:'xlsx' })
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
     res.setHeader('Content-Disposition', 'attachment; filename="incidencias-ccee.xlsx"')
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     res.send(buf)
