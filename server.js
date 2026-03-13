@@ -9,7 +9,6 @@ import jwt from 'jsonwebtoken'
 const require = createRequire(import.meta.url)
 const PDFDocument = require('pdfkit')
 const XLSX = require('xlsx')
-const ExcelJS = require('exceljs')
 
 // ── LOOKUP TABLES FOR HOJA-PDF (mirror App.jsx CAMERA_CATALOG / OPERATOR_GROUPS) ──
 const CAMERA_ORDER = [
@@ -1453,17 +1452,13 @@ app.get('/api/export/incidencias', requireAuth(['coordinador', 'readonly']), asy
         if (koItems.length > 0) {
           lines.push(`${CAMERA_LABELS[camId] || camId}: ${koItems.join(' · ')}`)
         }
-        if (cam.incidencias) {
-          lines.push(`  ${cam.incidencias}`)
-        }
+        if (cam.incidencias) lines.push(`  ${cam.incidencias}`)
       }
-      if ((inf.logistica || {}).incidencias) {
-        lines.push(`Logística: ${inf.logistica.incidencias}`)
-      }
+      if ((inf.logistica || {}).incidencias) lines.push(`Logística: ${inf.logistica.incidencias}`)
       return lines.length > 0 ? lines.join('\n') : 'SIN INCIDENCIAS'
     }
 
-    // Group by jornada, preserve insertion order
+    // Group by jornada
     const byJornada = {}
     for (const inf of informes) {
       const key = inf.jornada || 'Sin jornada'
@@ -1471,100 +1466,83 @@ app.get('/api/export/incidencias', requireAuth(['coordinador', 'readonly']), asy
       byJornada[key].push(inf)
     }
 
-    const wb = new ExcelJS.Workbook()
-    wb.creator = 'CCEE App'
-    wb.created = new Date()
+    // SheetJS cell helpers
+    const styleTitle = { font:{bold:true,sz:20,color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'2B75B4'},patternType:'solid'}, alignment:{horizontal:'center',vertical:'center'} }
+    const styleHeader = { font:{bold:true,sz:11}, fill:{fgColor:{rgb:'52C7D7'},patternType:'solid'}, alignment:{horizontal:'center',vertical:'center'} }
+    const styleCell   = { font:{sz:11}, alignment:{vertical:'top',wrapText:false} }
+    const styleCellW  = { font:{sz:11}, alignment:{vertical:'top',wrapText:true} }
+    const styleAlt    = { font:{sz:11}, fill:{fgColor:{rgb:'F2F2F2'},patternType:'solid'}, alignment:{vertical:'top',wrapText:false} }
+    const styleAltW   = { font:{sz:11}, fill:{fgColor:{rgb:'F2F2F2'},patternType:'solid'}, alignment:{vertical:'top',wrapText:true} }
 
-    const BLUE   = 'FF2B75B4'  // title bg
-    const CYAN   = 'FF52C7D7'  // header bg
-    const WHITE  = 'FFFFFFFF'
-    const BLACK  = 'FF000000'
-    const thinBorder = {
-      top:    { style:'thin', color:{ argb: BLACK } },
-      left:   { style:'thin', color:{ argb: BLACK } },
-      bottom: { style:'thin', color:{ argb: BLACK } },
-      right:  { style:'thin', color:{ argb: BLACK } },
+    const wb = XLSX.utils.book_new()
+
+    const jornadas = Object.keys(byJornada)
+    if (jornadas.length === 0) {
+      const ws = { A1: { v:'No hay informes enviados todavía.', t:'s' }, '!ref':'A1' }
+      XLSX.utils.book_append_sheet(wb, ws, 'Sin datos')
     }
 
-    const HEADERS = ['FECHA EVENTO', 'KO', 'LOCAL', 'VISITANTE', 'INCIDENCIAS']
-    const COL_WIDTHS = [16, 10, 24, 24, 70]
+    for (const jornada of jornadas) {
+      const rows = byJornada[jornada]
+      const sheetName = String(jornada).slice(0, 31)
 
-    for (const [jornada, rows] of Object.entries(byJornada)) {
-      const sheetName = String(jornada).slice(0, 31) // Excel max 31 chars
-      const ws = wb.addWorksheet(sheetName, {
-        pageSetup: { orientation: 'landscape', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
-        views: [{ showGridLines: true }],
-      })
-
-      // Column widths
-      ws.columns = COL_WIDTHS.map((w, i) => ({ key: `c${i}`, width: w }))
-
-      // ── Row 1: Title ──
-      ws.mergeCells('A1:E1')
-      const titleCell = ws.getCell('A1')
-      titleCell.value = 'INFORMACIÓN INCIDENCIAS CCEE'
-      titleCell.fill = { type:'pattern', pattern:'solid', fgColor:{ argb: BLUE } }
-      titleCell.font = { name:'Calibri', size:20, bold:true, color:{ argb: WHITE } }
-      titleCell.alignment = { horizontal:'center', vertical:'middle' }
-      titleCell.border = thinBorder
-      ws.getRow(1).height = 34
-
-      // ── Row 2: Headers ──
-      const hRow = ws.getRow(2)
-      hRow.values = ['', ...HEADERS]  // shift: ExcelJS col index starts at 1, row.values[0] is col 1
-      // Fix: use direct cell assignment
-      HEADERS.forEach((h, i) => {
-        const cell = ws.getCell(2, i + 1)
-        cell.value = h
-        cell.fill = { type:'pattern', pattern:'solid', fgColor:{ argb: CYAN } }
-        cell.font = { name:'Calibri', size:11, bold:true, color:{ argb: BLACK } }
-        cell.alignment = { horizontal:'center', vertical:'middle', wrapText:false }
-        cell.border = thinBorder
-      })
-      hRow.height = 20
-
-      // ── Data rows ──
-      rows.forEach((inf, idx) => {
-        const fecha = inf.fecha ? new Date(inf.fecha).toLocaleDateString('es-ES') : ''
-        const ko    = inf.hora_partido || ''
-        const parts = (inf.encuentro || ' vs ').split(' vs ')
-        const local     = (parts[0] || '').trim().toUpperCase()
-        const visitante = (parts[1] || '').trim().toUpperCase()
-        const incText   = buildIncidencias(inf)
-
-        const rowNum = idx + 3
-        const values = [fecha, ko, local, visitante, incText]
-        values.forEach((v, i) => {
-          const cell = ws.getCell(rowNum, i + 1)
-          cell.value = v
-          cell.font = { name:'Calibri', size:11 }
-          cell.alignment = {
-            vertical: 'top',
-            wrapText: i === 4,  // wrap only INCIDENCIAS column
-            horizontal: i < 2 ? 'center' : 'left',
-          }
-          cell.border = thinBorder
-          // Alternate row shading
-          if (idx % 2 === 1) {
-            cell.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFF2F2F2' } }
-          }
+      // Build AOA: row 0 = title, row 1 = headers, row 2+ = data
+      const aoa = [
+        ['INFORMACIÓN INCIDENCIAS CCEE', '', '', '', ''],
+        ['FECHA EVENTO', 'KO', 'LOCAL', 'VISITANTE', 'INCIDENCIAS'],
+        ...rows.map(inf => {
+          const fecha = inf.fecha ? new Date(inf.fecha).toLocaleDateString('es-ES') : ''
+          const ko    = inf.hora_partido || ''
+          const parts = (inf.encuentro || ' vs ').split(' vs ')
+          const local     = (parts[0] || '').trim().toUpperCase()
+          const visitante = (parts[1] || '').trim().toUpperCase()
+          return [fecha, ko, local, visitante, buildIncidencias(inf)]
         })
-        // Auto-height hint (ExcelJS can't auto-calc, set generous minimum for multi-line)
-        const lineCount = incText.split('\n').length
-        ws.getRow(rowNum).height = Math.max(18, lineCount * 14)
+      ]
+
+      const ws = XLSX.utils.aoa_to_sheet(aoa)
+
+      // Merge title row A1:E1
+      ws['!merges'] = [{ s:{r:0,c:0}, e:{r:0,c:4} }]
+
+      // Column widths (chars)
+      ws['!cols'] = [{ wch:16 }, { wch:10 }, { wch:24 }, { wch:24 }, { wch:70 }]
+
+      // Row heights (pts)
+      ws['!rows'] = [{ hpt:34 }, { hpt:20 }, ...rows.map(inf => {
+        const lines = buildIncidencias(inf).split('\n').length
+        return { hpt: Math.max(18, lines * 14) }
+      })]
+
+      // Page setup: landscape A4
+      ws['!pageSetup'] = { orientation:'landscape', paperSize:9 }
+
+      // Apply cell styles
+      ws['A1'].s = styleTitle
+      const COLS = ['A','B','C','D','E']
+      COLS.forEach(col => {
+        const cell = ws[`${col}2`]
+        if (cell) cell.s = styleHeader
       })
+      rows.forEach((_, rowIdx) => {
+        const r = rowIdx + 3 // 1-indexed, row 1=title, row 2=header
+        const isAlt = rowIdx % 2 === 1
+        COLS.forEach((col, ci) => {
+          const addr = `${col}${r}`
+          const cell = ws[addr]
+          if (!cell) return
+          if (ci === 4) cell.s = isAlt ? styleAltW : styleCellW
+          else          cell.s = isAlt ? styleAlt  : styleCell
+        })
+      })
+
+      XLSX.utils.book_append_sheet(wb, ws, sheetName)
     }
 
-    // If no informes, create one placeholder sheet
-    if (Object.keys(byJornada).length === 0) {
-      const ws = wb.addWorksheet('Sin datos')
-      ws.getCell('A1').value = 'No hay informes enviados todavía.'
-    }
-
-    const buffer = await wb.xlsx.writeBuffer()
+    const buf = XLSX.write(wb, { type:'buffer', bookType:'xlsx', cellStyles:true })
     res.setHeader('Content-Disposition', 'attachment; filename="incidencias-ccee.xlsx"')
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    res.send(buffer)
+    res.send(buf)
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: err.message })
