@@ -215,6 +215,7 @@ export default function AnalisisView() {
   const [informes,   setInformes]   = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [exporting,  setExporting]  = useState(false);
+  const [exportingInc, setExportingInc] = useState(false);
   const [activeTab,  setActiveTab]  = useState('resumen');
   const [expandedId, setExpandedId] = useState(null);
 
@@ -438,6 +439,19 @@ export default function AnalisisView() {
     setExporting(false);
   };
 
+  const exportIncidencias = async () => {
+    setExportingInc(true);
+    try {
+      const res = await apiFetch('/api/export/incidencias');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download='incidencias-ccee.xlsx';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 500);
+    } catch { alert('Error exportando incidencias'); }
+    setExportingInc(false);
+  };
+
   const exportCSV = () => {
     const tab = activeTab;
     if (tab === 'incidencias') {
@@ -565,6 +579,7 @@ export default function AnalisisView() {
           <div style={{ display:'flex', gap:6 }}>
             <button onClick={exportCSV} style={{ height:32, padding:'0 12px', fontSize:11, borderRadius:6, border:'1px solid #DDD5CE', background:'#fff', color:'#7A7168', cursor:'pointer', fontWeight:600 }}>↓ CSV</button>
             <BtnP onClick={exportXLS} disabled={exporting||filtered.length===0} style={{ height:32, fontSize:11, padding:'0 12px' }}>{exporting?'…':'↓ XLS'}</BtnP>
+            <button onClick={exportIncidencias} disabled={exportingInc||informes.length===0} style={{ height:32, padding:'0 12px', fontSize:11, borderRadius:6, border:'1px solid #2B75B4', background:'#EBF4FC', color:'#2B75B4', cursor:'pointer', fontWeight:600, opacity: exportingInc||informes.length===0 ? 0.5 : 1 }}>{exportingInc?'…':'📋 Incidencias'}</button>
           </div>
         </div>
 

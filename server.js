@@ -9,6 +9,7 @@ import jwt from 'jsonwebtoken'
 const require = createRequire(import.meta.url)
 const PDFDocument = require('pdfkit')
 const XLSX = require('xlsx')
+const ExcelJS = require('exceljs')
 
 // ── LOOKUP TABLES FOR HOJA-PDF (mirror App.jsx CAMERA_CATALOG / OPERATOR_GROUPS) ──
 const CAMERA_ORDER = [
@@ -1419,6 +1420,151 @@ app.post('/api/analisis/export', requireAuth(['coordinador']), async (req, res) 
     res.setHeader('Content-Disposition', 'attachment; filename="analisis-ccee.xlsx"')
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     res.send(buf)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ── EXPORTAR INCIDENCIAS (formato estilo plantilla por jornada) ─────────────
+app.get('/api/export/incidencias', requireAuth(['coordinador', 'readonly']), async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT i.*, s.cam_models
+      FROM informes i
+      LEFT JOIN servicios s ON s.id = i.servicio_id
+      WHERE i.status = 'enviado'
+      ORDER BY i.jornada ASC, i.fecha ASC, i.encuentro ASC
+    `)
+    const informes = r.rows
+
+    // Build incident text for one informe
+    function buildIncidencias(inf) {
+      const camData = inf.cam_data || {}
+      const camarasActivas = inf.camaras_activas || {}
+      const lines = []
+      for (const camId of CAMERA_ORDER) {
+        if (!camarasActivas[camId]) continue
+        const cam = camData[camId] || {}
+        const items = cam.items || {}
+        const koItems = Object.entries(items)
+          .filter(([, v]) => v === 'G' || v === 'L')
+          .map(([k, v]) => `${k} (${v === 'G' ? 'G' : 'L'})`)
+        if (koItems.length > 0) {
+          lines.push(`${CAMERA_LABELS[camId] || camId}: ${koItems.join(' · ')}`)
+        }
+        if (cam.incidencias) {
+          lines.push(`  ${cam.incidencias}`)
+        }
+      }
+      if ((inf.logistica || {}).incidencias) {
+        lines.push(`Logística: ${inf.logistica.incidencias}`)
+      }
+      return lines.length > 0 ? lines.join('\n') : 'SIN INCIDENCIAS'
+    }
+
+    // Group by jornada, preserve insertion order
+    const byJornada = {}
+    for (const inf of informes) {
+      const key = inf.jornada || 'Sin jornada'
+      if (!byJornada[key]) byJornada[key] = []
+      byJornada[key].push(inf)
+    }
+
+    const wb = new ExcelJS.Workbook()
+    wb.creator = 'CCEE App'
+    wb.created = new Date()
+
+    const BLUE   = 'FF2B75B4'  // title bg
+    const CYAN   = 'FF52C7D7'  // header bg
+    const WHITE  = 'FFFFFFFF'
+    const BLACK  = 'FF000000'
+    const thinBorder = {
+      top:    { style:'thin', color:{ argb: BLACK } },
+      left:   { style:'thin', color:{ argb: BLACK } },
+      bottom: { style:'thin', color:{ argb: BLACK } },
+      right:  { style:'thin', color:{ argb: BLACK } },
+    }
+
+    const HEADERS = ['FECHA EVENTO', 'KO', 'LOCAL', 'VISITANTE', 'INCIDENCIAS']
+    const COL_WIDTHS = [16, 10, 24, 24, 70]
+
+    for (const [jornada, rows] of Object.entries(byJornada)) {
+      const sheetName = String(jornada).slice(0, 31) // Excel max 31 chars
+      const ws = wb.addWorksheet(sheetName, {
+        pageSetup: { orientation: 'landscape', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+        views: [{ showGridLines: true }],
+      })
+
+      // Column widths
+      ws.columns = COL_WIDTHS.map((w, i) => ({ key: `c${i}`, width: w }))
+
+      // ── Row 1: Title ──
+      ws.mergeCells('A1:E1')
+      const titleCell = ws.getCell('A1')
+      titleCell.value = 'INFORMACIÓN INCIDENCIAS CCEE'
+      titleCell.fill = { type:'pattern', pattern:'solid', fgColor:{ argb: BLUE } }
+      titleCell.font = { name:'Calibri', size:20, bold:true, color:{ argb: WHITE } }
+      titleCell.alignment = { horizontal:'center', vertical:'middle' }
+      titleCell.border = thinBorder
+      ws.getRow(1).height = 34
+
+      // ── Row 2: Headers ──
+      const hRow = ws.getRow(2)
+      hRow.values = ['', ...HEADERS]  // shift: ExcelJS col index starts at 1, row.values[0] is col 1
+      // Fix: use direct cell assignment
+      HEADERS.forEach((h, i) => {
+        const cell = ws.getCell(2, i + 1)
+        cell.value = h
+        cell.fill = { type:'pattern', pattern:'solid', fgColor:{ argb: CYAN } }
+        cell.font = { name:'Calibri', size:11, bold:true, color:{ argb: BLACK } }
+        cell.alignment = { horizontal:'center', vertical:'middle', wrapText:false }
+        cell.border = thinBorder
+      })
+      hRow.height = 20
+
+      // ── Data rows ──
+      rows.forEach((inf, idx) => {
+        const fecha = inf.fecha ? new Date(inf.fecha).toLocaleDateString('es-ES') : ''
+        const ko    = inf.hora_partido || ''
+        const parts = (inf.encuentro || ' vs ').split(' vs ')
+        const local     = (parts[0] || '').trim().toUpperCase()
+        const visitante = (parts[1] || '').trim().toUpperCase()
+        const incText   = buildIncidencias(inf)
+
+        const rowNum = idx + 3
+        const values = [fecha, ko, local, visitante, incText]
+        values.forEach((v, i) => {
+          const cell = ws.getCell(rowNum, i + 1)
+          cell.value = v
+          cell.font = { name:'Calibri', size:11 }
+          cell.alignment = {
+            vertical: 'top',
+            wrapText: i === 4,  // wrap only INCIDENCIAS column
+            horizontal: i < 2 ? 'center' : 'left',
+          }
+          cell.border = thinBorder
+          // Alternate row shading
+          if (idx % 2 === 1) {
+            cell.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFF2F2F2' } }
+          }
+        })
+        // Auto-height hint (ExcelJS can't auto-calc, set generous minimum for multi-line)
+        const lineCount = incText.split('\n').length
+        ws.getRow(rowNum).height = Math.max(18, lineCount * 14)
+      })
+    }
+
+    // If no informes, create one placeholder sheet
+    if (Object.keys(byJornada).length === 0) {
+      const ws = wb.addWorksheet('Sin datos')
+      ws.getCell('A1').value = 'No hay informes enviados todavía.'
+    }
+
+    const buffer = await wb.xlsx.writeBuffer()
+    res.setHeader('Content-Disposition', 'attachment; filename="incidencias-ccee.xlsx"')
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    res.send(buffer)
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: err.message })
