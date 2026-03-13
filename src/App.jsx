@@ -70,7 +70,24 @@ const PERSONAL = {
   MINICAMS:     ["GORKA DAPIA FERNÁNDEZ","MARCOS SANCHEZ MARTI","MOHAMED TAJ BELHORMA"],
   TEC_PTZ:      [], // Añadir operadores PTZ
   OP_UHS:       [], // Añadir operadores Cámara UHS
-  PERSONAL_OBVAN:[], // Añadir personal OBVAN CCEE
+  PERSONAL_OBVAN_JEFE: [
+    "CELEDONIO GARCIA RAUSELL","DANIEL MURILLO PERALES","DAVID SÁNCHEZ JARQUE",
+    "ISMAEL BARROSO FERNÁNDEZ","JOAQUIN QUINTO ANTON","JUAN MARÍN GÓMEZ","PASCUAL LOPEZ MONTOYA",
+  ],
+  PERSONAL_OBVAN_RESP: [
+    "GORKA DAPIA FERNÁNDEZ","MOHAMED TAJ BELHORMA",
+  ],
+  PERSONAL_OBVAN_AUX: [
+    "AARON PORCAR OLMO","AROA FERRER MARÍN","CARLOS NUÑEZ DIAZ","CRESEN ANGULO LÓPEZ",
+    "DANIEL GONZALEZ DORADO","DANIEL PABLOS DURBAY","DANIELE ADDEI","DAVID JIMÉNEZ SÁNCHEZ",
+    "ELIA MURILLO VAÑÓ","FABRIZIO OLSO GONZALEZ","GERARD CASALS PÉREZ","HÉCTOR BELLES BELTRÁN",
+    "ISMAEL SANTAMARIA FERNANDEZ","JAIME MARTINEZ ATIENZA","JOHN NTUI MARTIN",
+    "JOSÉ CARLOS PÉREZ GAGO","JOSÉ CARLOS PÉREZ PÉREZ","JOSÉ SANTIAGO GONZÁLEZ MARTÍNEZ",
+    "JUAN JOSÉ RODRÍGUEZ PALOMEQUE","KESTON JASON PHILLIPS MENEZO","LUIS RAMÓN FERREIRO VARELA",
+    "MARIO DEL REINO MUÑOZ","MIRANDA MARTÍNEZ FRANCOS","NAROA SEVILLANO SÁEZ",
+    "NIL FUENTES MERIN","NOE NOUH BERBEL EL FELK","ROBERTO ARANDA GARCÍA",
+    "SANTIAGO GARCÍA CUTILLAS","SANTIAGO MAYOL RUIZ","SERGIO ORTOLA GONZÁLEZ","SERGIO TORRES SANTIAGO",
+  ],
 };
 
 /* ─── OPERATOR GROUPS — cada grupo sabe a qué cámaras pertenece ── */
@@ -79,10 +96,10 @@ const PERSONAL = {
 const OPERATOR_GROUPS = [
   { id:"obvan",   label:"OBVAN CCEE",       icon:"🚐", cams:["OBVAN_CCEE"],
     roles:[
-      {key:"obvan_jefe_tec",      label:"Jefe Técnico OBVAN",  pool:"PERSONAL_OBVAN"},
-      {key:"obvan_resp_montaje",  label:"Responsable Montaje", pool:"PERSONAL_OBVAN"},
-      {key:"obvan_aux1",          label:"Auxiliar 1",          pool:"PERSONAL_OBVAN"},
-      {key:"obvan_aux2",          label:"Auxiliar 2",          pool:"PERSONAL_OBVAN"},
+      {key:"obvan_jefe_tec",      label:"Jefe Técnico OBVAN",  pool:"PERSONAL_OBVAN_JEFE"},
+      {key:"obvan_resp_montaje",  label:"Responsable Montaje", pool:"PERSONAL_OBVAN_RESP"},
+      {key:"obvan_aux1",          label:"Auxiliar 1",          pool:"PERSONAL_OBVAN_AUX"},
+      {key:"obvan_aux2",          label:"Auxiliar 2",          pool:"PERSONAL_OBVAN_AUX"},
     ]},
   { id:"skycam",  label:"4SkyCam",         icon:"🚁", cams:["SKYCAM_4"],
     roles:[{key:"skycam_piloto",label:"Piloto",pool:"OP_SKYCAM"},{key:"skycam_operador",label:"Operador",pool:"OP_SKYCAM"},{key:"skycam_auxiliar",label:"Auxiliar",pool:"TEC_SKYCAM"}] },
