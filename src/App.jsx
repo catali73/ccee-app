@@ -614,8 +614,14 @@ export function generateInformePDF(informe) {
     ? `<h2>Horarios de jornada</h2><div class="grid">${schedRows.map(([k,v])=>cell(k,v)).join('')}</div>`
     : '';
 
-  const vehiculoHtml = informe.vehiculo_referencia
-    ? `<h2>Vehículo asignado</h2><div class="grid">${[['Referencia',informe.vehiculo_referencia],['Matrícula',informe.vehiculo_matricula||'—'],['Modelo',informe.vehiculo_modelo||'—']].map(([k,v])=>cell(k,v)).join('')}</div>`
+  const vehiculosArr = Array.isArray(informe.vehiculos) && informe.vehiculos.length > 0
+    ? informe.vehiculos
+    : informe.vehiculo_referencia ? [{referencia:informe.vehiculo_referencia,matricula:informe.vehiculo_matricula,modelo:informe.vehiculo_modelo}] : [];
+  const vehiculoHtml = vehiculosArr.length > 0
+    ? `<h2>Vehículos asignados (${vehiculosArr.length})</h2>
+       <table><thead><tr><th>Referencia</th><th>Matrícula</th><th>Modelo</th></tr></thead>
+       <tbody>${vehiculosArr.map(v=>`<tr><td>${v.referencia||'—'}</td><td>${v.matricula||'—'}</td><td>${v.modelo||'—'}</td></tr>`).join('')}</tbody>
+       </table>`
     : '';
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8">

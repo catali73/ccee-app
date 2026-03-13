@@ -510,7 +510,9 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
     return m;
   });
   const [assignedTo,setAssignedTo] = useState(initialData?.assigned_to?String(initialData.assigned_to):'');
-  const [vehiculoId,setVehiculoId] = useState(initialData?.vehiculo_id?String(initialData.vehiculo_id):'');
+  const [vehiculoIds,setVehiculoIds] = useState(
+    initialData?.vehiculos ? initialData.vehiculos.map(v=>String(v.id)) : []
+  );
   const [vehiculos,setVehiculos] = useState([]);
   const [usuarios,setUsuarios] = useState([]);
   const [saving,setSaving] = useState(false);
@@ -583,7 +585,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
     try {
       const res = await apiFetch(`/api/servicios/${servicioId}`, {
         method: 'PUT',
-        body: JSON.stringify({ match, selectedCams, cam_models: camModels, operators, assigned_to: parseInt(assignedTo), tipo_servicio: tipoServicio, vehiculo_id: vehiculoId?parseInt(vehiculoId):null })
+        body: JSON.stringify({ match, selectedCams, cam_models: camModels, operators, assigned_to: parseInt(assignedTo), tipo_servicio: tipoServicio, vehiculo_ids: vehiculoIds.map(Number) })
       });
       const data = await res.json();
       if (data.ok) setQuickSaved(true);
@@ -599,7 +601,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
       const method = isEdit ? 'PUT' : 'POST';
       const res = await apiFetch(url, {
         method,
-        body: JSON.stringify({ match, selectedCams, cam_models: camModels, operators, assigned_to: parseInt(assignedTo), tipo_servicio: tipoServicio, vehiculo_id: vehiculoId?parseInt(vehiculoId):null })
+        body: JSON.stringify({ match, selectedCams, cam_models: camModels, operators, assigned_to: parseInt(assignedTo), tipo_servicio: tipoServicio, vehiculo_ids: vehiculoIds.map(Number) })
       });
       const data = await res.json();
       if (data.ok) {
@@ -873,11 +875,31 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
 
           {vehiculos.length>0&&(
             <Card>
-              <SecTitle>Vehículo asignado <span style={{fontWeight:400,color:'#71717a'}}>(opcional)</span></SecTitle>
-              <Field label="Vehículo">
-                <Select value={vehiculoId} onChange={e=>setVehiculoId(e.target.value)}>
-                  <option value="">— Sin asignar —</option>
-                  {vehiculos.map(v=><option key={v.id} value={v.id}>{v.referencia} · {v.matricula} · {v.modelo}</option>)}
+              <SecTitle>Vehículos asignados <span style={{fontWeight:400,color:'#71717a'}}>(opcional · puede añadir varios)</span></SecTitle>
+              {vehiculoIds.length>0&&(
+                <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:10}}>
+                  {vehiculoIds.map(vid=>{
+                    const v=vehiculos.find(x=>String(x.id)===vid);
+                    if(!v) return null;
+                    return (
+                      <span key={vid} style={{display:'inline-flex',alignItems:'center',gap:5,background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:20,padding:'3px 10px 3px 12px',fontSize:12,color:'#1d4ed8',fontWeight:500}}>
+                        {v.referencia} · {v.matricula}
+                        <button onClick={()=>setVehiculoIds(p=>p.filter(x=>x!==vid))}
+                          style={{background:'none',border:'none',cursor:'pointer',color:'#93c5fd',fontSize:14,lineHeight:1,padding:0}}>✕</button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+              <Field label="Añadir vehículo">
+                <Select value="" onChange={e=>{
+                  const val=e.target.value;
+                  if(val&&!vehiculoIds.includes(val)) setVehiculoIds(p=>[...p,val]);
+                }}>
+                  <option value="">— Seleccionar vehículo —</option>
+                  {vehiculos.filter(v=>!vehiculoIds.includes(String(v.id))).map(v=>
+                    <option key={v.id} value={v.id}>{v.referencia} · {v.matricula} · {v.modelo}</option>
+                  )}
                 </Select>
               </Field>
             </Card>

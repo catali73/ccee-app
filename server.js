@@ -212,8 +212,95 @@ async function initDB() {
     END $$;
   `)
 
-  // Asignación de vehículo al servicio
+  // Asignación de vehículo al servicio (legacy — se mantiene para la migración)
   await pool.query(`ALTER TABLE servicios ADD COLUMN IF NOT EXISTS vehiculo_id INTEGER REFERENCES vehiculos(id)`)
+
+  // Tabla junction: múltiples vehículos por servicio
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS servicio_vehiculos (
+      servicio_id INTEGER REFERENCES servicios(id) ON DELETE CASCADE,
+      vehiculo_id INTEGER REFERENCES vehiculos(id) ON DELETE CASCADE,
+      PRIMARY KEY (servicio_id, vehiculo_id)
+    )`)
+
+  // Migración: copiar vehiculo_id → servicio_vehiculos y eliminar columna legacy
+  await pool.query(`
+    DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='servicios' AND column_name='vehiculo_id') THEN
+        INSERT INTO servicio_vehiculos (servicio_id, vehiculo_id)
+          SELECT id, vehiculo_id FROM servicios WHERE vehiculo_id IS NOT NULL
+          ON CONFLICT DO NOTHING;
+        ALTER TABLE servicios DROP COLUMN vehiculo_id;
+      END IF;
+    END $$;
+  `)
+
+  // Seed: importar 58 vehículos si la tabla está vacía
+  const seedChk = await pool.query('SELECT COUNT(*) FROM vehiculos')
+  if (parseInt(seedChk.rows[0].count) === 0) {
+    await pool.query(`
+      INSERT INTO vehiculos (referencia, matricula, modelo) VALUES
+      ('CCEE 03','3007 LHK','FORD TRANSIT'),
+      ('CCEE 04','6473 NGP','RENAULT TRAFIC'),
+      ('CCEE 05','1282 KZL','FORD TRANSIT'),
+      ('CCEE 07','8441 MJF','RENAULT TRAFIC'),
+      ('CCEE 08','2673 LJP','PEUGEOT 308'),
+      ('CCEE 10','2291 KDS','RENAULT MASTER'),
+      ('CCEE 11','2286 KDS','RENAULT MASTER'),
+      ('CCEE 12','9968 MKN',''),
+      ('CCEE 14','2477 LKN','FORD TRANSIT'),
+      ('CCEE 15','4096 MLJ','PEUGEOT EXPERT'),
+      ('PPV 16','2193 MJL','SKODA SCALA'),
+      ('PPV 17','2555 LKN','FORD TRANSIT'),
+      ('CCEE 18','4481 MFB','RENAULT EXPRESS'),
+      ('CCEE 19','2203 LZC','CITROEN BERLINGO'),
+      ('CCEE 20','1377 NFR','OPEL MOVANO'),
+      ('CCEE 22','5675 MDS','SKODA SCALA'),
+      ('CCEE 23','8494 MBX','SEAT LEON'),
+      ('CCEE 24','5678 MDS','SKODA SCALA'),
+      ('PPV 26','3981 MTY','RENAULT MEGANE'),
+      ('CCEE 28','8674 MLL','RENAULT MEGANE'),
+      ('CCEE 29','5679 MDS','SKODA SCALA'),
+      ('CCEE 30','6798 LBH','FORD TRANSIT'),
+      ('CCEE 31','6474 NGP','RENAULT TRAFIC'),
+      ('PPV 32','8959 LKZ','FORD TRANSIT'),
+      ('CCEE 33','6352 MCY','SKODA SCALA'),
+      ('CCEE 34','2314 MKL','SKODA SCALA'),
+      ('CCEE 35','6721 MKL','FIAT DOBLO'),
+      ('CCEE 36','6135 MLK','OPEL VIVARO'),
+      ('CCEE 37','4748 MSW','NISAN INTERSTAR'),
+      ('CCEE 38','2002 NFP','NISAN INTERSTAR'),
+      ('CCEE 39','1109 NFX','CITROEN JUMPY'),
+      ('CCEE 43','4724 MSW','RENAULT TRAFIC'),
+      ('44 FEM','1577 MBS','IVECO DAYLY'),
+      ('OB70','0756 DZG','RENAULT'),
+      ('APOYO OB70','6875 DKD','RENAULT'),
+      ('DRONE 01','1191-LXN','Renault Kangoo (Madrid)'),
+      ('DRONE 02','9988-FKF','Nissan Navara (Madrid)'),
+      ('DRONE 03','0337-KWK','Kia Niro (Madrid)'),
+      ('DRONE 04','1392-MHH','Hyundai Kona (Madrid)'),
+      ('DRONE 05','1394-MHH','Hyundai Kona (Madrid)'),
+      ('DRONE 06','0842-FND','Mercedes Sprinter E334 (Madrid)'),
+      ('DRONE 07','1819-FTY','Volkswagen Crafter E344 (Madrid)'),
+      ('DRONE 08','1194-MND','Mercedes Vito (Madrid)'),
+      ('DRONE 09','0465-MGW','Toyota Corolla (Madrid)'),
+      ('DRONE 10','4093-MJD','Toyota Corolla (Madrid)'),
+      ('DRONE 11','4098-MJD','Toyota Corolla (Madrid)'),
+      ('DRONE 12','4100-MJD','Toyota Corolla (Madrid)'),
+      ('DRONE 13','1411-LXS','Renault Kangoo (Bilbao)'),
+      ('DRONE 14','9357-CSD','Mercedes Vito E91 (Bilbao)'),
+      ('DRONE 15','1200-LXN','Renault Kangoo (Sevilla)'),
+      ('DRONE 16','0480-MCW','Toyota Corolla (Sevilla)'),
+      ('DRONE 17','8373-BGK','Mercedes Sprinter E78 (Santiago)'),
+      ('DRONE 18','4995-FGL','Volkswagen Crafter E302 (Santiago)'),
+      ('DRONE 19','2329-MKK','Peugeot Partner (Valencia)'),
+      ('DRONE 20','4099-MJD','Toyota Corolla (Valencia)'),
+      ('DRONE 21','1925-FKR','Volkswagen Caddy (Valencia)'),
+      ('DRONE 22','5245-GJP','Mercedes Vito E96 (Mallorca)'),
+      ('DRONE 23','1410-LXS','Renault Kangoo (Barcelona)')
+    `)
+  }
 
   // Teléfonos de contacto del equipo técnico
   await pool.query(`ALTER TABLE servicios ADD COLUMN IF NOT EXISTS tel_jefe_tecnico VARCHAR(50) DEFAULT ''`)
@@ -462,14 +549,14 @@ app.delete('/api/vehiculos/:id', requireAuth(['coordinador']), async (req, res) 
 // Crear servicio (coordinador: pasos 1-3 + asignación)
 app.post('/api/servicios', requireAuth(['coordinador']), async (req, res) => {
   try {
-    const { match, selectedCams, operators, assigned_to, tipo_servicio, cam_models, vehiculo_id } = req.body
+    const { match, selectedCams, operators, assigned_to, tipo_servicio, cam_models, vehiculo_ids } = req.body
     const r = await pool.query(`
       INSERT INTO servicios (
         tipo_servicio, jornada, encuentro, fecha, hora_partido, hora_citacion,
         responsable, um, jefe_tecnico, tel_jefe_tecnico, realizador, tel_realizador,
         productor, tel_productor, horario_md1,
-        operadores, camaras_activas, cam_models, assigned_to, created_by, vehiculo_id
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+        operadores, camaras_activas, cam_models, assigned_to, created_by
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
       RETURNING id
     `, [
       tipo_servicio,
@@ -480,15 +567,22 @@ app.post('/api/servicios', requireAuth(['coordinador']), async (req, res) => {
       match.productor, match.tel_productor||'', match.horario_md1,
       JSON.stringify(operators), JSON.stringify(selectedCams),
       JSON.stringify(cam_models || {}),
-      assigned_to, req.user.id, vehiculo_id || null
+      assigned_to, req.user.id
     ])
+    const serviceId = r.rows[0].id
+    const vids = Array.isArray(vehiculo_ids) ? vehiculo_ids : []
+    if (vids.length > 0) {
+      await Promise.all(vids.map(vid =>
+        pool.query('INSERT INTO servicio_vehiculos VALUES ($1,$2) ON CONFLICT DO NOTHING', [serviceId, vid])
+      ))
+    }
     // Guardar/actualizar directorio de personal técnico para reutilización futura
     await Promise.all([
       upsertPersonalTecnico('jefe_tecnico', match.jefe_tecnico, match.tel_jefe_tecnico),
       upsertPersonalTecnico('realizador',   match.realizador,   match.tel_realizador),
       upsertPersonalTecnico('productor',    match.productor,    match.tel_productor),
     ])
-    res.json({ ok: true, id: r.rows[0].id })
+    res.json({ ok: true, id: serviceId })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: err.message })
@@ -502,22 +596,28 @@ app.get('/api/servicios', requireAuth(), async (req, res) => {
     if (req.user.role === 'coordinador' || req.user.role === 'readonly') {
       query = `
         SELECT s.*, u.name as assigned_to_name, c.name as created_by_name,
-               v.referencia as vehiculo_referencia, v.matricula as vehiculo_matricula, v.modelo as vehiculo_modelo
+               COALESCE(json_agg(json_build_object('id',v.id,'referencia',v.referencia,'matricula',v.matricula,'modelo',v.modelo))
+                 FILTER (WHERE v.id IS NOT NULL), '[]') as vehiculos
         FROM servicios s
         LEFT JOIN users u ON s.assigned_to = u.id
         LEFT JOIN users c ON s.created_by = c.id
-        LEFT JOIN vehiculos v ON s.vehiculo_id = v.id
+        LEFT JOIN servicio_vehiculos sv ON sv.servicio_id = s.id
+        LEFT JOIN vehiculos v ON v.id = sv.vehiculo_id
+        GROUP BY s.id, u.name, c.name
         ORDER BY s.created_at DESC`
       params = []
     } else {
       query = `
         SELECT s.*, u.name as assigned_to_name, c.name as created_by_name,
-               v.referencia as vehiculo_referencia, v.matricula as vehiculo_matricula, v.modelo as vehiculo_modelo
+               COALESCE(json_agg(json_build_object('id',v.id,'referencia',v.referencia,'matricula',v.matricula,'modelo',v.modelo))
+                 FILTER (WHERE v.id IS NOT NULL), '[]') as vehiculos
         FROM servicios s
         LEFT JOIN users u ON s.assigned_to = u.id
         LEFT JOIN users c ON s.created_by = c.id
-        LEFT JOIN vehiculos v ON s.vehiculo_id = v.id
+        LEFT JOIN servicio_vehiculos sv ON sv.servicio_id = s.id
+        LEFT JOIN vehiculos v ON v.id = sv.vehiculo_id
         WHERE s.assigned_to = $1
+        GROUP BY s.id, u.name, c.name
         ORDER BY s.created_at DESC`
       params = [req.user.id]
     }
@@ -533,12 +633,15 @@ app.get('/api/servicios/:id', requireAuth(), async (req, res) => {
   try {
     const r = await pool.query(`
       SELECT s.*, u.name as assigned_to_name, c.name as created_by_name,
-             v.referencia as vehiculo_referencia, v.matricula as vehiculo_matricula, v.modelo as vehiculo_modelo
+             COALESCE(json_agg(json_build_object('id',v.id,'referencia',v.referencia,'matricula',v.matricula,'modelo',v.modelo))
+               FILTER (WHERE v.id IS NOT NULL), '[]') as vehiculos
       FROM servicios s
       LEFT JOIN users u ON s.assigned_to = u.id
       LEFT JOIN users c ON s.created_by = c.id
-      LEFT JOIN vehiculos v ON s.vehiculo_id = v.id
+      LEFT JOIN servicio_vehiculos sv ON sv.servicio_id = s.id
+      LEFT JOIN vehiculos v ON v.id = sv.vehiculo_id
       WHERE s.id = $1
+      GROUP BY s.id, u.name, c.name
     `, [req.params.id])
     if (r.rows.length === 0) return res.status(404).json({ error: 'No encontrado' })
     const servicio = r.rows[0]
@@ -556,15 +659,20 @@ app.get('/api/servicios/:id', requireAuth(), async (req, res) => {
 app.get('/api/servicios/:id/hoja-pdf', requireAuth(), async (req, res) => {
   try {
     const r = await pool.query(`
-      SELECT s.*, u.name as assigned_to_name,
-             v.referencia as vehiculo_referencia, v.matricula as vehiculo_matricula, v.modelo as vehiculo_modelo
+      SELECT s.*, u.name as assigned_to_name
       FROM servicios s
       LEFT JOIN users u ON s.assigned_to = u.id
-      LEFT JOIN vehiculos v ON s.vehiculo_id = v.id
       WHERE s.id = $1
     `, [req.params.id])
     if (r.rows.length === 0) return res.status(404).json({ error: 'No encontrado' })
     const sv = r.rows[0]
+    const vr = await pool.query(`
+      SELECT v.referencia, v.matricula, v.modelo
+      FROM servicio_vehiculos sv JOIN vehiculos v ON v.id = sv.vehiculo_id
+      WHERE sv.servicio_id = $1
+      ORDER BY v.referencia ASC
+    `, [req.params.id])
+    const vehiculosData = vr.rows
     if (req.user.role === 'usuario' && sv.assigned_to !== req.user.id) {
       return res.status(403).json({ error: 'Sin permisos' })
     }
@@ -674,14 +782,16 @@ app.get('/api/servicios/:id/hoja-pdf', requireAuth(), async (req, res) => {
       ['Productor', sv.productor], ['Teléfono', sv.tel_productor || '—'], ['', ''],
     ])
 
-    // ── VEHÍCULO ──
-    if (sv.vehiculo_referencia) {
-      sec('Vehículo asignado')
-      grid([
-        ['Referencia', sv.vehiculo_referencia],
-        ['Matrícula',  sv.vehiculo_matricula],
-        ['Modelo',     sv.vehiculo_modelo],
-      ])
+    // ── VEHÍCULOS ──
+    if (vehiculosData.length > 0) {
+      sec(`Vehículos asignados (${vehiculosData.length})`)
+      for (const v of vehiculosData) {
+        grid([
+          ['Referencia', v.referencia],
+          ['Matrícula',  v.matricula],
+          ['Modelo',     v.modelo || '—'],
+        ])
+      }
     }
 
     // ── CÁMARAS Y MODELOS ──
@@ -844,15 +954,15 @@ app.get('/api/informes/:id', requireAuth(), async (req, res) => {
 // Actualizar servicio (coordinador)
 app.put('/api/servicios/:id', requireAuth(['coordinador']), async (req, res) => {
   try {
-    const { match, selectedCams, operators, assigned_to, tipo_servicio, cam_models, vehiculo_id } = req.body
+    const { match, selectedCams, operators, assigned_to, tipo_servicio, cam_models, vehiculo_ids } = req.body
     await pool.query(`
       UPDATE servicios SET
         tipo_servicio=$1, jornada=$2, encuentro=$3, fecha=$4, hora_partido=$5,
         hora_citacion=$6, responsable=$7, um=$8, jefe_tecnico=$9, tel_jefe_tecnico=$10,
         realizador=$11, tel_realizador=$12, productor=$13, tel_productor=$14,
         horario_md1=$15, operadores=$16, camaras_activas=$17,
-        cam_models=$18, assigned_to=$19, vehiculo_id=$20
-      WHERE id=$21
+        cam_models=$18, assigned_to=$19
+      WHERE id=$20
     `, [
       tipo_servicio,
       match.jornada, match.encuentro, match.fecha || null,
@@ -862,8 +972,16 @@ app.put('/api/servicios/:id', requireAuth(['coordinador']), async (req, res) => 
       match.productor, match.tel_productor||'', match.horario_md1,
       JSON.stringify(operators), JSON.stringify(selectedCams),
       JSON.stringify(cam_models || {}),
-      assigned_to, vehiculo_id || null, req.params.id
+      assigned_to, req.params.id
     ])
+    // Reemplazar vehículos asignados
+    const vids = Array.isArray(vehiculo_ids) ? vehiculo_ids : []
+    await pool.query('DELETE FROM servicio_vehiculos WHERE servicio_id=$1', [req.params.id])
+    if (vids.length > 0) {
+      await Promise.all(vids.map(vid =>
+        pool.query('INSERT INTO servicio_vehiculos VALUES ($1,$2) ON CONFLICT DO NOTHING', [req.params.id, vid])
+      ))
+    }
     // Actualizar directorio de personal técnico
     await Promise.all([
       upsertPersonalTecnico('jefe_tecnico', match.jefe_tecnico, match.tel_jefe_tecnico),
@@ -980,11 +1098,14 @@ app.get('/api/analisis', requireAuth(['coordinador']), async (req, res) => {
   try {
     const r = await pool.query(`
       SELECT i.*, u.name as submitted_by_name, s.cam_models, s.tipo_servicio,
-             v.referencia as vehiculo_referencia, v.matricula as vehiculo_matricula, v.modelo as vehiculo_modelo
+             COALESCE((
+               SELECT json_agg(json_build_object('referencia',v.referencia,'matricula',v.matricula,'modelo',v.modelo))
+               FROM servicio_vehiculos sv2 JOIN vehiculos v ON v.id=sv2.vehiculo_id
+               WHERE sv2.servicio_id=s.id
+             ), '[]') as vehiculos
       FROM informes i
       LEFT JOIN users u ON u.id = i.submitted_by
       LEFT JOIN servicios s ON s.id = i.servicio_id
-      LEFT JOIN vehiculos v ON v.id = s.vehiculo_id
       WHERE i.status = 'enviado'
       ORDER BY i.jornada ASC, i.created_at ASC
     `)
