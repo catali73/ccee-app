@@ -1425,73 +1425,47 @@ app.post('/api/analisis/export', requireAuth(['coordinador']), async (req, res) 
   }
 })
 
-// ── EXPORTAR INCIDENCIAS (formato estilo plantilla por jornada) ─────────────
-app.get('/api/export/incidencias', requireAuth(['coordinador', 'readonly']), async (req, res) => {
+// ── EXPORTAR INCIDENCIAS ─────────────────────────────────────────────────────
+app.post('/api/export/incidencias', requireAuth(['coordinador', 'readonly']), async (req, res) => {
   try {
-    const r = await pool.query(`
-      SELECT i.*, s.cam_models
-      FROM informes i
-      LEFT JOIN servicios s ON s.id = i.servicio_id
-      WHERE i.status = 'enviado'
-      ORDER BY i.jornada ASC, i.fecha ASC, i.encuentro ASC
-    `)
-    const informes = r.rows
+    const { ids } = req.body
+    let query, params = []
+    if (ids && ids.length > 0) {
+      const ph = ids.map((_, i) => `$${i + 1}`).join(',')
+      query = `SELECT * FROM informes WHERE id IN (${ph}) AND status='enviado' ORDER BY jornada ASC, fecha ASC`
+      params = ids
+    } else {
+      query = `SELECT * FROM informes WHERE status='enviado' ORDER BY jornada ASC, fecha ASC`
+    }
+    const r = await pool.query(query, params)
 
-    // Build incident text for one informe
-    function buildIncidencias(inf) {
+    const data = r.rows.map(inf => {
       const camData = inf.cam_data || {}
-      const camarasActivas = inf.camaras_activas || {}
-      const lines = []
+      const camAct  = inf.camaras_activas || {}
+      const lines   = []
       for (const camId of CAMERA_ORDER) {
-        if (!camarasActivas[camId]) continue
-        const cam = camData[camId] || {}
-        const items = cam.items || {}
-        const koItems = Object.entries(items)
+        if (!camAct[camId]) continue
+        const cam     = camData[camId] || {}
+        const koItems = Object.entries(cam.items || {})
           .filter(([, v]) => v === 'G' || v === 'L')
-          .map(([k, v]) => `${k} (${v === 'G' ? 'G' : 'L'})`)
-        if (koItems.length > 0) {
-          lines.push(`${CAMERA_LABELS[camId] || camId}: ${koItems.join(' · ')}`)
-        }
-        if (cam.incidencias) lines.push(`  ${cam.incidencias}`)
+          .map(([k, v]) => `${k}(${v})`)
+        if (koItems.length) lines.push(`${CAMERA_LABELS[camId] || camId}: ${koItems.join(', ')}`)
+        if (cam.incidencias) lines.push(cam.incidencias)
       }
-      if ((inf.logistica || {}).incidencias) lines.push(`Logística: ${inf.logistica.incidencias}`)
-      return lines.length > 0 ? lines.join('\n') : 'SIN INCIDENCIAS'
-    }
+      if ((inf.logistica || {}).incidencias) lines.push(`Log: ${inf.logistica.incidencias}`)
+      const parts = (inf.encuentro || ' vs ').split(' vs ')
+      return {
+        'Jornada':     inf.jornada || '',
+        'Fecha':       inf.fecha ? new Date(inf.fecha).toLocaleDateString('es-ES') : '',
+        'KO':          inf.hora_partido || '',
+        'Local':       (parts[0] || '').trim().toUpperCase(),
+        'Visitante':   (parts[1] || '').trim().toUpperCase(),
+        'Incidencias': lines.length ? lines.join(' | ') : 'SIN INCIDENCIAS',
+      }
+    })
 
-    // Group by jornada
-    const byJornada = {}
-    for (const inf of informes) {
-      const key = inf.jornada || 'Sin jornada'
-      if (!byJornada[key]) byJornada[key] = []
-      byJornada[key].push(inf)
-    }
-
-    // Use exactly the same json_to_sheet pattern as the working analisis export
     const wb = XLSX.utils.book_new()
-
-    if (Object.keys(byJornada).length === 0) {
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{ Info: 'Sin informes enviados' }]), 'Sin datos')
-    }
-
-    for (const [jornada, rows] of Object.entries(byJornada)) {
-      const sheetName = String(jornada).slice(0, 31)
-      const data = rows.map(inf => {
-        const fecha = inf.fecha ? new Date(inf.fecha).toLocaleDateString('es-ES') : ''
-        const ko    = inf.hora_partido || ''
-        const parts = (inf.encuentro || ' vs ').split(' vs ')
-        const local     = (parts[0] || '').trim().toUpperCase()
-        const visitante = (parts[1] || '').trim().toUpperCase()
-        return {
-          'FECHA EVENTO': fecha,
-          'KO':           ko,
-          'LOCAL':        local,
-          'VISITANTE':    visitante,
-          'INCIDENCIAS':  buildIncidencias(inf),
-        }
-      })
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), sheetName)
-    }
-
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.length ? data : [{ Info: 'Sin datos' }]), 'Incidencias')
     const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
     res.setHeader('Content-Disposition', 'attachment; filename="incidencias-ccee.xlsx"')
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')

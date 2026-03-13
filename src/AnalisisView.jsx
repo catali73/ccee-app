@@ -442,7 +442,8 @@ export default function AnalisisView() {
   const exportIncidencias = async () => {
     setExportingInc(true);
     try {
-      const res = await apiFetch('/api/export/incidencias');
+      const ids = filtered.map(i => i.id);
+      const res = await apiFetch('/api/export/incidencias', { method:'POST', body:JSON.stringify({ids}) });
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || res.statusText); }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
