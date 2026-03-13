@@ -324,6 +324,98 @@ async function initDB() {
     )
   `)
 
+  // Pool de operadores por especialidad
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS operadores_pool (
+      id     SERIAL PRIMARY KEY,
+      pool   VARCHAR(60) NOT NULL,
+      nombre VARCHAR(200) NOT NULL,
+      activo BOOLEAN NOT NULL DEFAULT true,
+      UNIQUE(pool, nombre)
+    )
+  `)
+
+  // Modelos de cámara/equipo por tipo
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS modelos_camara (
+      id     SERIAL PRIMARY KEY,
+      tipo   VARCHAR(60) NOT NULL,
+      modelo VARCHAR(200) NOT NULL,
+      activo BOOLEAN NOT NULL DEFAULT true,
+      UNIQUE(tipo, modelo)
+    )
+  `)
+
+  // Seed operadores_pool (idempotente)
+  try {
+    const OPERADORES_SEED = {
+      RESP_CCEE:          ["CELEDONIO GARCIA RAUSELL","DANIEL MURILLO PERALES","ISMAEL BARROSO FERNÁNDEZ","JOAQUIN QUINTO ANTON","JUAN MARÍN GÓMEZ","PASCUAL LOPEZ MONTOYA"],
+      OP_SKYCAM:          ["ADRIÁN ZAPAIA FERNÁNDEZ","AFONSO GAMBOA DE COAMPOS","AURELIO ROMERO MARTINEZ","CESAR PASTOR PEREZ","CESAR SALA PONT","CLAUDIO GONZALEZ CASTELAO","DANIEL MUÑOZ TOMAS","DAVID DIAZ MARTINEZ","DOMINGO BELLIDO VERDOY","FRANCISCO RODRIGUEZ-TRELLES","HUMBERTO TORREALBA ORTEGANO","JOSE FERRER BARGUES","LUIS PASCUAL MENDOZA","NICOLAS FORES OZEKI","RUBEN MONTEIRO ORTET","SERGIO CABEDO MOLTO","VICTOR FERRANDIZ MANGLANO"],
+      TEC_SKYCAM:         ["ALEJANDRO LLORENS SANZ","DAVID VAZQUEZ TORNERO","JORGE PASCUAL RIVEIRA","JUAN CARLOS VAZQUEZ TORNERO","LAURA MUÑOZ CUEVAS","MANEL MAZCUÑAN TARREGA","MARCOS SANCHEZ MARTI","SERGIO TORRES SANTIAGO","VICENTE GOMEZ AGUT"],
+      TEC_AR:             ["CLARA BRONSTEN","DANIEL LOZANO ROSALES","DAVID ARRIBAS","DIDAC GARCÍA PÉREZ","EDUARD GISPERT","ENRIC LÓPEZ MATAS","JOAN ROCA FONT","JOAO MARTINS BASTOS","MIGUEL GALINDO","MIGUEL GÓMEZ","PEDRO GARCÍA SÁNCHEZ","ROGER FOLCH ALCARAZ"],
+      STEADYCAM:          ["ALBANO SÁNCHEZ GRACIA","ANGEL NAVARRO LATORRE","BORJA SANCHEZ JORGE","CURT OSWALD SCHALER","EDUARDO MATO MATA","FERNANDO RODRIGO CANO","JAVIER ALFONSO BARTOLOZZI","JAVIER NAVALON APARICIO","MANUEL RODRÍGUEZ GIRONA","MANUEL TOMAS GARCIA","ÁNGEL GODAY RODRÍGUEZ"],
+      TEC_RF:             ["ALBERTO MOLINA HIDALGO","CARLOS CALVO GUTES","DAMIAN VAZQUEZ PARRILLA","DAVID SOLIS RICA","ERNESTO PRIMO BOSCH","HECTOR RODRIGUEZ ESPAÑA","JAVIER RICO GUERRERO","JONATAN GONZÁLEZ RODRÍGUEZ","JOSÉ CARLOS CRUZ GIGANTE","JUAN MIGUEL MARTÍN-CAMACHO SÁNCHEZ","JULIA DOMENECH BONET","MANUEL CRESPO LOPEZ","MARCOS ANDRÉ TEIXEIRA LANDEIROTO","MARTÍ LAGO CASARES","PABLO ANDRÉS COCCIOLO","RAFAEL GALVAÑ GINER","RAÚL MORGADO PULIDO","SANTIAGO LABOREL PICOS","SERGIO NAVARRO CERVANTES","SERVANDO AGUILAR BERMÚDEZ","XAVIER SEGURA RODRÍGUEZ"],
+      POLECAM:            ["ADRIÁN ZAPAIA FERNÁNDEZ","ANGEL MOLINA FERRER","ATILANO CANO OLIVER","FRANCISCO TORREBEJANO VALDERAS","IZARNE VILLAVERDE ARRANZ","JAVIER ARANDA GARCÍA"],
+      FOQUISTA:           ["ADRIAN SEGUI SEGUI","FEDERICO TAUS QUINTANA","HÉCTOR ACEITUNO COBREROS","IZARNE VILLAVERDE ARRANZ","JAUME VERDÚ FRANCÉS","JESÚS RONQUILLO VIEDMA","LUCIA GONZALEZ MORENO","MAX PONCE PONS","SAMUEL ROBLES ARIZA","SANTIAGO CAPILLA CUENCA","VÍCTOR RODRÍGUEZ SÁNCHEZ"],
+      DRONE_PILOTO:       ["ANTONIO HARDCASTLE BONED","GONZALO RUIZ GARCÍA","HUGO KUKLA NUÑEZ","IVÁN FUENTES DEL AMO","JAVIER ANTELO SEOANE","JORGE CAPOTILLO CUADRADO","JOSÉ CLEMENTE LÁZARO ALEGRE","JOSÉ REULA SABORIT","JUAN CARLOS LEÓN GARCÍA","JULIO DANIEL BUENO GÓMEZ","MANUEL CAPDEQUI GARCíA","ORIOL TUBAU LOPEZ","RUBEN MARTÍN SANCHEZ"],
+      DRONE_TEC:          ["ADRIÁN GALLEGO JIMÉNEZ","AINHOA ARENAS ÁLVAREZ","ALBERTO DÍAZ FRANCO","ALEIX CONDE TOMÁS","ALEJANDRA NOGUEIRA REGÜELA","ALEJANDRO ARJONA RAMIREZ","ALEJANDRO LEÓN SERRANO","ANGEL LÓPEZ PAZOS","ARNALDO SÁEZ PIÑERA","CARLOS ALBERTO MEDORI BRISSIO","DANIEL MÍNGUEZ PERNAS","DAVID ALBERT MUÑIZ","DAVID MARTÍN TOUSET","EDISON JAVIER ESPINOZA ALBÁN","ELENA GÓMEZ DORADO","ESTEBAN TABAR GOMARRA","HÉCTOR SERNA MENA","JESÚS GONZÁLEZ SARRIÁ","JOSE DAVID GAMALLO MOUTEIRA","JOSE LUIS VALERO ALCALÁ","JUAN ANTONIO VIDAL MACLAUCHLAN","JULIA DOMÉNECH BONET","LUCAS FERNÁNDEZ CANOSA","MANUEL IGLESIAS MOSCONI","MARTÍ MORUNO HERNÁNDEZ","MIGUEL DÍAZ ÁLVAREZ","MIGUEL RODELLAR AGUILAR","NOELIA OSORIO FERNÁNDEZ","PIETRO CONTE","RAQUEL PÉREZ HIDALGO","RAÚL GALINDO MARTÍN","RICARDO RAMOS TORTAJADA","SANAA EL JAOUHARY EL KHALLAY","VÍCTOR POLO ANTÓN","ÓSCAR IGLESIAS GARAZO"],
+      BODYCAM:            ["DAVID VAZQUEZ LUNA","HECTOR RODRIGUEZ ESPAÑA"],
+      MINICAMS:           ["GORKA DAPIA FERNÁNDEZ","MARCOS SANCHEZ MARTI","MOHAMED TAJ BELHORMA"],
+      TEC_PTZ:            [],
+      OP_UHS:             [],
+      PERSONAL_OBVAN_JEFE:["CELEDONIO GARCIA RAUSELL","DANIEL MURILLO PERALES","DAVID SÁNCHEZ JARQUE","ISMAEL BARROSO FERNÁNDEZ","JOAQUIN QUINTO ANTON","JUAN MARÍN GÓMEZ","PASCUAL LOPEZ MONTOYA"],
+      PERSONAL_OBVAN_RESP:["GORKA DAPIA FERNÁNDEZ","MOHAMED TAJ BELHORMA"],
+      PERSONAL_OBVAN_AUX: ["AARON PORCAR OLMO","AROA FERRER MARÍN","CARLOS NUÑEZ DIAZ","CRESEN ANGULO LÓPEZ","DANIEL GONZALEZ DORADO","DANIEL PABLOS DURBAY","DANIELE ADDEI","DAVID JIMÉNEZ SÁNCHEZ","ELIA MURILLO VAÑÓ","FABRIZIO OLSO GONZALEZ","GERARD CASALS PÉREZ","HÉCTOR BELLES BELTRÁN","ISMAEL SANTAMARIA FERNANDEZ","JAIME MARTINEZ ATIENZA","JOHN NTUI MARTIN","JOSÉ CARLOS PÉREZ GAGO","JOSÉ CARLOS PÉREZ PÉREZ","JOSÉ SANTIAGO GONZÁLEZ MARTÍNEZ","JUAN JOSÉ RODRÍGUEZ PALOMEQUE","KESTON JASON PHILLIPS MENEZO","LUIS RAMÓN FERREIRO VARELA","MARIO DEL REINO MUÑOZ","MIRANDA MARTÍNEZ FRANCOS","NAROA SEVILLANO SÁEZ","NIL FUENTES MERIN","NOE NOUH BERBEL EL FELK","ROBERTO ARANDA GARCÍA","SANTIAGO GARCÍA CUTILLAS","SANTIAGO MAYOL RUIZ","SERGIO ORTOLA GONZÁLEZ","SERGIO TORRES SANTIAGO"],
+    }
+    const existOps = await pool.query('SELECT pool, nombre FROM operadores_pool')
+    const existOpsSet = new Set(existOps.rows.map(r => `${r.pool}::${r.nombre}`))
+    const opRows = []
+    for (const [poolKey, nombres] of Object.entries(OPERADORES_SEED)) {
+      for (const nombre of nombres) {
+        if (!existOpsSet.has(`${poolKey}::${nombre}`)) opRows.push([poolKey, nombre])
+      }
+    }
+    if (opRows.length > 0) {
+      const ph = opRows.map((_, i) => `($${i*2+1},$${i*2+2})`).join(',')
+      await pool.query(`INSERT INTO operadores_pool (pool, nombre) VALUES ${ph} ON CONFLICT DO NOTHING`, opRows.flat())
+      console.log(`✓ Seed: ${opRows.length} operadores importados`)
+    }
+  } catch (e) { console.error('⚠ Seed operadores_pool falló:', e.message) }
+
+  // Seed modelos_camara (idempotente)
+  try {
+    const MODELOS_SEED = {
+      OBVAN:    ["CE10","CE11","70","RACK A","RACK B"],
+      SKYCAM:   ["A 4K AR","B 1080P","C 1080P","D 1080P","E 1080P","F 4K AR","G 4K AR","H 4K AR"],
+      UHS_CAM:  ["No3 FOR-A HS","No4 FOR-A HS","No5 FOR-A HS","No6 FOR-A HS","No7 FOR-A HS"],
+      UHS_OPT:  ["No3 FUJI 107x","No4 FUJI 107x","No5 FUJI 107x","No6 FUJI 107x","No7 FUJI 107x"],
+      STEADY:   ["ARRI","SHADOW","ULTRA","SSM1","SSM2","SSM3","PRO","M1","MASTER"],
+      RF:       ["RF2 3GHZ 12G - 4K DIV.8","RF3 3GHZ 12G - 4K DIV.8","RF4 3GHZ 12G DIV.8","RF5 7GHZ 12G DIV.8","RF6 7GHZ 12G DIV.8","RF8","RF9","RF10","RF11","RF12","RF7-RF13","RF14","RF15 2GHZ","RF16","RF17 SVP","RF18 SVP","RF 19","RF 20 3GHZ/7GHZ 12G","RF 21 3GHZ/7GHZ 12G","RF 22 3GHZ/7GHZ - 12G 4K","RF 23","RF 24","RF 25 1GHZ/7GHZ - 12G 4K","RF 26 OVERON 1G DRON DIV.2","RF 27 OVERON RX4 1G DIV.2","RF 28 OVERON RX8 1G DIV.2","RF1 OVERON","RF2 OVERON","RF3 OVERON"],
+      CINEMA:   ["A KIT FOCO + RED","B KIT FOCO + RED","C KIT FOCO + RED","D KIT FOCO + RED","E KIT FOCO","F KIT FOCO"],
+      POLECAM:  ["No1","No2 MADRID","No3 BARCELONA","No4","No5","No6 CE 10","No7","No8 CE 11","No15"],
+      POL_GIM:  ["No1","No2","No3","No4","No5","No6","No7 MAD","No8 CE 11","No9 CE 10","No10 BAR","No11"],
+      POL_MINI: ["No1 ANTELOPE","No2 ANTELOPE","No3 ANTELOPE","No4 ANTELOPE","No5 ANTELOPE","No6 ANTELOPE","No7 ANTELOPE","No8 ANTELOPE"],
+      MINICAM:  ["SIN CAM MINI 1,5G ROJA","12 NVP MINI 3G VERDE","13 NVP MINI 3G VERDE","14 NVP MINI 3G VERDE","No46 NVP MINI 3G GRIS","No47 NVP MINI 3G GRIS","No3 23.1 MINI 3G AZUL","No4 23.2 MINI 3G AZUL","No5 33.11 BAR MINI 3G GRIS","No6 33.12 MINI 3G GRIS","No7 33.46 MINI 3G GRIS","No8 33.48 MINI 3G GRIS","No44 44.44 MINI 3G GRIS","No45 44.45 MINI 3G GRIS","MINI 3G CE 10 33.3","MINI 3G CE 10 33.4","MINI 3G CE 10 33.5","MINI 3G CE 11 33.2","MINI 3G CE 11 33.6","MINI 3G CE 11 33.8","No 46.36 VX5 MINI 3G VERDE","No 46.38 VX5 MINI 3G VERDE","No 45.5 MINI 3G GRIS","No 45.7 MINI 3G GRIS","48.23 MINI 12G NEGRO","48.27 MINI 12G NEGRO","48.28 MINI 12G NEGRO","48.29 MINI 12G NEGRO","48.30 MINI 12G NEGRO","48.31 MINI 12G NEGRO","48.32 MINI 12G NEGRO"],
+      MINI_RCP: ["No 1 RCP MINI 002 7085","No 2 RCP MINI 002 7010","No 3 BAR RCP MINI 002","No 4 RCP MINI 002","No 5 RCP MINI 002 7022","No 6 RCP MINI 002 7073","CE 10 RCP MINI 002","CE 11 RCP MINI 002","No 7 RCP MINI 003 7130","No 8 RCP MINI 003 7154i","No 9 RCP MINI 003 7165i","No10 RCP MINI 003 7167i","RCP MINI"],
+      BODYCAM:  ["BODYCAM N1","BODYCAM N2"],
+      PTZ:      ["N1 PTZ AW 150+CONTROL","N2 PTZ AW 150+CONTROL","N3 PTZ AW 150","N4 PTZ AW 150","N5 PTZ AW 150","No1 QBALL","No2 QBALL"],
+      PTZ_CTL:  ["N3 CONTROL PTZ","N4 CONTROL PTZ","QBALL CONTROL"],
+    }
+    const existMods = await pool.query('SELECT tipo, modelo FROM modelos_camara')
+    const existModsSet = new Set(existMods.rows.map(r => `${r.tipo}::${r.modelo}`))
+    const modRows = []
+    for (const [tipo, modelos] of Object.entries(MODELOS_SEED)) {
+      for (const modelo of modelos) {
+        if (!existModsSet.has(`${tipo}::${modelo}`)) modRows.push([tipo, modelo])
+      }
+    }
+    if (modRows.length > 0) {
+      const ph = modRows.map((_, i) => `($${i*2+1},$${i*2+2})`).join(',')
+      await pool.query(`INSERT INTO modelos_camara (tipo, modelo) VALUES ${ph} ON CONFLICT DO NOTHING`, modRows.flat())
+      console.log(`✓ Seed: ${modRows.length} modelos de cámara importados`)
+    }
+  } catch (e) { console.error('⚠ Seed modelos_camara falló:', e.message) }
+
   console.log('✓ Base de datos lista')
 
   // Bootstrap: crear coordinador inicial si no hay usuarios
@@ -545,6 +637,76 @@ app.put('/api/vehiculos/:id', requireAuth(['coordinador']), async (req, res) => 
 app.delete('/api/vehiculos/:id', requireAuth(['coordinador']), async (req, res) => {
   try {
     await pool.query('UPDATE vehiculos SET activo=false WHERE id=$1', [req.params.id])
+    res.json({ ok: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// ── OPERADORES POOL ROUTES ─────────────────────────────────
+
+app.get('/api/operadores-pool', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const r = await pool.query('SELECT id, pool, nombre FROM operadores_pool WHERE activo=true ORDER BY pool, nombre')
+    res.json(r.rows)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.post('/api/operadores-pool', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const { pool: poolKey, nombre } = req.body
+    const r = await pool.query(
+      'INSERT INTO operadores_pool (pool, nombre) VALUES ($1, $2) ON CONFLICT (pool, nombre) DO UPDATE SET activo=true RETURNING id',
+      [poolKey, nombre.trim()]
+    )
+    res.json({ ok: true, id: r.rows[0].id })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.put('/api/operadores-pool/:id', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const { nombre } = req.body
+    await pool.query('UPDATE operadores_pool SET nombre=$1 WHERE id=$2', [nombre.trim(), req.params.id])
+    res.json({ ok: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.delete('/api/operadores-pool/:id', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    await pool.query('UPDATE operadores_pool SET activo=false WHERE id=$1', [req.params.id])
+    res.json({ ok: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// ── MODELOS CÁMARA ROUTES ──────────────────────────────────
+
+app.get('/api/modelos-camara', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const r = await pool.query('SELECT id, tipo, modelo FROM modelos_camara WHERE activo=true ORDER BY tipo, modelo')
+    res.json(r.rows)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.post('/api/modelos-camara', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const { tipo, modelo } = req.body
+    const r = await pool.query(
+      'INSERT INTO modelos_camara (tipo, modelo) VALUES ($1, $2) ON CONFLICT (tipo, modelo) DO UPDATE SET activo=true RETURNING id',
+      [tipo, modelo.trim()]
+    )
+    res.json({ ok: true, id: r.rows[0].id })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.put('/api/modelos-camara/:id', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const { modelo } = req.body
+    await pool.query('UPDATE modelos_camara SET modelo=$1 WHERE id=$2', [modelo.trim(), req.params.id])
+    res.json({ ok: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.delete('/api/modelos-camara/:id', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    await pool.query('UPDATE modelos_camara SET activo=false WHERE id=$1', [req.params.id])
     res.json({ ok: true })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })

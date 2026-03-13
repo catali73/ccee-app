@@ -531,6 +531,8 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
 
   const [todosUsuarios,setTodosUsuarios] = useState([]);
   const [personalTecnico,setPersonalTecnico] = useState([]);
+  const [personalPools,setPersonalPools] = useState({});   // { POOL_KEY: ['Nombre',...] }
+  const [modelosCamara,setModelosCamara] = useState({});   // { TIPO_KEY: ['Modelo',...] }
   useEffect(()=>{
     apiFetch('/api/users').then(r=>r.json()).then(data=>{
       const activos = Array.isArray(data)?data.filter(u=>u.active):[];
@@ -542,6 +544,18 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
     }).catch(()=>{});
     apiFetch('/api/vehiculos').then(r=>r.json()).then(data=>{
       setVehiculos(Array.isArray(data)?data:[]);
+    }).catch(()=>{});
+    apiFetch('/api/operadores-pool').then(r=>r.json()).then(data=>{
+      if (!Array.isArray(data)) return;
+      const m={};
+      data.forEach(row=>{ if(!m[row.pool]) m[row.pool]=[]; m[row.pool].push(row.nombre); });
+      setPersonalPools(m);
+    }).catch(()=>{});
+    apiFetch('/api/modelos-camara').then(r=>r.json()).then(data=>{
+      if (!Array.isArray(data)) return;
+      const m={};
+      data.forEach(row=>{ if(!m[row.tipo]) m[row.tipo]=[]; m[row.tipo].push(row.modelo); });
+      setModelosCamara(m);
     }).catch(()=>{});
   },[]);
 
@@ -762,7 +776,8 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
                       <span style={{fontSize:13,fontWeight:500,minWidth:90}}>{cam.label}</span>
                       {cam.equipos.map(slot=>{
                         const selVal=camModels[id]?.[slot.key]||'';
-                        const opts=slot.models.filter(m=>m===selVal||!used.has(m));
+                        const slotModels=modelosCamara[slot.modelsKey]||slot.models||[];
+                        const opts=slotModels.filter(m=>m===selVal||!used.has(m));
                         return (
                           <div key={slot.key} style={{display:'flex',alignItems:'center',gap:5,flex:'1 1 160px'}}>
                             <Label style={{marginBottom:0,whiteSpace:'nowrap',minWidth:40,fontSize:11,color:'#7A7168'}}>{slot.label}</Label>
@@ -829,7 +844,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
                               }}>
                                 <option value="">— Sin asignar —</option>
                                 <option value="__nuevo__">✨ Nuevo operador...</option>
-                                {(PERSONAL[role.pool]||[]).map(p=><option key={p} value={p}>{p}</option>)}
+                                {(personalPools[role.pool]||PERSONAL[role.pool]||[]).map(p=><option key={p} value={p}>{p}</option>)}
                               </Select>
                             )}
                           </Field>
@@ -1330,12 +1345,174 @@ function PersonalTecnicoSection() {
   );
 }
 
+/* ── POOL LABELS ───────────────────────────────────────────── */
+const POOL_LABELS = {
+  RESP_CCEE:"Responsable CCEE", OP_SKYCAM:"Operador SkyCam", TEC_SKYCAM:"Técnico SkyCam",
+  TEC_AR:"Técnico AR", STEADYCAM:"Steadycam", TEC_RF:"Técnico RF", POLECAM:"Polecam",
+  FOQUISTA:"Foquista / Cinema", DRONE_PILOTO:"Piloto Drone", DRONE_TEC:"Técnico Drone",
+  BODYCAM:"Bodycam", MINICAMS:"Minicams", TEC_PTZ:"PTZ", OP_UHS:"Cámara UHS",
+  PERSONAL_OBVAN_JEFE:"Jefe Técnico OBVAN", PERSONAL_OBVAN_RESP:"Responsable Montaje OBVAN",
+  PERSONAL_OBVAN_AUX:"Auxiliar OBVAN",
+};
+
+const MODELOS_LABELS = {
+  OBVAN:"OBVAN", SKYCAM:"4SkyCam", UHS_CAM:"Cámara UHS", UHS_OPT:"Óptica UHS",
+  STEADY:"Steadycam", RF:"RF", CINEMA:"Cinema", POLECAM:"Polecam",
+  POL_GIM:"Gimbal Polecam", POL_MINI:"Mini Gimbal Polecam",
+  MINICAM:"Minicámara", MINI_RCP:"RCP Minicámara", BODYCAM:"Bodycam",
+  PTZ:"PTZ", PTZ_CTL:"Control PTZ",
+};
+
+/* ── OPERADORES SECTION ─────────────────────────────────────── */
+function OperadoresSection() {
+  const [rows,setRows] = useState([]);           // [{id,pool,nombre}]
+  const [pool,setPool] = useState('RESP_CCEE');
+  const [editId,setEditId] = useState(null);
+  const [editVal,setEditVal] = useState('');
+  const [newVal,setNewVal] = useState('');
+  const [saving,setSaving] = useState(false);
+
+  const load = useCallback(()=>
+    apiFetch('/api/operadores-pool').then(r=>r.json()).then(d=>{ if(Array.isArray(d)) setRows(d); }).catch(()=>{})
+  ,[]);
+  useEffect(()=>{ load(); },[load]);
+
+  const poolRows = rows.filter(r=>r.pool===pool);
+  const counts   = Object.fromEntries(Object.keys(POOL_LABELS).map(k=>[k, rows.filter(r=>r.pool===k).length]));
+
+  const add = async () => {
+    const nombre = newVal.trim(); if(!nombre) return;
+    setSaving(true);
+    await apiFetch('/api/operadores-pool',{method:'POST',body:JSON.stringify({pool,nombre})}).catch(()=>{});
+    setNewVal(''); await load(); setSaving(false);
+  };
+  const save = async (id) => {
+    const nombre = editVal.trim(); if(!nombre) return;
+    setSaving(true);
+    await apiFetch(`/api/operadores-pool/${id}`,{method:'PUT',body:JSON.stringify({nombre})}).catch(()=>{});
+    setEditId(null); await load(); setSaving(false);
+  };
+  const del = async (id) => {
+    if(!confirm('¿Eliminar este operador?')) return;
+    await apiFetch(`/api/operadores-pool/${id}`,{method:'DELETE'}).catch(()=>{});
+    await load();
+  };
+
+  return (
+    <Card style={{marginBottom:16}}>
+      <SecTitle>Operadores · base de datos</SecTitle>
+      <Field label="Especialidad">
+        <Select value={pool} onChange={e=>{setPool(e.target.value);setEditId(null);}}>
+          {Object.entries(POOL_LABELS).map(([k,v])=>(
+            <option key={k} value={k}>{v}  ({counts[k]||0})</option>
+          ))}
+        </Select>
+      </Field>
+      <div style={{marginTop:14,display:'flex',flexDirection:'column',gap:6}}>
+        {poolRows.length===0&&<div style={{fontSize:12,color:'#7A7168',padding:'8px 0'}}>No hay operadores en esta especialidad.</div>}
+        {poolRows.map(item=> editId===item.id ? (
+          <div key={item.id} style={{display:'flex',gap:6,alignItems:'center'}}>
+            <Input value={editVal} onChange={e=>setEditVal(e.target.value)} style={{flex:1}} autoFocus
+              onKeyDown={e=>{if(e.key==='Enter')save(item.id);if(e.key==='Escape')setEditId(null);}} />
+            <BtnP onClick={()=>save(item.id)} disabled={saving} style={{height:32,padding:'0 12px',fontSize:12}}>✓</BtnP>
+            <BtnO onClick={()=>setEditId(null)} style={{height:32,padding:'0 10px',fontSize:12}}>✕</BtnO>
+          </div>
+        ) : (
+          <div key={item.id} style={{display:'flex',alignItems:'center',gap:8,padding:'7px 12px',background:'#F5F0EC',borderRadius:6,border:'1px solid #E8E2DC'}}>
+            <span style={{flex:1,fontSize:13}}>{item.nombre}</span>
+            <button onClick={()=>{setEditId(item.id);setEditVal(item.nombre);}} style={{padding:'2px 8px',border:'1px solid #E8E2DC',borderRadius:5,background:'#fff',cursor:'pointer',fontSize:11}}>✏️</button>
+            <button onClick={()=>del(item.id)} style={{padding:'2px 8px',border:'1px solid #fecaca',borderRadius:5,background:'#fef2f2',cursor:'pointer',fontSize:11,color:'#dc2626'}}>✕</button>
+          </div>
+        ))}
+      </div>
+      <div style={{marginTop:10,display:'flex',gap:8}}>
+        <Input value={newVal} onChange={e=>setNewVal(e.target.value)} placeholder="Nuevo nombre..." style={{flex:1}}
+          onKeyDown={e=>e.key==='Enter'&&add()} />
+        <BtnP onClick={add} disabled={saving||!newVal.trim()} style={{whiteSpace:'nowrap'}}>+ Añadir</BtnP>
+      </div>
+    </Card>
+  );
+}
+
+/* ── MODELOS SECTION ────────────────────────────────────────── */
+function ModelosSection() {
+  const [rows,setRows] = useState([]);           // [{id,tipo,modelo}]
+  const [tipo,setTipo] = useState('OBVAN');
+  const [editId,setEditId] = useState(null);
+  const [editVal,setEditVal] = useState('');
+  const [newVal,setNewVal] = useState('');
+  const [saving,setSaving] = useState(false);
+
+  const load = useCallback(()=>
+    apiFetch('/api/modelos-camara').then(r=>r.json()).then(d=>{ if(Array.isArray(d)) setRows(d); }).catch(()=>{})
+  ,[]);
+  useEffect(()=>{ load(); },[load]);
+
+  const tipoRows = rows.filter(r=>r.tipo===tipo);
+  const counts   = Object.fromEntries(Object.keys(MODELOS_LABELS).map(k=>[k, rows.filter(r=>r.tipo===k).length]));
+
+  const add = async () => {
+    const modelo = newVal.trim(); if(!modelo) return;
+    setSaving(true);
+    await apiFetch('/api/modelos-camara',{method:'POST',body:JSON.stringify({tipo,modelo})}).catch(()=>{});
+    setNewVal(''); await load(); setSaving(false);
+  };
+  const save = async (id) => {
+    const modelo = editVal.trim(); if(!modelo) return;
+    setSaving(true);
+    await apiFetch(`/api/modelos-camara/${id}`,{method:'PUT',body:JSON.stringify({modelo})}).catch(()=>{});
+    setEditId(null); await load(); setSaving(false);
+  };
+  const del = async (id) => {
+    if(!confirm('¿Eliminar este modelo?')) return;
+    await apiFetch(`/api/modelos-camara/${id}`,{method:'DELETE'}).catch(()=>{});
+    await load();
+  };
+
+  return (
+    <Card style={{marginBottom:16}}>
+      <SecTitle>Modelos de equipo · base de datos</SecTitle>
+      <Field label="Tipo de equipo">
+        <Select value={tipo} onChange={e=>{setTipo(e.target.value);setEditId(null);}}>
+          {Object.entries(MODELOS_LABELS).map(([k,v])=>(
+            <option key={k} value={k}>{v}  ({counts[k]||0})</option>
+          ))}
+        </Select>
+      </Field>
+      <div style={{marginTop:14,display:'flex',flexDirection:'column',gap:6}}>
+        {tipoRows.length===0&&<div style={{fontSize:12,color:'#7A7168',padding:'8px 0'}}>No hay modelos en este tipo.</div>}
+        {tipoRows.map(item=> editId===item.id ? (
+          <div key={item.id} style={{display:'flex',gap:6,alignItems:'center'}}>
+            <Input value={editVal} onChange={e=>setEditVal(e.target.value)} style={{flex:1}} autoFocus
+              onKeyDown={e=>{if(e.key==='Enter')save(item.id);if(e.key==='Escape')setEditId(null);}} />
+            <BtnP onClick={()=>save(item.id)} disabled={saving} style={{height:32,padding:'0 12px',fontSize:12}}>✓</BtnP>
+            <BtnO onClick={()=>setEditId(null)} style={{height:32,padding:'0 10px',fontSize:12}}>✕</BtnO>
+          </div>
+        ) : (
+          <div key={item.id} style={{display:'flex',alignItems:'center',gap:8,padding:'7px 12px',background:'#F5F0EC',borderRadius:6,border:'1px solid #E8E2DC'}}>
+            <span style={{flex:1,fontSize:13,fontFamily:"'Courier New',monospace"}}>{item.modelo}</span>
+            <button onClick={()=>{setEditId(item.id);setEditVal(item.modelo);}} style={{padding:'2px 8px',border:'1px solid #E8E2DC',borderRadius:5,background:'#fff',cursor:'pointer',fontSize:11}}>✏️</button>
+            <button onClick={()=>del(item.id)} style={{padding:'2px 8px',border:'1px solid #fecaca',borderRadius:5,background:'#fef2f2',cursor:'pointer',fontSize:11,color:'#dc2626'}}>✕</button>
+          </div>
+        ))}
+      </div>
+      <div style={{marginTop:10,display:'flex',gap:8}}>
+        <Input value={newVal} onChange={e=>setNewVal(e.target.value)} placeholder="Nuevo modelo..." style={{flex:1}}
+          onKeyDown={e=>e.key==='Enter'&&add()} />
+        <BtnP onClick={add} disabled={saving||!newVal.trim()} style={{whiteSpace:'nowrap'}}>+ Añadir</BtnP>
+      </div>
+    </Card>
+  );
+}
+
 function BDView() {
   return (
     <div style={{maxWidth:900,margin:'0 auto',padding:'32px 20px'}}>
       <h2 style={{fontSize:20,fontWeight:600,margin:'0 0 24px'}}>Base de datos</h2>
       <PersonalTecnicoSection />
       <VehiculosSection />
+      <OperadoresSection />
+      <ModelosSection />
     </div>
   );
 }
