@@ -1466,14 +1466,6 @@ app.get('/api/export/incidencias', requireAuth(['coordinador', 'readonly']), asy
       byJornada[key].push(inf)
     }
 
-    // SheetJS cell helpers
-    const styleTitle = { font:{bold:true,sz:20,color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'2B75B4'},patternType:'solid'}, alignment:{horizontal:'center',vertical:'center'} }
-    const styleHeader = { font:{bold:true,sz:11}, fill:{fgColor:{rgb:'52C7D7'},patternType:'solid'}, alignment:{horizontal:'center',vertical:'center'} }
-    const styleCell   = { font:{sz:11}, alignment:{vertical:'top',wrapText:false} }
-    const styleCellW  = { font:{sz:11}, alignment:{vertical:'top',wrapText:true} }
-    const styleAlt    = { font:{sz:11}, fill:{fgColor:{rgb:'F2F2F2'},patternType:'solid'}, alignment:{vertical:'top',wrapText:false} }
-    const styleAltW   = { font:{sz:11}, fill:{fgColor:{rgb:'F2F2F2'},patternType:'solid'}, alignment:{vertical:'top',wrapText:true} }
-
     const wb = XLSX.utils.book_new()
 
     const jornadas = Object.keys(byJornada)
@@ -1514,32 +1506,10 @@ app.get('/api/export/incidencias', requireAuth(['coordinador', 'readonly']), asy
         return { hpt: Math.max(18, lines * 14) }
       })]
 
-      // Page setup: landscape A4
-      ws['!pageSetup'] = { orientation:'landscape', paperSize:9 }
-
-      // Apply cell styles
-      ws['A1'].s = styleTitle
-      const COLS = ['A','B','C','D','E']
-      COLS.forEach(col => {
-        const cell = ws[`${col}2`]
-        if (cell) cell.s = styleHeader
-      })
-      rows.forEach((_, rowIdx) => {
-        const r = rowIdx + 3 // 1-indexed, row 1=title, row 2=header
-        const isAlt = rowIdx % 2 === 1
-        COLS.forEach((col, ci) => {
-          const addr = `${col}${r}`
-          const cell = ws[addr]
-          if (!cell) return
-          if (ci === 4) cell.s = isAlt ? styleAltW : styleCellW
-          else          cell.s = isAlt ? styleAlt  : styleCell
-        })
-      })
-
       XLSX.utils.book_append_sheet(wb, ws, sheetName)
     }
 
-    const buf = XLSX.write(wb, { type:'buffer', bookType:'xlsx', cellStyles:true })
+    const buf = XLSX.write(wb, { type:'buffer', bookType:'xlsx' })
     res.setHeader('Content-Disposition', 'attachment; filename="incidencias-ccee.xlsx"')
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     res.send(buf)
