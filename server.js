@@ -1478,9 +1478,9 @@ app.get('/api/export/incidencias', requireAuth(['coordinador', 'readonly']), asy
       const rows = byJornada[jornada]
       const sheetName = String(jornada).slice(0, 31)
 
-      // Build AOA: row 0 = title, row 1 = headers, row 2+ = data
+      // Build AOA: row 0 = title (null = skip cell for merge), row 1 = headers, row 2+ = data
       const aoa = [
-        ['INFORMACIÓN INCIDENCIAS CCEE', '', '', '', ''],
+        ['INFORMACIÓN INCIDENCIAS CCEE', null, null, null, null],
         ['FECHA EVENTO', 'KO', 'LOCAL', 'VISITANTE', 'INCIDENCIAS'],
         ...rows.map(inf => {
           const fecha = inf.fecha ? new Date(inf.fecha).toLocaleDateString('es-ES') : ''
@@ -1499,12 +1499,6 @@ app.get('/api/export/incidencias', requireAuth(['coordinador', 'readonly']), asy
 
       // Column widths (chars)
       ws['!cols'] = [{ wch:16 }, { wch:10 }, { wch:24 }, { wch:24 }, { wch:70 }]
-
-      // Row heights (pts)
-      ws['!rows'] = [{ hpt:34 }, { hpt:20 }, ...rows.map(inf => {
-        const lines = buildIncidencias(inf).split('\n').length
-        return { hpt: Math.max(18, lines * 14) }
-      })]
 
       XLSX.utils.book_append_sheet(wb, ws, sheetName)
     }
