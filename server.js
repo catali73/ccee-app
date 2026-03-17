@@ -1517,85 +1517,77 @@ app.post('/api/export/incidencias-pdf', requireAuth(['coordinador', 'readonly'])
 
     const PW = doc.page.width   // 595.28
     const PH = doc.page.height  // 841.89
-    const M  = 45
+    const M  = 50
     const CW = PW - 2 * M
 
-    // ── Color palette ──
-    const C_BLUE   = '#2B75B4'
-    const C_CYAN   = '#52C7D7'
-    const C_DARK   = '#1a2a3a'
-    const C_GREY   = '#6b7280'
-    const C_LGREY  = '#f3f6f9'
-    const C_BORDER = '#d1dce8'
-    const C_RED    = '#dc2626'
-    const C_AMBER  = '#d97706'
-    const C_GREEN  = '#16a34a'
+    // ── Paleta monocromática profesional ──
+    const C_BLACK  = '#111111'
+    const C_DARK   = '#333333'
+    const C_MID    = '#666666'
+    const C_LIGHT  = '#999999'
+    const C_RULE   = '#cccccc'
+    const C_BG     = '#f5f5f5'
 
     const fmtD = (d) => d ? new Date(d).toLocaleDateString('es-ES') : '—'
 
     // ── FOOTER ──
     const drawFooter = (pageNum) => {
-      const fy = PH - 28
-      doc.rect(M, fy - 8, CW, 0.5).fill(C_BORDER)
-      doc.fontSize(7.5).font('Helvetica').fillColor(C_GREY)
-        .text('MEDIAPRO · Cámaras Especiales · Informe de Incidencias', M, fy, { width: CW * 0.6, lineBreak: false })
-      doc.fontSize(7.5).font('Helvetica').fillColor(C_GREY)
-        .text(`Pág. ${pageNum} · ${new Date().toLocaleString('es-ES')}`, M, fy, { width: CW, align: 'right', lineBreak: false })
+      const fy = PH - 32
+      doc.rect(M, fy, CW, 0.5).fill(C_RULE)
+      doc.fontSize(7).font('Helvetica').fillColor(C_LIGHT)
+        .text('MEDIAPRO · Cámaras Especiales · Informe de Incidencias', M, fy + 6, { width: CW * 0.6, lineBreak: false })
+      doc.fontSize(7).font('Helvetica').fillColor(C_LIGHT)
+        .text(`${new Date().toLocaleString('es-ES')}  ·  Pág. ${pageNum}`, M, fy + 6, { width: CW, align: 'right', lineBreak: false })
     }
 
     let pageNum = 1
     let y = M
 
-    // ── PAGE BREAK helper ──
     const checkBreak = (needed) => {
-      if (y + needed > PH - 50) {
+      if (y + needed > PH - 52) {
         drawFooter(pageNum++)
         doc.addPage()
         y = M
-        return true
       }
-      return false
     }
 
-    // ── HEADER ──
-    doc.rect(0, 0, PW, 70).fill(C_BLUE)
-    doc.fontSize(18).font('Helvetica-Bold').fillColor('#ffffff')
-      .text('INFORME DE INCIDENCIAS', M, 18, { width: CW - 120, lineBreak: false })
-    doc.fontSize(9).font('Helvetica').fillColor('#c8dff2')
-      .text('MEDIAPRO · Cámaras Especiales', M, 40, { lineBreak: false })
+    // ── CABECERA ──
+    // Línea negra superior + título grande
+    doc.rect(M, y, CW, 1).fill(C_BLACK)
+    y += 8
+    doc.fontSize(22).font('Helvetica-Bold').fillColor(C_BLACK)
+      .text('Informe de Incidencias', M, y, { lineBreak: false })
+    y += 28
+    doc.fontSize(9).font('Helvetica').fillColor(C_MID)
+      .text(`MEDIAPRO · Cámaras Especiales${titulo ? '  ·  ' + titulo : ''}`, M, y, { lineBreak: false })
+    doc.fontSize(9).font('Helvetica').fillColor(C_LIGHT)
+      .text(new Date().toLocaleDateString('es-ES', { day:'2-digit', month:'long', year:'numeric' }), M, y, { width: CW, align: 'right', lineBreak: false })
+    y += 18
+    doc.rect(M, y, CW, 0.5).fill(C_RULE)
+    y += 16
 
-    // Summary pill top-right
-    const pillText = `${informes.length} partido${informes.length !== 1 ? 's' : ''}`
-    doc.fontSize(9).font('Helvetica-Bold').fillColor('#ffffff')
-      .text(pillText, PW - M - 110, 28, { width: 110, align: 'right', lineBreak: false })
-
-    if (titulo) {
-      doc.fontSize(9).font('Helvetica').fillColor('#c8dff2')
-        .text(titulo, PW - M - 110, 42, { width: 110, align: 'right', lineBreak: false })
-    }
-
-    y = 82
-
-    // ── SUMMARY ROW ──
-    const sinInc  = informes.filter(i => !buildLines(i).length).length
-    const conInc  = informes.length - sinInc
-    const summaryItems = [
-      { label: 'Total partidos', val: informes.length, color: C_DARK },
-      { label: 'Con incidencias', val: conInc, color: conInc > 0 ? C_RED : C_GREEN },
-      { label: 'Sin incidencias', val: sinInc, color: C_GREEN },
+    // ── RESUMEN ──
+    const sinInc = informes.filter(i => !buildLines(i).length).length
+    const conInc = informes.length - sinInc
+    const cols   = [
+      { label: 'Partidos',        val: informes.length },
+      { label: 'Con incidencias', val: conInc },
+      { label: 'Sin incidencias', val: sinInc },
     ]
-    const cellW = CW / summaryItems.length
-    summaryItems.forEach((s, i) => {
+    const cellW = CW / cols.length
+    cols.forEach((c, i) => {
       const cx = M + i * cellW
-      doc.rect(cx, y, cellW - 4, 42).fill(C_LGREY)
-      doc.fontSize(20).font('Helvetica-Bold').fillColor(s.color)
-        .text(String(s.val), cx + 10, y + 5, { width: cellW - 24, align: 'center', lineBreak: false })
-      doc.fontSize(8).font('Helvetica').fillColor(C_GREY)
-        .text(s.label, cx + 10, y + 28, { width: cellW - 24, align: 'center', lineBreak: false })
+      doc.rect(cx, y, cellW - 8, 36).fill(C_BG)
+      doc.fontSize(18).font('Helvetica-Bold').fillColor(C_BLACK)
+        .text(String(c.val), cx, y + 4, { width: cellW - 8, align: 'center', lineBreak: false })
+      doc.fontSize(7.5).font('Helvetica').fillColor(C_MID)
+        .text(c.label.toUpperCase(), cx, y + 26, { width: cellW - 8, align: 'center', lineBreak: false })
     })
-    y += 52
+    y += 46
+    doc.rect(M, y, CW, 0.5).fill(C_RULE)
+    y += 18
 
-    // ── GROUP BY JORNADA ──
+    // ── CONTENIDO POR JORNADA ──
     const byJornada = {}
     for (const inf of informes) {
       const k = inf.jornada ? `Jornada ${inf.jornada}` : 'Sin jornada'
@@ -1603,74 +1595,64 @@ app.post('/api/export/incidencias-pdf', requireAuth(['coordinador', 'readonly'])
       byJornada[k].push(inf)
     }
 
+    const IW = CW - 16
+
     for (const [jornada, rows] of Object.entries(byJornada)) {
-      // ── Jornada header ──
-      checkBreak(36)
-      doc.rect(M, y, CW, 22).fill(C_CYAN)
-      doc.fontSize(10).font('Helvetica-Bold').fillColor('#ffffff')
-        .text(jornada.toUpperCase(), M + 10, y + 6, { lineBreak: false })
-      doc.fontSize(9).font('Helvetica').fillColor('#ffffff')
-        .text(`${rows.length} partido${rows.length !== 1 ? 's' : ''}`, M, y + 6, { width: CW - 10, align: 'right', lineBreak: false })
-      y += 28
+      // ── Cabecera de jornada: texto en mayúsculas + línea ──
+      checkBreak(30)
+      doc.fontSize(8).font('Helvetica-Bold').fillColor(C_MID)
+        .text(jornada.toUpperCase(), M, y, { lineBreak: false })
+      doc.fontSize(8).font('Helvetica').fillColor(C_LIGHT)
+        .text(`${rows.length} partido${rows.length !== 1 ? 's' : ''}`, M, y, { width: CW, align: 'right', lineBreak: false })
+      y += 12
+      doc.rect(M, y, CW, 0.5).fill(C_RULE)
+      y += 10
 
       for (const inf of rows) {
         const incLines = buildLines(inf)
         const hasInc   = incLines.length > 0
         const parts    = (inf.encuentro || ' vs ').split(' vs ')
-        const local    = (parts[0] || '').trim().toUpperCase()
-        const visit    = (parts[1] || '').trim().toUpperCase()
+        const local    = (parts[0] || '').trim()
+        const visit    = (parts[1] || '').trim()
         const fecha    = fmtD(inf.fecha)
         const ko       = inf.hora_partido || '—'
 
-        // Always render the match header (min 30px) — don't pre-estimate body height
-        checkBreak(36)
+        checkBreak(32)
 
-        // Match header bar
-        const barColor  = hasInc ? '#fef3c7' : '#f0fdf4'
-        const barBorder = hasInc ? C_AMBER : C_GREEN
-        doc.rect(M, y, CW, 24).fill(barColor)
-        doc.rect(M, y, 3, 24).fill(barBorder)
+        // ── Encuentro: nombre partido en negra + fecha/ko a la derecha ──
+        doc.fontSize(10).font('Helvetica-Bold').fillColor(C_BLACK)
+          .text(`${local} vs ${visit}`, M, y, { lineBreak: false })
+        doc.fontSize(8).font('Helvetica').fillColor(C_LIGHT)
+          .text(`${fecha}  ·  KO ${ko}`, M, y + 1, { width: CW, align: 'right', lineBreak: false })
+        y += 14
 
-        // Fecha + KO
-        doc.fontSize(8.5).font('Helvetica-Bold').fillColor(C_DARK)
-          .text(`${fecha}  ·  KO ${ko}`, M + 10, y + 7, { lineBreak: false })
-
-        // Encounter
-        doc.fontSize(9).font('Helvetica-Bold').fillColor(C_BLUE)
-          .text(`${local} vs ${visit}`, M + 10, y + 7, { width: CW - 20, align: 'right', lineBreak: false })
-
-        y += 26
-
-        // Incident lines — allow wrap, track real y via doc.y
-        const IW = CW - 28   // text width inside indent
+        // ── Incidencias ──
         if (hasInc) {
           for (const line of incLines) {
-            checkBreak(14)
+            checkBreak(13)
             if (line.label) {
-              // Label in bold red + text wrapping on the same indent
-              const labelStr = `${line.label}: `
-              doc.fontSize(8).font('Helvetica-Bold').fillColor(C_RED)
-                .text(labelStr, M + 14, y, { continued: true, width: IW })
+              doc.fontSize(8).font('Helvetica-Bold').fillColor(C_DARK)
+                .text(`${line.label}:  `, M + 12, y, { continued: true, width: IW })
               doc.fontSize(8).font('Helvetica').fillColor(C_DARK)
                 .text(line.text, { width: IW })
             } else {
-              doc.fontSize(8).font('Helvetica').fillColor(C_GREY)
-                .text(line.text, M + 14, y, { width: IW })
+              doc.fontSize(8).font('Helvetica').fillColor(C_MID)
+                .text(line.text, M + 12, y, { width: IW })
             }
-            y = doc.y + 2   // follow actual rendered position
+            y = doc.y + 2
           }
-          y += 4
         } else {
-          doc.fontSize(8).font('Helvetica').fillColor(C_GREEN)
-            .text('Sin incidencias', M + 14, y, { lineBreak: false })
-          y = doc.y + 4
+          doc.fontSize(8).font('Helvetica').fillColor(C_LIGHT)
+            .text('Sin incidencias', M + 12, y, { lineBreak: false })
+          y = doc.y + 2
         }
 
-        // Divider
-        doc.rect(M, y, CW, 0.5).fill(C_BORDER)
         y += 6
+        // Línea divisoria muy sutil entre partidos
+        doc.rect(M, y, CW, 0.3).fill('#e8e8e8')
+        y += 8
       }
-      y += 8
+      y += 6
     }
 
     drawFooter(pageNum)
