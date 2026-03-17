@@ -1476,6 +1476,210 @@ app.post('/api/export/incidencias', requireAuth(['coordinador', 'readonly']), as
   }
 })
 
+// ── INFORME INCIDENCIAS PDF ───────────────────────────────────────────────────
+app.post('/api/export/incidencias-pdf', requireAuth(['coordinador', 'readonly']), async (req, res) => {
+  try {
+    const { ids, titulo } = req.body
+    let query, params = []
+    if (ids && ids.length > 0) {
+      const ph = ids.map((_, i) => `$${i + 1}`).join(',')
+      query = `SELECT * FROM informes WHERE id IN (${ph}) AND status='enviado' ORDER BY jornada ASC, fecha ASC, encuentro ASC`
+      params = ids
+    } else {
+      query = `SELECT * FROM informes WHERE status='enviado' ORDER BY jornada ASC, fecha ASC, encuentro ASC`
+    }
+    const r = await pool.query(query, params)
+    const informes = r.rows
+
+    // Build incident text
+    const buildLines = (inf) => {
+      const camData = inf.cam_data || {}
+      const camAct  = inf.camaras_activas || {}
+      const lines   = []
+      for (const camId of CAMERA_ORDER) {
+        if (!camAct[camId]) continue
+        const cam     = camData[camId] || {}
+        const koItems = Object.entries(cam.items || {})
+          .filter(([, v]) => v === 'G' || v === 'L')
+          .map(([k, v]) => `${k} (${v === 'G' ? 'Grave' : 'Leve'})`)
+        if (koItems.length) lines.push({ label: CAMERA_LABELS[camId] || camId, text: koItems.join(', ') })
+        if (cam.incidencias) lines.push({ label: null, text: cam.incidencias })
+      }
+      if ((inf.logistica || {}).incidencias) lines.push({ label: 'Logística', text: inf.logistica.incidencias })
+      return lines
+    }
+
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', 'attachment; filename="informe-incidencias.pdf"')
+
+    const doc = new PDFDocument({ margin: 0, size: 'A4' })
+    doc.pipe(res)
+
+    const PW = doc.page.width   // 595.28
+    const PH = doc.page.height  // 841.89
+    const M  = 45
+    const CW = PW - 2 * M
+
+    // ── Color palette ──
+    const C_BLUE   = '#2B75B4'
+    const C_CYAN   = '#52C7D7'
+    const C_DARK   = '#1a2a3a'
+    const C_GREY   = '#6b7280'
+    const C_LGREY  = '#f3f6f9'
+    const C_BORDER = '#d1dce8'
+    const C_RED    = '#dc2626'
+    const C_AMBER  = '#d97706'
+    const C_GREEN  = '#16a34a'
+
+    const fmtD = (d) => d ? new Date(d).toLocaleDateString('es-ES') : '—'
+
+    // ── FOOTER ──
+    const drawFooter = (pageNum) => {
+      const fy = PH - 28
+      doc.rect(M, fy - 8, CW, 0.5).fill(C_BORDER)
+      doc.fontSize(7.5).font('Helvetica').fillColor(C_GREY)
+        .text('MEDIAPRO · Cámaras Especiales · Informe de Incidencias', M, fy, { width: CW * 0.6, lineBreak: false })
+      doc.fontSize(7.5).font('Helvetica').fillColor(C_GREY)
+        .text(`Pág. ${pageNum} · ${new Date().toLocaleString('es-ES')}`, M, fy, { width: CW, align: 'right', lineBreak: false })
+    }
+
+    let pageNum = 1
+    let y = M
+
+    // ── PAGE BREAK helper ──
+    const checkBreak = (needed) => {
+      if (y + needed > PH - 50) {
+        drawFooter(pageNum++)
+        doc.addPage()
+        y = M
+        return true
+      }
+      return false
+    }
+
+    // ── HEADER ──
+    doc.rect(0, 0, PW, 70).fill(C_BLUE)
+    doc.fontSize(18).font('Helvetica-Bold').fillColor('#ffffff')
+      .text('INFORME DE INCIDENCIAS', M, 18, { width: CW - 120, lineBreak: false })
+    doc.fontSize(9).font('Helvetica').fillColor('#c8dff2')
+      .text('MEDIAPRO · Cámaras Especiales', M, 40, { lineBreak: false })
+
+    // Summary pill top-right
+    const pillText = `${informes.length} partido${informes.length !== 1 ? 's' : ''}`
+    doc.fontSize(9).font('Helvetica-Bold').fillColor('#ffffff')
+      .text(pillText, PW - M - 110, 28, { width: 110, align: 'right', lineBreak: false })
+
+    if (titulo) {
+      doc.fontSize(9).font('Helvetica').fillColor('#c8dff2')
+        .text(titulo, PW - M - 110, 42, { width: 110, align: 'right', lineBreak: false })
+    }
+
+    y = 82
+
+    // ── SUMMARY ROW ──
+    const sinInc  = informes.filter(i => !buildLines(i).length).length
+    const conInc  = informes.length - sinInc
+    const summaryItems = [
+      { label: 'Total partidos', val: informes.length, color: C_DARK },
+      { label: 'Con incidencias', val: conInc, color: conInc > 0 ? C_RED : C_GREEN },
+      { label: 'Sin incidencias', val: sinInc, color: C_GREEN },
+    ]
+    const cellW = CW / summaryItems.length
+    summaryItems.forEach((s, i) => {
+      const cx = M + i * cellW
+      doc.rect(cx, y, cellW - 4, 42).fill(C_LGREY)
+      doc.fontSize(20).font('Helvetica-Bold').fillColor(s.color)
+        .text(String(s.val), cx + 10, y + 5, { width: cellW - 24, align: 'center', lineBreak: false })
+      doc.fontSize(8).font('Helvetica').fillColor(C_GREY)
+        .text(s.label, cx + 10, y + 28, { width: cellW - 24, align: 'center', lineBreak: false })
+    })
+    y += 52
+
+    // ── GROUP BY JORNADA ──
+    const byJornada = {}
+    for (const inf of informes) {
+      const k = inf.jornada ? `Jornada ${inf.jornada}` : 'Sin jornada'
+      if (!byJornada[k]) byJornada[k] = []
+      byJornada[k].push(inf)
+    }
+
+    for (const [jornada, rows] of Object.entries(byJornada)) {
+      // ── Jornada header ──
+      checkBreak(36)
+      doc.rect(M, y, CW, 22).fill(C_CYAN)
+      doc.fontSize(10).font('Helvetica-Bold').fillColor('#ffffff')
+        .text(jornada.toUpperCase(), M + 10, y + 6, { lineBreak: false })
+      doc.fontSize(9).font('Helvetica').fillColor('#ffffff')
+        .text(`${rows.length} partido${rows.length !== 1 ? 's' : ''}`, M, y + 6, { width: CW - 10, align: 'right', lineBreak: false })
+      y += 28
+
+      for (const inf of rows) {
+        const incLines = buildLines(inf)
+        const hasInc   = incLines.length > 0
+        const parts    = (inf.encuentro || ' vs ').split(' vs ')
+        const local    = (parts[0] || '').trim().toUpperCase()
+        const visit    = (parts[1] || '').trim().toUpperCase()
+        const fecha    = fmtD(inf.fecha)
+        const ko       = inf.hora_partido || '—'
+
+        // Estimate height: header row + incident lines
+        const estimatedH = 30 + (hasInc ? incLines.length * 13 + 8 : 0) + 10
+        checkBreak(estimatedH)
+
+        // Match header bar
+        const barColor = hasInc ? '#fef3c7' : '#f0fdf4'
+        const barBorder = hasInc ? C_AMBER : C_GREEN
+        doc.rect(M, y, CW, 24).fill(barColor)
+        doc.rect(M, y, 3, 24).fill(barBorder)
+
+        // Fecha + KO
+        doc.fontSize(8.5).font('Helvetica-Bold').fillColor(C_DARK)
+          .text(`${fecha}  ·  KO ${ko}`, M + 10, y + 7, { lineBreak: false })
+
+        // Encounter
+        const encStr = `${local} vs ${visit}`
+        doc.fontSize(9).font('Helvetica-Bold').fillColor(C_BLUE)
+          .text(encStr, M + 10, y + 7, { width: CW - 20, align: 'right', lineBreak: false })
+
+        y += 26
+
+        // Incident lines
+        if (hasInc) {
+          for (const line of incLines) {
+            checkBreak(14)
+            if (line.label) {
+              doc.fontSize(8).font('Helvetica-Bold').fillColor(C_RED)
+                .text(`${line.label}: `, M + 14, y, { continued: true, lineBreak: false })
+              doc.fontSize(8).font('Helvetica').fillColor(C_DARK)
+                .text(line.text, { lineBreak: false })
+            } else {
+              doc.fontSize(8).font('Helvetica').fillColor(C_GREY)
+                .text(line.text, M + 14, y, { width: CW - 28, lineBreak: false })
+            }
+            y += 13
+          }
+          y += 4
+        } else {
+          doc.fontSize(8).font('Helvetica').fillColor(C_GREEN)
+            .text('Sin incidencias', M + 14, y, { lineBreak: false })
+          y += 14
+        }
+
+        // Divider
+        doc.rect(M, y, CW, 0.5).fill(C_BORDER)
+        y += 6
+      }
+      y += 8
+    }
+
+    drawFooter(pageNum)
+    doc.end()
+  } catch (err) {
+    console.error(err)
+    if (!res.headersSent) res.status(500).json({ error: err.message })
+  }
+})
+
 // SPA fallback
 app.get('*', (req, res) => {
   res.sendFile(join(__dirname, 'dist', 'index.html'))

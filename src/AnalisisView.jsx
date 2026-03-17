@@ -216,6 +216,7 @@ export default function AnalisisView() {
   const [loading,    setLoading]    = useState(true);
   const [exporting,  setExporting]  = useState(false);
   const [exportingInc, setExportingInc] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [activeTab,  setActiveTab]  = useState('resumen');
   const [expandedId, setExpandedId] = useState(null);
 
@@ -454,6 +455,22 @@ export default function AnalisisView() {
     setExportingInc(false);
   };
 
+  const exportPdf = async () => {
+    setExportingPdf(true);
+    try {
+      const ids = filtered.map(i => i.id);
+      const titulo = applied.jornada ? `Jornada ${applied.jornada}` : applied.servicio ? applied.servicio : '';
+      const res = await apiFetch('/api/export/incidencias-pdf', { method:'POST', body:JSON.stringify({ids, titulo}) });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || res.statusText); }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download='informe-incidencias.pdf';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 500);
+    } catch(e) { alert('Error generando PDF: ' + e.message); }
+    setExportingPdf(false);
+  };
+
   const exportCSV = () => {
     const tab = activeTab;
     if (tab === 'incidencias') {
@@ -581,7 +598,8 @@ export default function AnalisisView() {
           <div style={{ display:'flex', gap:6 }}>
             <button onClick={exportCSV} style={{ height:32, padding:'0 12px', fontSize:11, borderRadius:6, border:'1px solid #DDD5CE', background:'#fff', color:'#7A7168', cursor:'pointer', fontWeight:600 }}>↓ CSV</button>
             <BtnP onClick={exportXLS} disabled={exporting||filtered.length===0} style={{ height:32, fontSize:11, padding:'0 12px' }}>{exporting?'…':'↓ XLS'}</BtnP>
-            <button onClick={exportIncidencias} disabled={exportingInc||informes.length===0} style={{ height:32, padding:'0 12px', fontSize:11, borderRadius:6, border:'1px solid #2B75B4', background:'#EBF4FC', color:'#2B75B4', cursor:'pointer', fontWeight:600, opacity: exportingInc||informes.length===0 ? 0.5 : 1 }}>{exportingInc?'…':'📋 Incidencias'}</button>
+            <button onClick={exportIncidencias} disabled={exportingInc||filtered.length===0} style={{ height:32, padding:'0 12px', fontSize:11, borderRadius:6, border:'1px solid #2B75B4', background:'#EBF4FC', color:'#2B75B4', cursor:'pointer', fontWeight:600, opacity: exportingInc||filtered.length===0 ? 0.5 : 1 }}>{exportingInc?'…':'↓ XLS Inc.'}</button>
+            <button onClick={exportPdf} disabled={exportingPdf||filtered.length===0} style={{ height:32, padding:'0 12px', fontSize:11, borderRadius:6, border:'1px solid #dc2626', background:'#fef2f2', color:'#dc2626', cursor:'pointer', fontWeight:600, opacity: exportingPdf||filtered.length===0 ? 0.5 : 1 }}>{exportingPdf?'…':'↓ PDF Inc.'}</button>
           </div>
         </div>
 
