@@ -1622,12 +1622,11 @@ app.post('/api/export/incidencias-pdf', requireAuth(['coordinador', 'readonly'])
         const fecha    = fmtD(inf.fecha)
         const ko       = inf.hora_partido || '—'
 
-        // Estimate height: header row + incident lines
-        const estimatedH = 30 + (hasInc ? incLines.length * 13 + 8 : 0) + 10
-        checkBreak(estimatedH)
+        // Always render the match header (min 30px) — don't pre-estimate body height
+        checkBreak(36)
 
         // Match header bar
-        const barColor = hasInc ? '#fef3c7' : '#f0fdf4'
+        const barColor  = hasInc ? '#fef3c7' : '#f0fdf4'
         const barBorder = hasInc ? C_AMBER : C_GREEN
         doc.rect(M, y, CW, 24).fill(barColor)
         doc.rect(M, y, 3, 24).fill(barBorder)
@@ -1637,32 +1636,34 @@ app.post('/api/export/incidencias-pdf', requireAuth(['coordinador', 'readonly'])
           .text(`${fecha}  ·  KO ${ko}`, M + 10, y + 7, { lineBreak: false })
 
         // Encounter
-        const encStr = `${local} vs ${visit}`
         doc.fontSize(9).font('Helvetica-Bold').fillColor(C_BLUE)
-          .text(encStr, M + 10, y + 7, { width: CW - 20, align: 'right', lineBreak: false })
+          .text(`${local} vs ${visit}`, M + 10, y + 7, { width: CW - 20, align: 'right', lineBreak: false })
 
         y += 26
 
-        // Incident lines
+        // Incident lines — allow wrap, track real y via doc.y
+        const IW = CW - 28   // text width inside indent
         if (hasInc) {
           for (const line of incLines) {
             checkBreak(14)
             if (line.label) {
+              // Label in bold red + text wrapping on the same indent
+              const labelStr = `${line.label}: `
               doc.fontSize(8).font('Helvetica-Bold').fillColor(C_RED)
-                .text(`${line.label}: `, M + 14, y, { continued: true, lineBreak: false })
+                .text(labelStr, M + 14, y, { continued: true, width: IW })
               doc.fontSize(8).font('Helvetica').fillColor(C_DARK)
-                .text(line.text, { lineBreak: false })
+                .text(line.text, { width: IW })
             } else {
               doc.fontSize(8).font('Helvetica').fillColor(C_GREY)
-                .text(line.text, M + 14, y, { width: CW - 28, lineBreak: false })
+                .text(line.text, M + 14, y, { width: IW })
             }
-            y += 13
+            y = doc.y + 2   // follow actual rendered position
           }
           y += 4
         } else {
           doc.fontSize(8).font('Helvetica').fillColor(C_GREEN)
             .text('Sin incidencias', M + 14, y, { lineBreak: false })
-          y += 14
+          y = doc.y + 4
         }
 
         // Divider
