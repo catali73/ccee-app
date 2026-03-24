@@ -44,9 +44,9 @@ function Header({ user, onLogout, view, setView }) {
   return (
     <header style={{background:'#1A1A1A',borderBottom:'3px solid #E8392C',position:'sticky',top:0,zIndex:100}}>
       <div style={{maxWidth:1100,margin:'0 auto',padding:'0 20px',height:58,display:'flex',alignItems:'center',gap:16}}>
-        {/* Logo MEDIAPRO */}
+        {/* Logo CCEE */}
         <div style={{display:'flex',alignItems:'center',gap:12}}>
-          <MediaproLogo height={30} />
+          <img src="/logo.png" alt="CCEE" style={{height:40,width:40,objectFit:'contain'}} />
           <div style={{fontSize:9,color:'#C2B9AD',lineHeight:1.2,letterSpacing:'0.14em',textTransform:'uppercase',fontFamily:"'Montserrat',-apple-system,sans-serif"}}>Cámaras Especiales</div>
         </div>
         <div style={{flex:1}} />

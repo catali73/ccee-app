@@ -754,7 +754,7 @@ function LoginPage({ onLogin }) {
     <div style={{minHeight:'100vh',background:'#F5F0EC',display:'flex',alignItems:'center',justifyContent:'center'}}>
       <div style={{width:360,background:'#fff',border:'1px solid #DDD5CE',borderRadius:12,padding:32,boxShadow:'0 1px 3px 0 rgba(0,0,0,0.07)'}}>
         <div style={{textAlign:'center',marginBottom:28}}>
-          <div style={{width:44,height:44,borderRadius:10,background:'#E8392C',display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:22,marginBottom:12}}>📷</div>
+          <img src="/logo.png" alt="CCEE" style={{width:72,height:72,objectFit:'contain',marginBottom:8}} />
           <div style={{fontSize:16,fontWeight:600}}>MEDIAPRO · CCEE</div>
           <div style={{fontSize:12,color:'#7A7168',marginTop:3}}>Cámaras Especiales</div>
         </div>
