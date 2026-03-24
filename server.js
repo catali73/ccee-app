@@ -755,6 +755,10 @@ app.delete('/api/operadores-pool/:id', requireAuth(['coordinador']), async (req,
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
+// Jerarquía de roles: nunca bajar de rango
+const ROLE_RANK = { coordinador: 3, usuario: 2, operador: 1, readonly: 0 }
+const superiorOIgual = (actual, nuevo) => (ROLE_RANK[actual] ?? 0) >= (ROLE_RANK[nuevo] ?? 0)
+
 // Crear cuenta de operador (genera contraseña temporal)
 app.post('/api/operadores-pool/:id/crear-cuenta', requireAuth(['coordinador']), async (req, res) => {
   try {
@@ -762,31 +766,33 @@ app.post('/api/operadores-pool/:id/crear-cuenta', requireAuth(['coordinador']), 
     const op = await pool.query('SELECT * FROM operadores_pool WHERE id=$1', [id])
     if (!op.rows.length) return res.status(404).json({ error: 'Operador no encontrado' })
     const row = op.rows[0]
-    if (!row.email) return res.status(400).json({ error: 'El operador no tiene email' })
+    if (!row.email)     return res.status(400).json({ error: 'El operador no tiene email' })
     if (!row.plantilla) return res.status(400).json({ error: 'Solo operadores de plantilla pueden tener cuenta' })
 
-    // Si ya tiene cuenta, devolver sin crear
+    // Si ya tiene cuenta vinculada → informar sin tocar nada
     if (row.user_id) {
-      const u = await pool.query('SELECT id, email, active FROM users WHERE id=$1', [row.user_id])
+      const u = await pool.query('SELECT id, email, role, active FROM users WHERE id=$1', [row.user_id])
       if (u.rows.length) return res.json({ ok: true, ya_existia: true, user: u.rows[0] })
     }
 
-    // Verificar que no exista ya un usuario con ese email
-    const existing = await pool.query('SELECT id FROM users WHERE email=$1', [row.email])
+    // Buscar si ya existe usuario con ese email
+    const existing = await pool.query('SELECT id, role, name FROM users WHERE LOWER(email)=LOWER($1)', [row.email])
     if (existing.rows.length) {
-      // Vincular la cuenta existente al operador
-      await pool.query('UPDATE operadores_pool SET user_id=$1 WHERE id=$2', [existing.rows[0].id, id])
-      return res.json({ ok: true, ya_existia: true, user: { id: existing.rows[0].id, email: row.email } })
+      const u = existing.rows[0]
+      // Solo subir de rol, nunca bajar (coordinador/usuario conservan su rol)
+      if (!superiorOIgual(u.role, 'operador')) {
+        await pool.query(`UPDATE users SET role='operador' WHERE id=$1`, [u.id])
+      }
+      await pool.query('UPDATE operadores_pool SET user_id=$1 WHERE id=$2', [u.id, id])
+      return res.json({ ok: true, ya_existia: true, rol_conservado: u.role, user: { id: u.id, email: row.email, name: u.name } })
     }
 
-    // Generar contraseña temporal: iniciales + 4 dígitos
-    const partes   = row.nombre.trim().split(/\s+/)
+    // Crear cuenta nueva con rol operador
+    const partes    = row.nombre.trim().split(/\s+/)
     const iniciales = partes.map(p => p[0]).join('').toUpperCase().slice(0, 3)
-    const pin       = String(Math.floor(1000 + Math.random() * 9000))
-    const tempPass  = `${iniciales}${pin}`
+    const tempPass  = `${iniciales}${String(Math.floor(1000 + Math.random() * 9000))}`
     const hash      = require('bcryptjs').hashSync(tempPass, 10)
     const nombre    = partes.slice(0, 2).join(' ')
-
     const nu = await pool.query(
       `INSERT INTO users (email, password_hash, name, role) VALUES ($1,$2,$3,'operador') RETURNING id`,
       [row.email, hash, nombre]
@@ -816,7 +822,7 @@ const MATCH_NOMBRE_SQL = `(
   OR LOWER(s.productor)      = LOWER($1)
 )`
 
-app.get('/api/mis-servicios', requireAuth(['operador']), async (req, res) => {
+app.get('/api/mis-servicios', requireAuth(['operador', 'usuario']), async (req, res) => {
   try {
     const opRow = await pool.query('SELECT nombre FROM operadores_pool WHERE user_id=$1', [req.user.id])
     if (!opRow.rows.length) return res.json([])
@@ -836,7 +842,7 @@ app.get('/api/mis-servicios', requireAuth(['operador']), async (req, res) => {
 })
 
 // ── DETALLE SERVICIO PARA OPERADOR ──────────────────────────
-app.get('/api/mis-servicios/:id', requireAuth(['operador']), async (req, res) => {
+app.get('/api/mis-servicios/:id', requireAuth(['operador', 'usuario']), async (req, res) => {
   try {
     const opRow = await pool.query('SELECT nombre FROM operadores_pool WHERE user_id=$1', [req.user.id])
     if (!opRow.rows.length) return res.status(403).json({ error: 'Sin acceso' })
@@ -870,16 +876,17 @@ app.post('/api/operadores-pool/:id/vincular-cuenta', requireAuth(['coordinador']
     if (!user.rows.length) return res.status(404).json({ error: `No existe ningún usuario con email ${email}` })
 
     const u = user.rows[0]
-    // Actualizar rol a 'operador' si no lo es ya
-    if (u.role !== 'operador') {
+    // Jerarquía: solo subir de rol, nunca bajar
+    // coordinador/usuario conservan su rol tal cual
+    if (!superiorOIgual(u.role, 'operador')) {
       await pool.query(`UPDATE users SET role='operador' WHERE id=$1`, [u.id])
     }
     await pool.query('UPDATE operadores_pool SET user_id=$1 WHERE id=$2', [u.id, req.params.id])
-    // Actualizar también el email en operadores_pool si no lo tenía
     if (!op.rows[0].email) {
       await pool.query('UPDATE operadores_pool SET email=$1 WHERE id=$2', [u.email, req.params.id])
     }
-    res.json({ ok: true, user: { id: u.id, name: u.name, email: u.email } })
+    const rolFinal = superiorOIgual(u.role, 'operador') ? u.role : 'operador'
+    res.json({ ok: true, rol_conservado: u.role, rol_final: rolFinal, user: { id: u.id, name: u.name, email: u.email } })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 

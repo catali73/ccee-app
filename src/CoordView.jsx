@@ -1452,7 +1452,10 @@ function OperadoresSection() {
     const r = await apiFetch(`/api/operadores-pool/${id}/vincular-cuenta`, {method:'POST', body:JSON.stringify({email})});
     const d = await r.json();
     if(d.ok) {
-      setCuentaMsg({ id, msg: `Vinculado con ${d.user.name} (${d.user.email})` });
+      const rolMsg = d.rol_conservado && d.rol_conservado !== 'operador'
+        ? ` · Rol conservado: ${d.rol_conservado}`
+        : '';
+      setCuentaMsg({ id, msg: `Vinculado con ${d.user.name} (${d.user.email})${rolMsg}` });
     } else {
       setCuentaMsg({ id, msg: `Error: ${d.error}` });
     }
