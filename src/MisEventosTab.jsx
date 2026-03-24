@@ -1,6 +1,32 @@
 import { useState, useEffect, useCallback } from 'react';
 import { apiFetch, OPERATOR_GROUPS } from './App.jsx';
 
+async function abrirDocumento(docId) {
+  const win = window.open('', '_blank');
+  try {
+    const r = await apiFetch(`/api/documentos/${docId}`);
+    const data = await r.json();
+    if (!data.datos) { win?.close(); return; }
+    const [header, b64] = data.datos.split(',');
+    const mime = header.replace('data:','').replace(';base64','');
+    const arr = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const blob = new Blob([arr], { type: mime });
+    if (win) win.location.href = URL.createObjectURL(blob);
+  } catch { win?.close(); }
+}
+
+async function descargarHoja(servicioId, encuentro) {
+  try {
+    const r = await apiFetch(`/api/servicios/${servicioId}/hoja-pdf`);
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.target = '_blank';
+    a.download = `hoja-servicio-${(encuentro||'servicio').replace(/[^\w]/g,'-')}.pdf`;
+    a.click();
+  } catch(e) { alert('Error al generar la hoja: ' + e.message); }
+}
+
 const fmt = (d) => d ? new Date(d).toLocaleDateString('es-ES', {
   weekday:'short', day:'2-digit', month:'short', year:'numeric'
 }) : '—';
@@ -103,18 +129,28 @@ function EventoDetalle({ servicioId, nombreOperador, onBack }) {
           </div>
         )}
 
+        {/* Hoja de servicio */}
+        <button onClick={() => descargarHoja(s.id, s.encuentro)} style={{
+          width:'100%',padding:'12px',borderRadius:8,border:'2px solid #E8392C',
+          background:'#fff',color:'#E8392C',fontSize:13,fontWeight:700,cursor:'pointer',
+          display:'flex',alignItems:'center',justifyContent:'center',gap:8,
+        }}>
+          📋 Ver hoja de servicio
+        </button>
+
         {/* Documentos */}
         <div style={{background:'#fff',borderRadius:8,border:'1px solid #DDD5CE',padding:'14px 16px'}}>
-          <div style={{fontSize:11,fontWeight:700,color:'#7A7168',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Documentos</div>
+          <div style={{fontSize:11,fontWeight:700,color:'#7A7168',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Documentos adjuntos</div>
           {docs.length === 0
             ? <div style={{fontSize:13,color:'#9ca3af'}}>Sin documentos adjuntos</div>
             : docs.map(doc => (
-              <a key={doc.id} href={`/api/documentos/${doc.id}`} target="_blank" rel="noreferrer"
+              <button key={doc.id} onClick={() => abrirDocumento(doc.id)}
                 style={{display:'flex',alignItems:'center',gap:10,padding:'9px 0',
-                  borderBottom:'1px solid #f3f4f6',textDecoration:'none',color:'#1d4ed8'}}>
-                <span style={{fontSize:16}}>{doc.tipo==='pdf'?'📄':doc.tipo==='imagen'?'🖼️':'📎'}</span>
+                  borderBottom:'1px solid #f3f4f6',width:'100%',textAlign:'left',
+                  background:'none',border:'none',cursor:'pointer',color:'#1d4ed8'}}>
+                <span style={{fontSize:16}}>{doc.tipo?.includes('pdf')?'📄':doc.tipo?.includes('image')?'🖼️':'📎'}</span>
                 <span style={{fontSize:13,fontWeight:500}}>{doc.nombre}</span>
-              </a>
+              </button>
             ))
           }
         </div>
