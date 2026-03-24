@@ -465,7 +465,7 @@ app.post('/api/auth/login', async (req, res) => {
 
 // Validar token
 app.get('/api/auth/me', requireAuth(), async (req, res) => {
-  if (req.user.role === 'operador') {
+  if (req.user.role === 'operador' || req.user.role === 'usuario') {
     const op = await pool.query('SELECT nombre FROM operadores_pool WHERE user_id=$1', [req.user.id]).catch(() => ({ rows: [] }))
     return res.json({ ...req.user, operador_nombre: op.rows[0]?.nombre || '' })
   }
@@ -850,7 +850,7 @@ app.get('/api/mis-servicios/:id', requireAuth(['operador', 'usuario']), async (r
 
     const r = await pool.query(`
       SELECT s.*,
-             array_agg(json_build_object('id',d.id,'nombre',d.nombre,'tipo',d.tipo,'url',d.url))
+             array_agg(json_build_object('id',d.id,'nombre',d.nombre,'tipo',d.tipo))
                FILTER (WHERE d.id IS NOT NULL) AS documentos
       FROM servicios s
       LEFT JOIN documentos d ON d.servicio_id = s.id

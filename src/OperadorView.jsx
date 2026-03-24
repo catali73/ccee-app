@@ -159,7 +159,7 @@ function ServicioDetalle({ servicioId, nombreOperador, onBack }) {
           <div style={{background:'#fff',borderRadius:8,border:'1px solid #e5e7eb',padding:'14px 16px'}}>
             <div style={{fontSize:12,fontWeight:700,color:'#374151',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Documentos</div>
             {docs.map(doc => (
-              <a key={doc.id} href={doc.url} target="_blank" rel="noreferrer"
+              <a key={doc.id} href={`/api/documentos/${doc.id}`} target="_blank" rel="noreferrer"
                 style={{display:'flex',alignItems:'center',gap:10,padding:'10px 0',borderBottom:'1px solid #f3f4f6',
                   textDecoration:'none',color:'#1d4ed8'}}>
                 <span style={{fontSize:18}}>

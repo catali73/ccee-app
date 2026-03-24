@@ -109,7 +109,7 @@ function EventoDetalle({ servicioId, nombreOperador, onBack }) {
           {docs.length === 0
             ? <div style={{fontSize:13,color:'#9ca3af'}}>Sin documentos adjuntos</div>
             : docs.map(doc => (
-              <a key={doc.id} href={doc.url} target="_blank" rel="noreferrer"
+              <a key={doc.id} href={`/api/documentos/${doc.id}`} target="_blank" rel="noreferrer"
                 style={{display:'flex',alignItems:'center',gap:10,padding:'9px 0',
                   borderBottom:'1px solid #f3f4f6',textDecoration:'none',color:'#1d4ed8'}}>
                 <span style={{fontSize:16}}>{doc.tipo==='pdf'?'📄':doc.tipo==='imagen'?'🖼️':'📎'}</span>
