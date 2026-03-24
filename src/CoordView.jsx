@@ -1372,8 +1372,10 @@ function OperadoresSection() {
   const [editEmail,setEditEmail] = useState('');
   const [newVal,setNewVal]       = useState('');
   const [saving,setSaving]       = useState(false);
-  const [cuentaMsg,setCuentaMsg] = useState(null);
-  const [importMsg,setImportMsg] = useState(null);
+  const [cuentaMsg,setCuentaMsg]     = useState(null);
+  const [importMsg,setImportMsg]     = useState(null);
+  const [vincularId,setVincularId]   = useState(null);  // id del operador que se está vinculando
+  const [vincularEmail,setVincularEmail] = useState('');
 
   const load = useCallback(()=>
     apiFetch('/api/operadores-pool').then(r=>r.json()).then(d=>{ if(Array.isArray(d)) setRows(d); }).catch(()=>{})
@@ -1443,6 +1445,19 @@ function OperadoresSection() {
     if(!confirm(`¿Desactivar cuenta de ${item.nombre}?`)) return;
     await apiFetch(`/api/operadores-pool/${item.id}/cuenta`,{method:'DELETE'}).catch(()=>{});
     setCuentaMsg(null); await load();
+  };
+  const vincularCuenta = async (id) => {
+    const email = vincularEmail.trim(); if(!email) return;
+    setSaving(true); setCuentaMsg(null);
+    const r = await apiFetch(`/api/operadores-pool/${id}/vincular-cuenta`, {method:'POST', body:JSON.stringify({email})});
+    const d = await r.json();
+    if(d.ok) {
+      setCuentaMsg({ id, msg: `Vinculado con ${d.user.name} (${d.user.email})` });
+    } else {
+      setCuentaMsg({ id, msg: `Error: ${d.error}` });
+    }
+    setVincularId(null); setVincularEmail('');
+    await load(); setSaving(false);
   };
   const del = async (id) => {
     if(!confirm('¿Eliminar este operador?')) return;
@@ -1521,23 +1536,52 @@ function OperadoresSection() {
               <button onClick={()=>del(item.id)} title="Eliminar"
                 style={{padding:'2px 8px',border:'1px solid #fecaca',borderRadius:5,background:'#fef2f2',cursor:'pointer',fontSize:11,color:'#dc2626'}}>✕</button>
             </div>
-            {/* Acciones de cuenta (solo si es plantilla con email) */}
-            {item.plantilla && item.email && (
-              <div style={{marginTop:6,paddingTop:6,borderTop:'1px solid #E8E2DC',display:'flex',gap:8,alignItems:'center'}}>
-                {!item.user_id
-                  ? <button onClick={()=>crearCuenta(item)} disabled={saving}
-                      style={{fontSize:11,padding:'3px 10px',borderRadius:5,border:'1px solid #2563eb',background:'#eff6ff',color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>
-                      + Crear acceso app
-                    </button>
-                  : <button onClick={()=>desactivarCuenta(item)}
+            {/* Acciones de cuenta (solo si es plantilla) */}
+            {item.plantilla && (
+              <div style={{marginTop:6,paddingTop:6,borderTop:'1px solid #E8E2DC'}}>
+                {!item.user_id ? (
+                  <div style={{display:'flex',flexWrap:'wrap',gap:6,alignItems:'center'}}>
+                    {/* Crear cuenta nueva */}
+                    {item.email && (
+                      <button onClick={()=>crearCuenta(item)} disabled={saving}
+                        style={{fontSize:11,padding:'3px 10px',borderRadius:5,border:'1px solid #2563eb',background:'#eff6ff',color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>
+                        + Crear acceso app
+                      </button>
+                    )}
+                    {/* Vincular cuenta existente */}
+                    {vincularId===item.id ? (
+                      <div style={{display:'flex',gap:4,alignItems:'center',flex:1}}>
+                        <Input value={vincularEmail} onChange={e=>setVincularEmail(e.target.value)}
+                          placeholder="email cuenta existente..." type="email"
+                          style={{fontSize:11,height:28,flex:1,minWidth:180}}
+                          autoFocus onKeyDown={e=>{if(e.key==='Enter')vincularCuenta(item.id);if(e.key==='Escape'){setVincularId(null);setVincularEmail('');}}} />
+                        <button onClick={()=>vincularCuenta(item.id)} disabled={saving||!vincularEmail.trim()}
+                          style={{fontSize:11,padding:'3px 10px',borderRadius:5,border:'1px solid #16a34a',background:'#f0fdf4',color:'#15803d',cursor:'pointer',fontWeight:600}}>
+                          Vincular
+                        </button>
+                        <button onClick={()=>{setVincularId(null);setVincularEmail('');}}
+                          style={{fontSize:11,padding:'3px 8px',borderRadius:5,border:'1px solid #ccc',background:'#f9f9f9',cursor:'pointer'}}>✕</button>
+                      </div>
+                    ) : (
+                      <button onClick={()=>{setVincularId(item.id);setVincularEmail('');setCuentaMsg(null);}}
+                        style={{fontSize:11,padding:'3px 10px',borderRadius:5,border:'1px solid #16a34a',background:'#f0fdf4',color:'#15803d',cursor:'pointer'}}>
+                        Vincular cuenta existente
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                    <span style={{fontSize:11,color:'#16a34a'}}>✓ Acceso activo</span>
+                    <button onClick={()=>desactivarCuenta(item)}
                       style={{fontSize:11,padding:'3px 10px',borderRadius:5,border:'1px solid #fca5a5',background:'#fef2f2',color:'#dc2626',cursor:'pointer'}}>
                       Desactivar cuenta
                     </button>
-                }
+                  </div>
+                )}
                 {cuentaMsg?.id===item.id&&(
-                  <div style={{fontSize:11,color: cuentaMsg.msg.startsWith('Error')?'#dc2626':'#16a34a'}}>
+                  <div style={{marginTop:4,fontSize:11,color: cuentaMsg.msg.startsWith('Error')?'#dc2626':'#16a34a'}}>
                     {cuentaMsg.msg}
-                    {cuentaMsg.pass&&<><br/><b>Contraseña temporal: {cuentaMsg.pass}</b> (comunicársela al operador)</>}
+                    {cuentaMsg.pass&&<><br/><b>Contraseña temporal: {cuentaMsg.pass}</b> — comunícasela al operador</>}
                   </div>
                 )}
               </div>

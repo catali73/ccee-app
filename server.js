@@ -807,21 +807,28 @@ app.delete('/api/operadores-pool/:id/cuenta', requireAuth(['coordinador']), asyn
 })
 
 // ── MIS SERVICIOS (operador) ────────────────────────────────
+// Busca case-insensitive en operadores JSONB + campos de personal del servicio
+const MATCH_NOMBRE_SQL = `(
+  EXISTS (SELECT 1 FROM jsonb_each_text(s.operadores) kv WHERE LOWER(kv.value) = LOWER($1))
+  OR LOWER(s.responsable)    = LOWER($1)
+  OR LOWER(s.jefe_tecnico)   = LOWER($1)
+  OR LOWER(s.realizador)     = LOWER($1)
+  OR LOWER(s.productor)      = LOWER($1)
+)`
+
 app.get('/api/mis-servicios', requireAuth(['operador']), async (req, res) => {
   try {
-    // Obtener el nombre del operador desde operadores_pool
     const opRow = await pool.query('SELECT nombre FROM operadores_pool WHERE user_id=$1', [req.user.id])
     if (!opRow.rows.length) return res.json([])
     const nombre = opRow.rows[0].nombre
 
     const r = await pool.query(`
       SELECT s.id, s.jornada, s.encuentro, s.fecha, s.hora_partido, s.hora_citacion,
-             s.responsable, s.um, s.tipo_servicio, s.operadores, s.status
+             s.responsable, s.jefe_tecnico, s.realizador, s.productor,
+             s.um, s.tipo_servicio, s.operadores, s.status
       FROM servicios s
       WHERE s.status NOT IN ('borrador')
-        AND EXISTS (
-          SELECT 1 FROM jsonb_each_text(s.operadores) kv WHERE kv.value = $1
-        )
+        AND ${MATCH_NOMBRE_SQL}
       ORDER BY s.fecha DESC
     `, [nombre])
     res.json(r.rows)
@@ -836,15 +843,43 @@ app.get('/api/mis-servicios/:id', requireAuth(['operador']), async (req, res) =>
     const nombre = opRow.rows[0].nombre
 
     const r = await pool.query(`
-      SELECT s.*, array_agg(json_build_object('id',d.id,'nombre',d.nombre,'tipo',d.tipo,'url',d.url)) FILTER (WHERE d.id IS NOT NULL) AS documentos
+      SELECT s.*,
+             array_agg(json_build_object('id',d.id,'nombre',d.nombre,'tipo',d.tipo,'url',d.url))
+               FILTER (WHERE d.id IS NOT NULL) AS documentos
       FROM servicios s
       LEFT JOIN documentos d ON d.servicio_id = s.id
-      WHERE s.id = $1
-        AND EXISTS (SELECT 1 FROM jsonb_each_text(s.operadores) kv WHERE kv.value = $2)
+      WHERE s.id = $1 AND ${MATCH_NOMBRE_SQL.replace(/\$1/g, '$2')}
       GROUP BY s.id
     `, [req.params.id, nombre])
     if (!r.rows.length) return res.status(403).json({ error: 'Sin acceso' })
     res.json(r.rows[0])
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// ── VINCULAR CUENTA EXISTENTE A OPERADOR ────────────────────
+app.post('/api/operadores-pool/:id/vincular-cuenta', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const { email } = req.body
+    if (!email) return res.status(400).json({ error: 'Email requerido' })
+
+    const op = await pool.query('SELECT * FROM operadores_pool WHERE id=$1', [req.params.id])
+    if (!op.rows.length) return res.status(404).json({ error: 'Operador no encontrado' })
+    if (!op.rows[0].plantilla) return res.status(400).json({ error: 'Solo operadores de plantilla' })
+
+    const user = await pool.query('SELECT id, name, email, role FROM users WHERE LOWER(email)=LOWER($1)', [email.trim()])
+    if (!user.rows.length) return res.status(404).json({ error: `No existe ningún usuario con email ${email}` })
+
+    const u = user.rows[0]
+    // Actualizar rol a 'operador' si no lo es ya
+    if (u.role !== 'operador') {
+      await pool.query(`UPDATE users SET role='operador' WHERE id=$1`, [u.id])
+    }
+    await pool.query('UPDATE operadores_pool SET user_id=$1 WHERE id=$2', [u.id, req.params.id])
+    // Actualizar también el email en operadores_pool si no lo tenía
+    if (!op.rows[0].email) {
+      await pool.query('UPDATE operadores_pool SET email=$1 WHERE id=$2', [u.email, req.params.id])
+    }
+    res.json({ ok: true, user: { id: u.id, name: u.name, email: u.email } })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
