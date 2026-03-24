@@ -1054,8 +1054,15 @@ app.get('/api/servicios/:id/hoja-pdf', requireAuth(), async (req, res) => {
       ORDER BY v.referencia ASC
     `, [req.params.id])
     const vehiculosData = vr.rows
+    // Operadores y usuarios del pool tienen acceso si aparecen en el servicio
     if (req.user.role === 'usuario' && sv.assigned_to !== req.user.id) {
-      return res.status(403).json({ error: 'Sin permisos' })
+      const opRow = await pool.query('SELECT nombre FROM operadores_pool WHERE user_id=$1', [req.user.id])
+      if (!opRow.rows.length) return res.status(403).json({ error: 'Sin permisos' })
+      const nombre = opRow.rows[0].nombre
+      const ops = sv.operadores || {}
+      const enServicio = Object.values(ops).some(v => v?.toLowerCase() === nombre.toLowerCase())
+        || [sv.responsable, sv.jefe_tecnico, sv.realizador, sv.productor].some(v => v?.toLowerCase() === nombre.toLowerCase())
+      if (!enServicio) return res.status(403).json({ error: 'Sin permisos' })
     }
 
     const fmtD = (d) => d ? new Date(d).toLocaleDateString('es-ES') : '—'

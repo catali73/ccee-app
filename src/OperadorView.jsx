@@ -74,28 +74,25 @@ function ServicioCard({ servicio, nombreOperador, onClick }) {
 
 // ── HELPERS DOCUMENTOS ───────────────────────────────────────
 async function abrirDocumento(docId) {
-  const win = window.open('', '_blank');
   try {
     const r = await apiFetch(`/api/documentos/${docId}`);
     const data = await r.json();
-    if (!data.datos) { win?.close(); return; }
-    const [header, b64] = data.datos.split(',');
-    const mime = header.replace('data:','').replace(';base64','');
-    const arr = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-    const blob = new Blob([arr], { type: mime });
-    if (win) win.location.href = URL.createObjectURL(blob);
-  } catch { win?.close(); }
+    if (!data.datos) return;
+    const idx = data.datos.indexOf(',');
+    const mime = idx > 0 ? data.datos.slice(5, data.datos.indexOf(';')) : 'application/octet-stream';
+    const b64  = idx > 0 ? data.datos.slice(idx + 1) : data.datos;
+    const arr  = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const url  = URL.createObjectURL(new Blob([arr], { type: mime }));
+    window.open(url, '_blank');
+  } catch(e) { alert('Error al abrir el documento'); }
 }
 
-async function descargarHoja(servicioId, encuentro) {
+async function descargarHoja(servicioId) {
   try {
     const r = await apiFetch(`/api/servicios/${servicioId}/hoja-pdf`);
-    const blob = await r.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.target = '_blank';
-    a.download = `hoja-servicio-${(encuentro||'servicio').replace(/[^\w]/g,'-')}.pdf`;
-    a.click();
+    if (!r.ok) { alert('Sin acceso a la hoja de servicio'); return; }
+    const url = URL.createObjectURL(await r.blob());
+    window.open(url, '_blank');
   } catch(e) { alert('Error al generar la hoja: ' + e.message); }
 }
 
@@ -182,7 +179,7 @@ function ServicioDetalle({ servicioId, nombreOperador, onBack }) {
         )}
 
         {/* Hoja de servicio */}
-        <button onClick={() => descargarHoja(s.id, s.encuentro)} style={{
+        <button onClick={() => descargarHoja(s.id)} style={{
           width:'100%',padding:'12px',borderRadius:8,border:'2px solid #E8392C',
           background:'#fff',color:'#E8392C',fontSize:13,fontWeight:700,cursor:'pointer',
           display:'flex',alignItems:'center',justifyContent:'center',gap:8,
