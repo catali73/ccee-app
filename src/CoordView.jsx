@@ -1365,12 +1365,14 @@ const MODELOS_LABELS = {
 
 /* ── OPERADORES SECTION ─────────────────────────────────────── */
 function OperadoresSection() {
-  const [rows,setRows] = useState([]);           // [{id,pool,nombre}]
-  const [pool,setPool] = useState('RESP_CCEE');
-  const [editId,setEditId] = useState(null);
-  const [editVal,setEditVal] = useState('');
-  const [newVal,setNewVal] = useState('');
-  const [saving,setSaving] = useState(false);
+  const [rows,setRows]         = useState([]);
+  const [pool,setPool]         = useState('RESP_CCEE');
+  const [editId,setEditId]     = useState(null);
+  const [editVal,setEditVal]   = useState('');
+  const [editEmail,setEditEmail] = useState('');
+  const [newVal,setNewVal]     = useState('');
+  const [saving,setSaving]     = useState(false);
+  const [cuentaMsg,setCuentaMsg] = useState(null); // {id, msg, pass?}
 
   const load = useCallback(()=>
     apiFetch('/api/operadores-pool').then(r=>r.json()).then(d=>{ if(Array.isArray(d)) setRows(d); }).catch(()=>{})
@@ -1379,6 +1381,8 @@ function OperadoresSection() {
 
   const poolRows = rows.filter(r=>r.pool===pool);
   const counts   = Object.fromEntries(Object.keys(POOL_LABELS).map(k=>[k, rows.filter(r=>r.pool===k).length]));
+  const plantillaTotal = rows.filter(r=>r.plantilla).length;
+  const conCuenta      = rows.filter(r=>r.user_id).length;
 
   const add = async () => {
     const nombre = newVal.trim(); if(!nombre) return;
@@ -1386,11 +1390,33 @@ function OperadoresSection() {
     await apiFetch('/api/operadores-pool',{method:'POST',body:JSON.stringify({pool,nombre})}).catch(()=>{});
     setNewVal(''); await load(); setSaving(false);
   };
+  const startEdit = (item) => {
+    setEditId(item.id); setEditVal(item.nombre); setEditEmail(item.email||'');
+  };
   const save = async (id) => {
-    const nombre = editVal.trim(); if(!nombre) return;
     setSaving(true);
-    await apiFetch(`/api/operadores-pool/${id}`,{method:'PUT',body:JSON.stringify({nombre})}).catch(()=>{});
+    await apiFetch(`/api/operadores-pool/${id}`,{method:'PUT',body:JSON.stringify({nombre:editVal.trim(),email:editEmail.trim()||null})}).catch(()=>{});
     setEditId(null); await load(); setSaving(false);
+  };
+  const togglePlantilla = async (item) => {
+    await apiFetch(`/api/operadores-pool/${item.id}`,{method:'PUT',body:JSON.stringify({plantilla:!item.plantilla})}).catch(()=>{});
+    await load();
+  };
+  const crearCuenta = async (item) => {
+    setSaving(true); setCuentaMsg(null);
+    const r = await apiFetch(`/api/operadores-pool/${item.id}/crear-cuenta`,{method:'POST'});
+    const d = await r.json();
+    if(d.ok) {
+      setCuentaMsg({ id: item.id, msg: d.ya_existia ? 'Cuenta ya existía, vinculada.' : `Cuenta creada.`, pass: d.password_temporal });
+    } else {
+      setCuentaMsg({ id: item.id, msg: `Error: ${d.error}` });
+    }
+    await load(); setSaving(false);
+  };
+  const desactivarCuenta = async (item) => {
+    if(!confirm(`¿Desactivar cuenta de ${item.nombre}?`)) return;
+    await apiFetch(`/api/operadores-pool/${item.id}/cuenta`,{method:'DELETE'}).catch(()=>{});
+    setCuentaMsg(null); await load();
   };
   const del = async (id) => {
     if(!confirm('¿Eliminar este operador?')) return;
@@ -1401,31 +1427,87 @@ function OperadoresSection() {
   return (
     <Card style={{marginBottom:16}}>
       <SecTitle>Operadores · base de datos</SecTitle>
+
+      {/* Resumen acceso */}
+      <div style={{display:'flex',gap:12,marginBottom:14,padding:'8px 12px',background:'#f0f4ff',borderRadius:8,fontSize:12,color:'#374151'}}>
+        <span>Plantilla: <b>{plantillaTotal}</b></span>
+        <span>·</span>
+        <span>Con cuenta: <b style={{color:'#16a34a'}}>{conCuenta}</b></span>
+        <span>·</span>
+        <span style={{color:'#6b7280',fontSize:11}}>Marca como plantilla y añade email para dar acceso a la app</span>
+      </div>
+
       <Field label="Especialidad">
-        <Select value={pool} onChange={e=>{setPool(e.target.value);setEditId(null);}}>
+        <Select value={pool} onChange={e=>{setPool(e.target.value);setEditId(null);setCuentaMsg(null);}}>
           {Object.entries(POOL_LABELS).map(([k,v])=>(
             <option key={k} value={k}>{v}  ({counts[k]||0})</option>
           ))}
         </Select>
       </Field>
-      <div style={{marginTop:14,display:'flex',flexDirection:'column',gap:6}}>
+
+      <div style={{marginTop:14,display:'flex',flexDirection:'column',gap:8}}>
         {poolRows.length===0&&<div style={{fontSize:12,color:'#7A7168',padding:'8px 0'}}>No hay operadores en esta especialidad.</div>}
-        {poolRows.map(item=> editId===item.id ? (
-          <div key={item.id} style={{display:'flex',gap:6,alignItems:'center'}}>
-            <Input value={editVal} onChange={e=>setEditVal(e.target.value)} style={{flex:1}} autoFocus
-              onKeyDown={e=>{if(e.key==='Enter')save(item.id);if(e.key==='Escape')setEditId(null);}} />
-            <BtnP onClick={()=>save(item.id)} disabled={saving} style={{height:32,padding:'0 12px',fontSize:12}}>✓</BtnP>
-            <BtnO onClick={()=>setEditId(null)} style={{height:32,padding:'0 10px',fontSize:12}}>✕</BtnO>
+        {poolRows.map(item => editId===item.id ? (
+          <div key={item.id} style={{padding:'10px 12px',background:'#F5F0EC',borderRadius:8,border:'1px solid #E8E2DC',display:'flex',flexDirection:'column',gap:8}}>
+            <Input value={editVal} onChange={e=>setEditVal(e.target.value)} placeholder="Nombre completo" autoFocus
+              onKeyDown={e=>{if(e.key==='Escape')setEditId(null);}} />
+            <Input value={editEmail} onChange={e=>setEditEmail(e.target.value)} placeholder="email@mediapro.tv (opcional)" type="email" />
+            <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
+              <BtnP onClick={()=>save(item.id)} disabled={saving} style={{height:30,padding:'0 14px',fontSize:12}}>Guardar</BtnP>
+              <BtnO onClick={()=>setEditId(null)} style={{height:30,padding:'0 12px',fontSize:12}}>Cancelar</BtnO>
+            </div>
           </div>
         ) : (
-          <div key={item.id} style={{display:'flex',alignItems:'center',gap:8,padding:'7px 12px',background:'#F5F0EC',borderRadius:6,border:'1px solid #E8E2DC'}}>
-            <span style={{flex:1,fontSize:13}}>{item.nombre}</span>
-            <button onClick={()=>{setEditId(item.id);setEditVal(item.nombre);}} style={{padding:'2px 8px',border:'1px solid #E8E2DC',borderRadius:5,background:'#fff',cursor:'pointer',fontSize:11}}>✏️</button>
-            <button onClick={()=>del(item.id)} style={{padding:'2px 8px',border:'1px solid #fecaca',borderRadius:5,background:'#fef2f2',cursor:'pointer',fontSize:11,color:'#dc2626'}}>✕</button>
+          <div key={item.id} style={{padding:'8px 12px',background:'#F5F0EC',borderRadius:8,border:'1px solid #E8E2DC'}}>
+            {/* Fila principal */}
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              {/* Toggle plantilla */}
+              <button title="Marcar como plantilla fija" onClick={()=>togglePlantilla(item)}
+                style={{width:22,height:22,borderRadius:4,border:`1.5px solid ${item.plantilla?'#2563eb':'#ccc'}`,
+                  background:item.plantilla?'#2563eb':'#fff',color:'#fff',cursor:'pointer',fontSize:12,
+                  display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                {item.plantilla?'✓':''}
+              </button>
+              <span style={{flex:1,fontSize:13,fontWeight:500}}>{item.nombre}</span>
+              {item.email&&<span style={{fontSize:11,color:'#6b7280',maxWidth:180,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{item.email}</span>}
+              {/* Estado cuenta */}
+              {item.user_id
+                ? <span style={{fontSize:10,padding:'2px 7px',borderRadius:10,background:'#dcfce7',color:'#16a34a',fontWeight:600,flexShrink:0}}>Activa</span>
+                : item.plantilla&&item.email
+                  ? <span style={{fontSize:10,padding:'2px 7px',borderRadius:10,background:'#fef9c3',color:'#92400e',fontWeight:600,flexShrink:0}}>Sin cuenta</span>
+                  : null
+              }
+              <button onClick={()=>startEdit(item)} title="Editar"
+                style={{padding:'2px 8px',border:'1px solid #E8E2DC',borderRadius:5,background:'#fff',cursor:'pointer',fontSize:11}}>✏️</button>
+              <button onClick={()=>del(item.id)} title="Eliminar"
+                style={{padding:'2px 8px',border:'1px solid #fecaca',borderRadius:5,background:'#fef2f2',cursor:'pointer',fontSize:11,color:'#dc2626'}}>✕</button>
+            </div>
+            {/* Acciones de cuenta (solo si es plantilla con email) */}
+            {item.plantilla && item.email && (
+              <div style={{marginTop:6,paddingTop:6,borderTop:'1px solid #E8E2DC',display:'flex',gap:8,alignItems:'center'}}>
+                {!item.user_id
+                  ? <button onClick={()=>crearCuenta(item)} disabled={saving}
+                      style={{fontSize:11,padding:'3px 10px',borderRadius:5,border:'1px solid #2563eb',background:'#eff6ff',color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>
+                      + Crear acceso app
+                    </button>
+                  : <button onClick={()=>desactivarCuenta(item)}
+                      style={{fontSize:11,padding:'3px 10px',borderRadius:5,border:'1px solid #fca5a5',background:'#fef2f2',color:'#dc2626',cursor:'pointer'}}>
+                      Desactivar cuenta
+                    </button>
+                }
+                {cuentaMsg?.id===item.id&&(
+                  <div style={{fontSize:11,color: cuentaMsg.msg.startsWith('Error')?'#dc2626':'#16a34a'}}>
+                    {cuentaMsg.msg}
+                    {cuentaMsg.pass&&<><br/><b>Contraseña temporal: {cuentaMsg.pass}</b> (comunicársela al operador)</>}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         ))}
       </div>
-      <div style={{marginTop:10,display:'flex',gap:8}}>
+
+      <div style={{marginTop:12,display:'flex',gap:8}}>
         <Input value={newVal} onChange={e=>setNewVal(e.target.value)} placeholder="Nuevo nombre..." style={{flex:1}}
           onKeyDown={e=>e.key==='Enter'&&add()} />
         <BtnP onClick={add} disabled={saving||!newVal.trim()} style={{whiteSpace:'nowrap'}}>+ Añadir</BtnP>

@@ -185,9 +185,14 @@ async function initDB() {
       IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name='users_role_check') THEN
         ALTER TABLE users DROP CONSTRAINT users_role_check;
       END IF;
-      ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('coordinador','usuario','readonly'));
+      ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('coordinador','usuario','readonly','operador'));
     END $$
   `)
+
+  // Campos para operadores con acceso a la app
+  await pool.query(`ALTER TABLE operadores_pool ADD COLUMN IF NOT EXISTS email     VARCHAR(255)`)
+  await pool.query(`ALTER TABLE operadores_pool ADD COLUMN IF NOT EXISTS plantilla BOOLEAN NOT NULL DEFAULT false`)
+  await pool.query(`ALTER TABLE operadores_pool ADD COLUMN IF NOT EXISTS user_id   INTEGER REFERENCES users(id)`)
 
   // cam_models: modelos de equipo seleccionados por el coordinador
   await pool.query(`ALTER TABLE servicios ADD COLUMN IF NOT EXISTS cam_models JSONB DEFAULT '{}'::jsonb`)
@@ -459,7 +464,11 @@ app.post('/api/auth/login', async (req, res) => {
 })
 
 // Validar token
-app.get('/api/auth/me', requireAuth(), (req, res) => {
+app.get('/api/auth/me', requireAuth(), async (req, res) => {
+  if (req.user.role === 'operador') {
+    const op = await pool.query('SELECT nombre FROM operadores_pool WHERE user_id=$1', [req.user.id]).catch(() => ({ rows: [] }))
+    return res.json({ ...req.user, operador_nombre: op.rows[0]?.nombre || '' })
+  }
   res.json(req.user)
 })
 
@@ -645,7 +654,14 @@ app.delete('/api/vehiculos/:id', requireAuth(['coordinador']), async (req, res) 
 
 app.get('/api/operadores-pool', requireAuth(['coordinador']), async (req, res) => {
   try {
-    const r = await pool.query('SELECT id, pool, nombre FROM operadores_pool WHERE activo=true ORDER BY pool, nombre')
+    const r = await pool.query(`
+      SELECT op.id, op.pool, op.nombre, op.plantilla, op.email, op.user_id,
+             u.active AS cuenta_activa
+      FROM operadores_pool op
+      LEFT JOIN users u ON u.id = op.user_id
+      WHERE op.activo = true
+      ORDER BY op.pool, op.nombre
+    `)
     res.json(r.rows)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -663,8 +679,15 @@ app.post('/api/operadores-pool', requireAuth(['coordinador']), async (req, res) 
 
 app.put('/api/operadores-pool/:id', requireAuth(['coordinador']), async (req, res) => {
   try {
-    const { nombre } = req.body
-    await pool.query('UPDATE operadores_pool SET nombre=$1 WHERE id=$2', [nombre.trim(), req.params.id])
+    const { nombre, email, plantilla } = req.body
+    const fields = []
+    const vals   = []
+    if (nombre    !== undefined) { fields.push(`nombre=$${fields.length+1}`);    vals.push(nombre.trim()) }
+    if (email     !== undefined) { fields.push(`email=$${fields.length+1}`);     vals.push(email ? email.trim().toLowerCase() : null) }
+    if (plantilla !== undefined) { fields.push(`plantilla=$${fields.length+1}`); vals.push(!!plantilla) }
+    if (!fields.length) return res.json({ ok: true })
+    vals.push(req.params.id)
+    await pool.query(`UPDATE operadores_pool SET ${fields.join(',')} WHERE id=$${vals.length}`, vals)
     res.json({ ok: true })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -673,6 +696,99 @@ app.delete('/api/operadores-pool/:id', requireAuth(['coordinador']), async (req,
   try {
     await pool.query('UPDATE operadores_pool SET activo=false WHERE id=$1', [req.params.id])
     res.json({ ok: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Crear cuenta de operador (genera contraseña temporal)
+app.post('/api/operadores-pool/:id/crear-cuenta', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const { id } = req.params
+    const op = await pool.query('SELECT * FROM operadores_pool WHERE id=$1', [id])
+    if (!op.rows.length) return res.status(404).json({ error: 'Operador no encontrado' })
+    const row = op.rows[0]
+    if (!row.email) return res.status(400).json({ error: 'El operador no tiene email' })
+    if (!row.plantilla) return res.status(400).json({ error: 'Solo operadores de plantilla pueden tener cuenta' })
+
+    // Si ya tiene cuenta, devolver sin crear
+    if (row.user_id) {
+      const u = await pool.query('SELECT id, email, active FROM users WHERE id=$1', [row.user_id])
+      if (u.rows.length) return res.json({ ok: true, ya_existia: true, user: u.rows[0] })
+    }
+
+    // Verificar que no exista ya un usuario con ese email
+    const existing = await pool.query('SELECT id FROM users WHERE email=$1', [row.email])
+    if (existing.rows.length) {
+      // Vincular la cuenta existente al operador
+      await pool.query('UPDATE operadores_pool SET user_id=$1 WHERE id=$2', [existing.rows[0].id, id])
+      return res.json({ ok: true, ya_existia: true, user: { id: existing.rows[0].id, email: row.email } })
+    }
+
+    // Generar contraseña temporal: iniciales + 4 dígitos
+    const partes   = row.nombre.trim().split(/\s+/)
+    const iniciales = partes.map(p => p[0]).join('').toUpperCase().slice(0, 3)
+    const pin       = String(Math.floor(1000 + Math.random() * 9000))
+    const tempPass  = `${iniciales}${pin}`
+    const hash      = require('bcryptjs').hashSync(tempPass, 10)
+    const nombre    = partes.slice(0, 2).join(' ')
+
+    const nu = await pool.query(
+      `INSERT INTO users (email, password_hash, name, role) VALUES ($1,$2,$3,'operador') RETURNING id`,
+      [row.email, hash, nombre]
+    )
+    await pool.query('UPDATE operadores_pool SET user_id=$1 WHERE id=$2', [nu.rows[0].id, id])
+    res.json({ ok: true, ya_existia: false, password_temporal: tempPass, user: { id: nu.rows[0].id, email: row.email, name: nombre } })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Desactivar cuenta de operador
+app.delete('/api/operadores-pool/:id/cuenta', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const op = await pool.query('SELECT user_id FROM operadores_pool WHERE id=$1', [req.params.id])
+    if (!op.rows.length || !op.rows[0].user_id) return res.status(404).json({ error: 'Sin cuenta' })
+    await pool.query('UPDATE users SET active=false WHERE id=$1', [op.rows[0].user_id])
+    res.json({ ok: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// ── MIS SERVICIOS (operador) ────────────────────────────────
+app.get('/api/mis-servicios', requireAuth(['operador']), async (req, res) => {
+  try {
+    // Obtener el nombre del operador desde operadores_pool
+    const opRow = await pool.query('SELECT nombre FROM operadores_pool WHERE user_id=$1', [req.user.id])
+    if (!opRow.rows.length) return res.json([])
+    const nombre = opRow.rows[0].nombre
+
+    const r = await pool.query(`
+      SELECT s.id, s.jornada, s.encuentro, s.fecha, s.hora_partido, s.hora_citacion,
+             s.responsable, s.um, s.tipo_servicio, s.operadores, s.status
+      FROM servicios s
+      WHERE s.status NOT IN ('borrador')
+        AND EXISTS (
+          SELECT 1 FROM jsonb_each_text(s.operadores) kv WHERE kv.value = $1
+        )
+      ORDER BY s.fecha DESC
+    `, [nombre])
+    res.json(r.rows)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// ── DETALLE SERVICIO PARA OPERADOR ──────────────────────────
+app.get('/api/mis-servicios/:id', requireAuth(['operador']), async (req, res) => {
+  try {
+    const opRow = await pool.query('SELECT nombre FROM operadores_pool WHERE user_id=$1', [req.user.id])
+    if (!opRow.rows.length) return res.status(403).json({ error: 'Sin acceso' })
+    const nombre = opRow.rows[0].nombre
+
+    const r = await pool.query(`
+      SELECT s.*, array_agg(json_build_object('id',d.id,'nombre',d.nombre,'tipo',d.tipo,'url',d.url)) FILTER (WHERE d.id IS NOT NULL) AS documentos
+      FROM servicios s
+      LEFT JOIN documentos d ON d.servicio_id = s.id
+      WHERE s.id = $1
+        AND EXISTS (SELECT 1 FROM jsonb_each_text(s.operadores) kv WHERE kv.value = $2)
+      GROUP BY s.id
+    `, [req.params.id, nombre])
+    if (!r.rows.length) return res.status(403).json({ error: 'Sin acceso' })
+    res.json(r.rows[0])
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 

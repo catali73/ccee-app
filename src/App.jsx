@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, lazy, Suspense } from "react";
-const CoordView = lazy(() => import('./CoordView.jsx'));
-const UsuarioView = lazy(() => import('./UsuarioView.jsx'));
+const CoordView    = lazy(() => import('./CoordView.jsx'));
+const UsuarioView  = lazy(() => import('./UsuarioView.jsx'));
+const OperadorView = lazy(() => import('./OperadorView.jsx'));
 
 // Fuente Montserrat — equivalente web de Gotham (libro de estilo GRUP MEDIAPRO)
 const fontLink = document.createElement("link");
@@ -803,7 +804,9 @@ export default function App() {
     <Suspense fallback={<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,color:'#7A7168'}}>Cargando...</div>}>
       {user.role === 'coordinador'
         ? <CoordView user={user} onLogout={handleLogout} />
-        : <UsuarioView user={user} onLogout={handleLogout} readonly={user.role==='readonly'} />
+        : user.role === 'operador'
+          ? <OperadorView user={user} onLogout={handleLogout} />
+          : <UsuarioView user={user} onLogout={handleLogout} readonly={user.role==='readonly'} />
       }
     </Suspense>
   );
