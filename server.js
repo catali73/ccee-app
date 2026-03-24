@@ -652,6 +652,62 @@ app.delete('/api/vehiculos/:id', requireAuth(['coordinador']), async (req, res) 
 
 // ── OPERADORES POOL ROUTES ─────────────────────────────────
 
+// Descargar plantilla Excel de operadores de plantilla
+app.get('/api/operadores-pool/export-plantilla', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT id, pool, nombre, email
+      FROM operadores_pool
+      WHERE activo=true AND plantilla=true
+      ORDER BY pool, nombre
+    `)
+    const POOL_MAP = {
+      RESP_CCEE:'Responsable CCEE', STEADY:'Steadycam', SKYCAM:'Skycam',
+      REFCAM:'Refcam', RF:'RF', DRON:'Dron', OBVAN:'Obvan',
+      CAM_UHS:'Cámara UHS', AYUDANTE:'Ayudante'
+    }
+    const data = r.rows.map(op => ({
+      'ID':          op.id,
+      'Especialidad': POOL_MAP[op.pool] || op.pool,
+      'Nombre':      op.nombre,
+      'Email':       op.email || '',
+    }))
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.length ? data : [{ ID:'', Especialidad:'', Nombre:'', Email:'' }]), 'Operadores')
+    const buf = XLSX.write(wb, { type:'buffer', bookType:'xlsx' })
+    res.setHeader('Content-Disposition', 'attachment; filename="operadores-plantilla.xlsx"')
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    res.send(buf)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Importar emails desde Excel
+app.post('/api/operadores-pool/import-emails', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const chunks = []
+    req.on('data', c => chunks.push(c))
+    req.on('end', async () => {
+      const buf  = Buffer.concat(chunks)
+      const wb   = XLSX.read(buf, { type:'buffer' })
+      const ws   = wb.Sheets[wb.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json(ws)
+      let updated = 0, errors = []
+      for (const row of rows) {
+        const id    = row['ID'] || row['id']
+        const email = (row['Email'] || row['email'] || '').toString().trim().toLowerCase()
+        if (!id) continue
+        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          errors.push(`ID ${id}: email inválido (${email})`)
+          continue
+        }
+        await pool.query('UPDATE operadores_pool SET email=$1 WHERE id=$2 AND plantilla=true', [email || null, id])
+        updated++
+      }
+      res.json({ ok: true, updated, errors })
+    })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
 app.get('/api/operadores-pool', requireAuth(['coordinador']), async (req, res) => {
   try {
     const r = await pool.query(`

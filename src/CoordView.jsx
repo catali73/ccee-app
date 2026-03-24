@@ -1365,14 +1365,15 @@ const MODELOS_LABELS = {
 
 /* ── OPERADORES SECTION ─────────────────────────────────────── */
 function OperadoresSection() {
-  const [rows,setRows]         = useState([]);
-  const [pool,setPool]         = useState('RESP_CCEE');
-  const [editId,setEditId]     = useState(null);
-  const [editVal,setEditVal]   = useState('');
+  const [rows,setRows]           = useState([]);
+  const [pool,setPool]           = useState('RESP_CCEE');
+  const [editId,setEditId]       = useState(null);
+  const [editVal,setEditVal]     = useState('');
   const [editEmail,setEditEmail] = useState('');
-  const [newVal,setNewVal]     = useState('');
-  const [saving,setSaving]     = useState(false);
-  const [cuentaMsg,setCuentaMsg] = useState(null); // {id, msg, pass?}
+  const [newVal,setNewVal]       = useState('');
+  const [saving,setSaving]       = useState(false);
+  const [cuentaMsg,setCuentaMsg] = useState(null);
+  const [importMsg,setImportMsg] = useState(null);
 
   const load = useCallback(()=>
     apiFetch('/api/operadores-pool').then(r=>r.json()).then(d=>{ if(Array.isArray(d)) setRows(d); }).catch(()=>{})
@@ -1392,6 +1393,31 @@ function OperadoresSection() {
   };
   const startEdit = (item) => {
     setEditId(item.id); setEditVal(item.nombre); setEditEmail(item.email||'');
+  };
+  const exportPlantilla = async () => {
+    const res = await apiFetch('/api/operadores-pool/export-plantilla');
+    if (!res.ok) return alert('Error al descargar');
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a'); a.href=url; a.download='operadores-plantilla.xlsx';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),500);
+  };
+  const importEmails = async (e) => {
+    const file = e.target.files[0]; if(!file) return;
+    setImportMsg(null);
+    const buf = await file.arrayBuffer();
+    const res = await apiFetch('/api/operadores-pool/import-emails', {
+      method:'POST',
+      headers:{'Content-Type':'application/octet-stream'},
+      body: buf,
+    });
+    const d = await res.json();
+    if(d.ok) {
+      setImportMsg(`✓ ${d.updated} emails actualizados${d.errors?.length ? ` · ${d.errors.length} errores` : ''}`);
+      await load();
+    } else { setImportMsg(`Error: ${d.error}`); }
+    e.target.value='';
   };
   const save = async (id) => {
     setSaving(true);
@@ -1428,13 +1454,26 @@ function OperadoresSection() {
     <Card style={{marginBottom:16}}>
       <SecTitle>Operadores · base de datos</SecTitle>
 
-      {/* Resumen acceso */}
-      <div style={{display:'flex',gap:12,marginBottom:14,padding:'8px 12px',background:'#f0f4ff',borderRadius:8,fontSize:12,color:'#374151'}}>
-        <span>Plantilla: <b>{plantillaTotal}</b></span>
-        <span>·</span>
-        <span>Con cuenta: <b style={{color:'#16a34a'}}>{conCuenta}</b></span>
-        <span>·</span>
-        <span style={{color:'#6b7280',fontSize:11}}>Marca como plantilla y añade email para dar acceso a la app</span>
+      {/* Resumen acceso + acciones masivas */}
+      <div style={{marginBottom:14,padding:'10px 12px',background:'#f0f4ff',borderRadius:8,fontSize:12,color:'#374151'}}>
+        <div style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
+          <span>Plantilla: <b>{plantillaTotal}</b></span>
+          <span>·</span>
+          <span>Con cuenta: <b style={{color:'#16a34a'}}>{conCuenta}</b></span>
+          <div style={{flex:1}}/>
+          {/* Descargar Excel */}
+          <button onClick={exportPlantilla}
+            style={{fontSize:11,padding:'4px 10px',borderRadius:5,border:'1px solid #2563eb',background:'#eff6ff',color:'#1d4ed8',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>
+            ⬇ Descargar Excel
+          </button>
+          {/* Importar Excel */}
+          <label style={{fontSize:11,padding:'4px 10px',borderRadius:5,border:'1px solid #16a34a',background:'#f0fdf4',color:'#15803d',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>
+            ⬆ Importar emails
+            <input type="file" accept=".xlsx,.xls" onChange={importEmails} style={{display:'none'}} />
+          </label>
+        </div>
+        {importMsg && <div style={{marginTop:6,fontSize:11,color: importMsg.startsWith('✓')?'#16a34a':'#dc2626'}}>{importMsg}</div>}
+        <div style={{marginTop:4,color:'#6b7280',fontSize:11}}>Descarga el Excel, rellena los emails y vuelve a importar</div>
       </div>
 
       <Field label="Especialidad">
