@@ -41,10 +41,25 @@ const LBL = { fontSize: 10, fontWeight: 700, color: '#7A7168', textTransform: 'u
 const TH  = { padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#7A7168', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #DDD5CE', whiteSpace: 'nowrap', background: '#F5F0EC' };
 const TD  = { padding: '8px 12px', fontSize: 12 };
 
-/* ── Classify a single informe ── */
+/* ── Classify a single informe (globally or for specific camIds) ── */
 const classify = inf => {
   if (inf.incidencias_graves > 0) return 'graves';
   if (inf.incidencias_leves  > 0) return 'leves';
+  return 'sinInc';
+};
+
+/* When a camera filter is active, classify ONLY by incidents from those cameras */
+const classifyFor = (inf, camIds) => {
+  if (!camIds || camIds.length === 0) return classify(inf);
+  const camData = inf.cam_data || {};
+  let graves = 0, leves = 0;
+  camIds.forEach(camId => {
+    Object.values((camData[camId] || {}).items || {}).forEach(v => {
+      if (v === 'G') graves++; else if (v === 'L') leves++;
+    });
+  });
+  if (graves > 0) return 'graves';
+  if (leves > 0) return 'leves';
   return 'sinInc';
 };
 
@@ -301,17 +316,30 @@ export default function AnalisisView() {
           if (!hasModel) return false;
         }
       }
-      if (applied.tipoInc === 'G'   && !(inf.incidencias_graves > 0)) return false;
-      if (applied.tipoInc === 'L'   && !(inf.incidencias_leves  > 0)) return false;
-      if (applied.tipoInc === 'sin' && (inf.incidencias_graves > 0 || inf.incidencias_leves > 0)) return false;
+      // tipoInc filter: use per-camera data when a camera block is selected
+      if (applied.tipoInc) {
+        const camIds = applied.bloques.length > 0
+          ? applied.bloques.flatMap(bId => { const b = CAM_BLOCKS.find(x => x.id === bId); return b ? b.cams : []; })
+          : null;
+        const cat = classifyFor(inf, camIds);
+        if (applied.tipoInc === 'G'   && cat !== 'graves')  return false;
+        if (applied.tipoInc === 'L'   && cat !== 'leves')   return false;
+        if (applied.tipoInc === 'sin' && cat !== 'sinInc')  return false;
+      }
       return true;
     });
   }, [informes, applied]);
 
-  /* ── Classify filtered ── */
-  const sinInc    = useMemo(() => filtered.filter(i => classify(i) === 'sinInc').length,    [filtered]);
-  const soloLeves = useMemo(() => filtered.filter(i => classify(i) === 'leves').length,     [filtered]);
-  const conGraves = useMemo(() => filtered.filter(i => classify(i) === 'graves').length,    [filtered]);
+  /* ── Camera IDs for current block filter (null = no filter = use global counts) ── */
+  const filteredCamIds = useMemo(() =>
+    applied.bloques.length === 0 ? null
+      : applied.bloques.flatMap(bId => { const b = CAM_BLOCKS.find(x => x.id === bId); return b ? b.cams : []; })
+  , [applied.bloques]);
+
+  /* ── Classify filtered (camera-aware) ── */
+  const sinInc    = useMemo(() => filtered.filter(i => classifyFor(i, filteredCamIds) === 'sinInc').length, [filtered, filteredCamIds]);
+  const soloLeves = useMemo(() => filtered.filter(i => classifyFor(i, filteredCamIds) === 'leves').length,  [filtered, filteredCamIds]);
+  const conGraves = useMemo(() => filtered.filter(i => classifyFor(i, filteredCamIds) === 'graves').length, [filtered, filteredCamIds]);
   const partidos  = useMemo(() => new Set(filtered.map(i => i.encuentro).filter(Boolean)).size, [filtered]);
 
   /* ── Active chips ── */
@@ -333,7 +361,7 @@ export default function AnalisisView() {
     filtered.forEach(inf => {
       const j = inf.jornada; if (!j) return;
       if (!map[j]) map[j] = { jornada:j, sinInc:0, soloLeves:0, conGraves:0, items:[] };
-      const cat = classify(inf);
+      const cat = classifyFor(inf, filteredCamIds);
       if (cat === 'sinInc') map[j].sinInc++;
       else if (cat === 'leves') map[j].soloLeves++;
       else map[j].conGraves++;
@@ -349,7 +377,7 @@ export default function AnalisisView() {
       });
     });
     return Object.values(map).sort((a,b) => a.jornada - b.jornada);
-  }, [filtered]);
+  }, [filtered, filteredCamIds]);
 
   /* ── Stats por bloque (respecting camera order) ── */
   const statsByCamera = useMemo(() => {
@@ -489,7 +517,7 @@ export default function AnalisisView() {
       downloadCSV('resumen.csv', toCSV(filtered.map(inf => ({
         Jornada:`J${inf.jornada}`, Partido:inf.encuentro||'—', Fecha:fmt(inf.fecha), Equipo:inf.um||'—',
         TipoServicio:inf.tipo_servicio||'—', Graves:inf.incidencias_graves||0, Leves:inf.incidencias_leves||0,
-        Estado:classify(inf)==='sinInc'?'Sin inc':classify(inf)==='leves'?'Solo leves':'Con graves',
+        Estado:classifyFor(inf,filteredCamIds)==='sinInc'?'Sin inc':classifyFor(inf,filteredCamIds)==='leves'?'Solo leves':'Con graves',
       }))));
     }
   };
@@ -842,9 +870,17 @@ export default function AnalisisView() {
                             <td style={TD}>{inf.um||'—'}</td>
                             <td style={{ ...TD, color:'#7A7168' }}>{ts?`${ts.icon} ${ts.label}`:'—'}</td>
                             <td style={{ ...TD, textAlign:'center' }}>{numCams}</td>
-                            <td style={{ ...TD, textAlign:'center' }}>{inf.incidencias_leves>0?<span style={{ color:'#d97706',fontWeight:700 }}>↓ {inf.incidencias_leves}</span>:<span style={{ color:'#C2B9AD' }}>0</span>}</td>
-                            <td style={{ ...TD, textAlign:'center' }}>{inf.incidencias_graves>0?<span style={{ color:'#dc2626',fontWeight:700 }}>⚠ {inf.incidencias_graves}</span>:<span style={{ color:'#C2B9AD' }}>0</span>}</td>
-                            <td style={TD}><EstadoBadge graves={inf.incidencias_graves} leves={inf.incidencias_leves}/></td>
+                            <td style={{ ...TD, textAlign:'center' }}>{(()=>{
+                              const camData = inf.cam_data||{}; const ids = filteredCamIds;
+                              const l = ids ? ids.reduce((s,c)=>s+Object.values((camData[c]||{}).items||{}).filter(v=>v==='L').length,0) : inf.incidencias_leves||0;
+                              return l>0?<span style={{ color:'#d97706',fontWeight:700 }}>↓ {l}</span>:<span style={{ color:'#C2B9AD' }}>0</span>;
+                            })()}</td>
+                            <td style={{ ...TD, textAlign:'center' }}>{(()=>{
+                              const camData = inf.cam_data||{}; const ids = filteredCamIds;
+                              const g = ids ? ids.reduce((s,c)=>s+Object.values((camData[c]||{}).items||{}).filter(v=>v==='G').length,0) : inf.incidencias_graves||0;
+                              return g>0?<span style={{ color:'#dc2626',fontWeight:700 }}>⚠ {g}</span>:<span style={{ color:'#C2B9AD' }}>0</span>;
+                            })()}</td>
+                            <td style={TD}>{(()=>{ const cat=classifyFor(inf,filteredCamIds); return <EstadoBadge graves={cat==='graves'?1:0} leves={cat==='leves'?1:0}/>; })()}</td>
                           </tr>,
                           isOpen && (
                             <tr key={`${inf.id}_detail`}>
