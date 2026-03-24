@@ -9,6 +9,54 @@ import MisEventosTab from "./MisEventosTab.jsx";
 /* ── helpers ── */
 const fmt = (d) => d ? new Date(d).toLocaleDateString('es-ES') : '—';
 
+/* ── Cambiar contraseña ──────────────────────────────────── */
+function CambiarPasswordTab() {
+  const [form, setForm] = useState({ actual: '', nueva: '', confirmar: '' });
+  const [msg,  setMsg]  = useState(null); // { ok, text }
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (form.nueva !== form.confirmar) { setMsg({ ok: false, text: 'Las contraseñas nuevas no coinciden' }); return; }
+    if (form.nueva.length < 6) { setMsg({ ok: false, text: 'Mínimo 6 caracteres' }); return; }
+    setSaving(true); setMsg(null);
+    try {
+      const r = await apiFetch('/api/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ current_password: form.actual, new_password: form.nueva }),
+      });
+      const d = await r.json();
+      if (d.ok) { setMsg({ ok: true, text: 'Contraseña actualizada correctamente' }); setForm({ actual: '', nueva: '', confirmar: '' }); }
+      else setMsg({ ok: false, text: d.error || 'Error al cambiar contraseña' });
+    } catch { setMsg({ ok: false, text: 'Error de conexión' }); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div style={{ maxWidth: 440, margin: '32px auto', padding: '0 20px' }}>
+      <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>Mi cuenta</h2>
+      <p style={{ fontSize: 13, color: '#7A7168', marginBottom: 24 }}>Cambia tu contraseña de acceso</p>
+      <form onSubmit={submit} style={{ background: '#fff', borderRadius: 10, border: '1px solid #DDD5CE', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <Field label="Contraseña actual">
+          <Input type="password" value={form.actual} onChange={e => setForm(f => ({ ...f, actual: e.target.value }))} required autoComplete="current-password" />
+        </Field>
+        <Field label="Nueva contraseña">
+          <Input type="password" value={form.nueva} onChange={e => setForm(f => ({ ...f, nueva: e.target.value }))} required minLength={6} autoComplete="new-password" placeholder="Mínimo 6 caracteres" />
+        </Field>
+        <Field label="Confirmar nueva contraseña">
+          <Input type="password" value={form.confirmar} onChange={e => setForm(f => ({ ...f, confirmar: e.target.value }))} required autoComplete="new-password" />
+        </Field>
+        {msg && (
+          <div style={{ fontSize: 13, padding: '8px 12px', borderRadius: 6, border: `1px solid ${msg.ok ? '#bbf7d0' : '#fecaca'}`, background: msg.ok ? '#f0fdf4' : '#fef2f2', color: msg.ok ? '#16a34a' : '#dc2626' }}>
+            {msg.text}
+          </div>
+        )}
+        <BtnP type="submit" disabled={saving}>{saving ? 'Guardando...' : 'Cambiar contraseña'}</BtnP>
+      </form>
+    </div>
+  );
+}
+
 /* ── PDF HOJA DE SERVICIO (descarga directa desde servidor) ─── */
 async function generateServicioPDF(servicio) {
   try {
@@ -814,7 +862,7 @@ function InformeUsuarioView({ informeId, onBack }) {
 /* ── USUARIO VIEW ROOT ─────────────────────────────────────── */
 export default function UsuarioView({ user, onLogout, readonly=false }) {
   const [view,setView]           = useState('list'); // 'list' | 'filling' | 'view_informe'
-  const [tab,setTab]             = useState('servicios'); // 'servicios' | 'eventos'
+  const [tab,setTab]             = useState('servicios'); // 'servicios' | 'eventos' | 'cuenta'
   const [selectedServicioId,setSelectedServicioId] = useState(null);
   const [draftInformeId,setDraftInformeId]         = useState(null);
   const [viewInformeId,setViewInformeId]           = useState(null);
@@ -844,6 +892,7 @@ export default function UsuarioView({ user, onLogout, readonly=false }) {
             {[
               {k:'servicios', l:'Mis servicios'},
               {k:'eventos',   l:'Mis eventos como operador'},
+              {k:'cuenta',    l:'Mi cuenta'},
             ].map(t=>(
               <button key={t.k} onClick={()=>setTab(t.k)} style={{
                 padding:'12px 18px', background:'transparent', border:'none',
@@ -861,6 +910,8 @@ export default function UsuarioView({ user, onLogout, readonly=false }) {
         <ServiciosList onSelect={handleSelect} onViewInforme={handleViewInforme} readonly={readonly} />}
       {view==='list' && tab==='eventos' &&
         <MisEventosTab user={user} />}
+      {view==='list' && tab==='cuenta' &&
+        <CambiarPasswordTab />}
       {!readonly&&view==='filling'&&selectedServicioId&&
         <FillReport servicioId={selectedServicioId} draftInformeId={draftInformeId} onBack={handleBack} />}
       {view==='view_informe'&&viewInformeId&&

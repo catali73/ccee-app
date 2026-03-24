@@ -16,7 +16,7 @@ function getRol(operadores, nombreOperador) {
 }
 
 // ── HEADER ───────────────────────────────────────────────────
-function Header({ user, onLogout }) {
+function Header({ user, onLogout, onCuenta }) {
   return (
     <header style={{background:'#1A1A1A',borderBottom:'3px solid #E8392C',position:'sticky',top:0,zIndex:100}}>
       <div style={{maxWidth:600,margin:'0 auto',padding:'0 16px',height:54,display:'flex',alignItems:'center',gap:12}}>
@@ -25,6 +25,11 @@ function Header({ user, onLogout }) {
           <div style={{fontSize:13,fontWeight:700,color:'#fff',letterSpacing:'0.05em'}}>MIS PARTIDOS</div>
           <div style={{fontSize:10,color:'#C2B9AD'}}>{user.name}</div>
         </div>
+        <button onClick={onCuenta}
+          style={{height:28,fontSize:11,padding:'0 10px',borderRadius:6,border:'1px solid #555',
+            background:'transparent',color:'#C2B9AD',cursor:'pointer'}}>
+          🔑
+        </button>
         <button onClick={onLogout}
           style={{height:28,fontSize:11,padding:'0 12px',borderRadius:6,border:'1px solid #555',
             background:'transparent',color:'#C2B9AD',cursor:'pointer'}}>
@@ -32,6 +37,59 @@ function Header({ user, onLogout }) {
         </button>
       </div>
     </header>
+  );
+}
+
+// ── CAMBIAR CONTRASEÑA ────────────────────────────────────────
+function CambiarPassword({ onBack }) {
+  const [form, setForm] = useState({ actual: '', nueva: '', confirmar: '' });
+  const [msg,  setMsg]  = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (form.nueva !== form.confirmar) { setMsg({ ok: false, text: 'Las contraseñas nuevas no coinciden' }); return; }
+    if (form.nueva.length < 6) { setMsg({ ok: false, text: 'Mínimo 6 caracteres' }); return; }
+    setSaving(true); setMsg(null);
+    try {
+      const r = await apiFetch('/api/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ current_password: form.actual, new_password: form.nueva }),
+      });
+      const d = await r.json();
+      if (d.ok) { setMsg({ ok: true, text: 'Contraseña actualizada correctamente' }); setForm({ actual: '', nueva: '', confirmar: '' }); }
+      else setMsg({ ok: false, text: d.error || 'Error al cambiar contraseña' });
+    } catch { setMsg({ ok: false, text: 'Error de conexión' }); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div style={{ maxWidth: 440, margin: '0 auto', padding: '0 16px 60px' }}>
+      <button onClick={onBack} style={{ display:'flex', alignItems:'center', gap:6, padding:'14px 0',
+        background:'transparent', border:'none', cursor:'pointer', color:'#E8392C', fontSize:13, fontWeight:600 }}>
+        ← Volver
+      </button>
+      <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>Mi cuenta</h2>
+      <p style={{ fontSize: 13, color: '#7A7168', marginBottom: 20 }}>Cambia tu contraseña de acceso</p>
+      <form onSubmit={submit} style={{ background:'#fff', borderRadius:10, border:'1px solid #e5e7eb', padding:'20px', display:'flex', flexDirection:'column', gap:14 }}>
+        {[['actual','Contraseña actual','current-password'],['nueva','Nueva contraseña','new-password'],['confirmar','Confirmar nueva contraseña','new-password']].map(([k,label,ac])=>(
+          <div key={k}>
+            <div style={{fontSize:11,fontWeight:600,color:'#374151',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.04em'}}>{label}</div>
+            <input type="password" value={form[k]} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))}
+              required autoComplete={ac} placeholder={k==='nueva'?'Mínimo 6 caracteres':''}
+              style={{width:'100%',padding:'8px 10px',borderRadius:6,border:'1px solid #d1d5db',fontSize:13,boxSizing:'border-box'}} />
+          </div>
+        ))}
+        {msg && (
+          <div style={{ fontSize:13, padding:'8px 12px', borderRadius:6, border:`1px solid ${msg.ok?'#bbf7d0':'#fecaca'}`, background:msg.ok?'#f0fdf4':'#fef2f2', color:msg.ok?'#16a34a':'#dc2626' }}>
+            {msg.text}
+          </div>
+        )}
+        <button type="submit" disabled={saving} style={{ padding:'10px', borderRadius:8, border:'none', background:'#E8392C', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', opacity:saving?0.6:1 }}>
+          {saving ? 'Guardando...' : 'Cambiar contraseña'}
+        </button>
+      </form>
+    </div>
   );
 }
 
@@ -213,9 +271,10 @@ function ServicioDetalle({ servicioId, nombreOperador, onBack }) {
 export default function OperadorView({ user, onLogout }) {
   const [servicios, setServicios]   = useState([]);
   const [loading, setLoading]       = useState(true);
-  const [detalle, setDetalle]       = useState(null); // id del servicio seleccionado
+  const [detalle, setDetalle]       = useState(null);
   const [nombreOp, setNombreOp]     = useState('');
-  const [filtro, setFiltro]         = useState('proximos'); // 'proximos' | 'todos'
+  const [filtro, setFiltro]         = useState('proximos');
+  const [verCuenta, setVerCuenta]   = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -227,25 +286,30 @@ export default function OperadorView({ user, onLogout }) {
 
   useEffect(() => {
     load();
-    // Obtener nombre del operador para matching de roles
     apiFetch('/api/auth/me').then(r=>r.json()).then(u=>{ if(u.operador_nombre) setNombreOp(u.operador_nombre); });
   }, [load]);
 
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   const proximos = servicios.filter(s => !s.fecha || new Date(s.fecha) >= hoy);
-  const pasados  = servicios.filter(s => s.fecha && new Date(s.fecha) < hoy);
   const lista    = filtro === 'proximos' ? proximos : servicios;
 
   if (detalle) return (
     <>
-      <Header user={user} onLogout={onLogout} />
+      <Header user={user} onLogout={onLogout} onCuenta={() => { setDetalle(null); setVerCuenta(true); }} />
       <ServicioDetalle servicioId={detalle} nombreOperador={nombreOp} onBack={() => setDetalle(null)} />
+    </>
+  );
+
+  if (verCuenta) return (
+    <>
+      <Header user={user} onLogout={onLogout} onCuenta={() => setVerCuenta(false)} />
+      <CambiarPassword onBack={() => setVerCuenta(false)} />
     </>
   );
 
   return (
     <>
-      <Header user={user} onLogout={onLogout} />
+      <Header user={user} onLogout={onLogout} onCuenta={() => setVerCuenta(true)} />
       <div style={{maxWidth:600,margin:'0 auto',padding:'16px 16px 40px'}}>
 
         {/* Tabs próximos/todos */}

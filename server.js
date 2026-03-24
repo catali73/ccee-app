@@ -532,6 +532,32 @@ app.patch('/api/users/:id/activate', requireAuth(['coordinador']), async (req, r
   }
 })
 
+// Resetear contraseña (coordinador genera contraseña temporal)
+app.post('/api/users/:id/reset-password', requireAuth(['coordinador']), async (req, res) => {
+  try {
+    const tempPass = 'CCEE-' + Math.floor(1000 + Math.random() * 9000)
+    const hash = await bcrypt.hash(tempPass, 10)
+    await pool.query('UPDATE users SET password_hash=$1 WHERE id=$2', [hash, req.params.id])
+    res.json({ ok: true, password_temporal: tempPass })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Cambiar contraseña propia (cualquier usuario autenticado)
+app.post('/api/auth/change-password', requireAuth(), async (req, res) => {
+  try {
+    const { current_password, new_password } = req.body
+    if (!current_password || !new_password) return res.status(400).json({ error: 'Faltan campos' })
+    if (new_password.length < 6) return res.status(400).json({ error: 'Mínimo 6 caracteres' })
+    const r = await pool.query('SELECT password_hash FROM users WHERE id=$1', [req.user.id])
+    if (!r.rows.length) return res.status(404).json({ error: 'Usuario no encontrado' })
+    const ok = await bcrypt.compare(current_password, r.rows[0].password_hash)
+    if (!ok) return res.status(400).json({ error: 'La contraseña actual no es correcta' })
+    const newHash = await bcrypt.hash(new_password, 10)
+    await pool.query('UPDATE users SET password_hash=$1 WHERE id=$2', [newHash, req.user.id])
+    res.json({ ok: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
 // Editar usuario (nombre, email, rol) + restablecer contraseña opcional
 app.put('/api/users/:id', requireAuth(['coordinador']), async (req, res) => {
   try {

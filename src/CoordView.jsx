@@ -1008,10 +1008,11 @@ function UserManagement({ currentUser }) {
   const [error,setError] = useState(null);
   const [success,setSuccess] = useState(null);
   const [creating,setCreating] = useState(false);
-  const [editingUser,setEditingUser] = useState(null); // user object being edited
+  const [editingUser,setEditingUser] = useState(null);
   const [editForm,setEditForm] = useState({name:'',email:'',role:'',new_password:''});
   const [editError,setEditError] = useState(null);
   const [editSaving,setEditSaving] = useState(false);
+  const [resetMsg,setResetMsg] = useState({}); // { [userId]: tempPass }
 
   const loadUsers = async () => {
     const r = await apiFetch('/api/users');
@@ -1059,6 +1060,14 @@ function UserManagement({ currentUser }) {
   const activate = async (id) => {
     await apiFetch(`/api/users/${id}/activate`,{ method:'PATCH' });
     loadUsers();
+  };
+
+  const resetPassword = async (u) => {
+    if (!confirm(`¿Resetear la contraseña de ${u.name}? Se generará una contraseña temporal.`)) return;
+    const r = await apiFetch(`/api/users/${u.id}/reset-password`, { method:'POST' });
+    const d = await r.json();
+    if (d.ok) setResetMsg(m => ({ ...m, [u.id]: d.password_temporal }));
+    else alert('Error: ' + d.error);
   };
 
   return (
@@ -1138,21 +1147,32 @@ function UserManagement({ currentUser }) {
         ):users.length===0?(
           <div style={{padding:24,textAlign:'center',fontSize:13,color:'#7A7168'}}>No hay usuarios todavía.</div>
         ):users.map((u,i)=>(
-          <div key={u.id} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',borderBottom:i<users.length-1?'1px solid #DDD5CE':'none',background:u.active?'#fff':'#F5F0EC',opacity:u.active?1:0.6}}>
-            <div style={{flex:1}}>
-              <div style={{fontSize:13,fontWeight:500}}>{u.name}</div>
-              <div style={{fontSize:11,color:'#7A7168',marginTop:2}}>{u.email}</div>
+          <div key={u.id} style={{borderBottom:i<users.length-1?'1px solid #DDD5CE':'none',background:u.active?'#fff':'#F5F0EC',opacity:u.active?1:0.6}}>
+            <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px'}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:500}}>{u.name}</div>
+                <div style={{fontSize:11,color:'#7A7168',marginTop:2}}>{u.email}</div>
+              </div>
+              <Badge variant={ROLE_BADGE[u.role]||'default'}>{ROLE_LABELS[u.role]||u.role}</Badge>
+              {!u.active&&<Badge>Inactivo</Badge>}
+              {u.id!==currentUser.id&&(
+                <>
+                  <BtnO onClick={()=>startEdit(u)} style={{height:28,fontSize:11,padding:'0 10px'}}>✏️ Editar</BtnO>
+                  <BtnO onClick={()=>resetPassword(u)} style={{height:28,fontSize:11,padding:'0 10px',color:'#7c3aed',borderColor:'#ddd6fe'}}>🔑 Reset</BtnO>
+                  {u.active
+                    ? <BtnO onClick={()=>deactivate(u.id)} style={{height:28,fontSize:11,padding:'0 10px',color:'#dc2626',borderColor:'#fecaca'}}>Desactivar</BtnO>
+                    : <BtnO onClick={()=>activate(u.id)} style={{height:28,fontSize:11,padding:'0 10px'}}>Reactivar</BtnO>
+                  }
+                </>
+              )}
             </div>
-            <Badge variant={ROLE_BADGE[u.role]||'default'}>{ROLE_LABELS[u.role]||u.role}</Badge>
-            {!u.active&&<Badge>Inactivo</Badge>}
-            {u.id!==currentUser.id&&(
-              <>
-                <BtnO onClick={()=>startEdit(u)} style={{height:28,fontSize:11,padding:'0 10px'}}>✏️ Editar</BtnO>
-                {u.active
-                  ? <BtnO onClick={()=>deactivate(u.id)} style={{height:28,fontSize:11,padding:'0 10px',color:'#dc2626',borderColor:'#fecaca'}}>Desactivar</BtnO>
-                  : <BtnO onClick={()=>activate(u.id)} style={{height:28,fontSize:11,padding:'0 10px'}}>Reactivar</BtnO>
-                }
-              </>
+            {resetMsg[u.id]&&(
+              <div style={{margin:'0 16px 10px',padding:'8px 12px',background:'#f5f3ff',border:'1px solid #ddd6fe',borderRadius:6,fontSize:12,color:'#5b21b6',display:'flex',alignItems:'center',gap:8}}>
+                <span>🔑 Contraseña temporal:</span>
+                <strong style={{fontFamily:'monospace',fontSize:13}}>{resetMsg[u.id]}</strong>
+                <span style={{color:'#7c3aed'}}>— comunícasela al usuario</span>
+                <button onClick={()=>setResetMsg(m=>({...m,[u.id]:null}))} style={{marginLeft:'auto',background:'none',border:'none',cursor:'pointer',color:'#7c3aed',fontSize:14}}>✕</button>
+              </div>
             )}
           </div>
         ))}
