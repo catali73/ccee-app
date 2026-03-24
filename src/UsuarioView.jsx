@@ -4,6 +4,7 @@ import {
   Field, Sep, StatusToggle, CameraSection, initItems, STATUS,
   CAMERA_CATALOG, OPERATOR_GROUPS, LOGISTICA_ITEMS, MediaproLogo
 } from "./App.jsx";
+import MisEventosTab from "./MisEventosTab.jsx";
 
 /* ── helpers ── */
 const fmt = (d) => d ? new Date(d).toLocaleDateString('es-ES') : '—';
@@ -812,10 +813,11 @@ function InformeUsuarioView({ informeId, onBack }) {
 
 /* ── USUARIO VIEW ROOT ─────────────────────────────────────── */
 export default function UsuarioView({ user, onLogout, readonly=false }) {
-  const [view,setView] = useState('list'); // 'list' | 'filling' | 'view_informe'
+  const [view,setView]           = useState('list'); // 'list' | 'filling' | 'view_informe'
+  const [tab,setTab]             = useState('servicios'); // 'servicios' | 'eventos'
   const [selectedServicioId,setSelectedServicioId] = useState(null);
-  const [draftInformeId,setDraftInformeId] = useState(null);
-  const [viewInformeId,setViewInformeId] = useState(null);
+  const [draftInformeId,setDraftInformeId]         = useState(null);
+  const [viewInformeId,setViewInformeId]           = useState(null);
 
   const handleSelect = (servicioId, draftId) => {
     if (readonly) return;
@@ -824,14 +826,45 @@ export default function UsuarioView({ user, onLogout, readonly=false }) {
     setView('filling');
   };
   const handleViewInforme = (informeId) => { setViewInformeId(informeId); setView('view_informe'); };
-  const handleBack = () => { setSelectedServicioId(null); setDraftInformeId(null); setViewInformeId(null); setView('list'); };
+  const handleBack = () => {
+    setSelectedServicioId(null); setDraftInformeId(null);
+    setViewInformeId(null); setView('list');
+  };
+
+  const isDetail = view !== 'list';
 
   return (
     <div style={{minHeight:'100vh',background:'#F5F0EC'}}>
-      <Header user={user} onLogout={onLogout} onHome={view!=='list'?handleBack:null} />
-      {view==='list'&&<ServiciosList onSelect={handleSelect} onViewInforme={handleViewInforme} readonly={readonly} />}
-      {!readonly&&view==='filling'&&selectedServicioId&&<FillReport servicioId={selectedServicioId} draftInformeId={draftInformeId} onBack={handleBack} />}
-      {view==='view_informe'&&viewInformeId&&<InformeUsuarioView informeId={viewInformeId} onBack={handleBack} />}
+      <Header user={user} onLogout={onLogout} onHome={isDetail ? handleBack : null} />
+
+      {/* Tabs — solo visibles en la lista */}
+      {!isDetail && (
+        <div style={{background:'#fff',borderBottom:'1px solid #DDD5CE'}}>
+          <div style={{maxWidth:760,margin:'0 auto',padding:'0 20px',display:'flex',gap:0}}>
+            {[
+              {k:'servicios', l:'Mis servicios'},
+              {k:'eventos',   l:'Mis eventos como operador'},
+            ].map(t=>(
+              <button key={t.k} onClick={()=>setTab(t.k)} style={{
+                padding:'12px 18px', background:'transparent', border:'none',
+                borderBottom: tab===t.k ? '2px solid #E8392C' : '2px solid transparent',
+                color: tab===t.k ? '#E8392C' : '#7A7168',
+                fontWeight: tab===t.k ? 600 : 400,
+                fontSize:13, cursor:'pointer', whiteSpace:'nowrap',
+              }}>{t.l}</button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {view==='list' && tab==='servicios' &&
+        <ServiciosList onSelect={handleSelect} onViewInforme={handleViewInforme} readonly={readonly} />}
+      {view==='list' && tab==='eventos' &&
+        <MisEventosTab user={user} />}
+      {!readonly&&view==='filling'&&selectedServicioId&&
+        <FillReport servicioId={selectedServicioId} draftInformeId={draftInformeId} onBack={handleBack} />}
+      {view==='view_informe'&&viewInformeId&&
+        <InformeUsuarioView informeId={viewInformeId} onBack={handleBack} />}
     </div>
   );
 }
