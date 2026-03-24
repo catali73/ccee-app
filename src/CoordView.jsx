@@ -491,8 +491,8 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
     jefe_tecnico:initialData.jefe_tecnico||'', tel_jefe_tecnico:initialData.tel_jefe_tecnico||'',
     realizador:initialData.realizador||'', tel_realizador:initialData.tel_realizador||'',
     productor:initialData.productor||'', tel_productor:initialData.tel_productor||'',
-    horario_md1:initialData.horario_md1||'',
-  } : {jornada:"",encuentro:"",fecha:"",hora_partido:"",hora_citacion:"",responsable:"",um:"",jefe_tecnico:"",tel_jefe_tecnico:"",realizador:"",tel_realizador:"",productor:"",tel_productor:"",horario_md1:""});
+    horario_md1:initialData.horario_md1||'', observaciones:initialData.observaciones||'',
+  } : {jornada:"",encuentro:"",fecha:"",hora_partido:"",hora_citacion:"",responsable:"",um:"",jefe_tecnico:"",tel_jefe_tecnico:"",realizador:"",tel_realizador:"",productor:"",tel_productor:"",horario_md1:"",observaciones:""});
   const [ligaJornada,setLigaJornada] = useState(initialData?.tipo_servicio==='liga'?initialData.jornada||'':"");
   const [ligaPartido,setLigaPartido] = useState(initialData?.tipo_servicio==='liga'?initialData.encuentro||'':"");
   const [selectedCams,setSelectedCams] = useState(initialData?.camaras_activas||{});
@@ -638,7 +638,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
       <div style={{fontSize:13,color:'#7A7168'}}>{match.encuentro} · {match.jornada}</div>
       <div style={{display:'flex',gap:8,marginTop:12}}>
         <BtnO onClick={onCancel}>Ver dashboard</BtnO>
-        {!isEdit&&<BtnP onClick={()=>{ setStep(1); setTipoServicio('liga'); setLigaJornada(''); setLigaPartido(''); setMatch({jornada:'',encuentro:'',fecha:'',hora_partido:'',hora_citacion:'',responsable:'',um:'',jefe_tecnico:'',tel_jefe_tecnico:'',realizador:'',tel_realizador:'',productor:'',tel_productor:'',horario_md1:''}); setSelectedCams({}); setOperators(initOperators()); setCustomOps({}); setAssignedTo(''); setSaveError(null); setSent(false); setPendingDocs([]); }}>+ Otro servicio</BtnP>}
+        {!isEdit&&<BtnP onClick={()=>{ setStep(1); setTipoServicio('liga'); setLigaJornada(''); setLigaPartido(''); setMatch({jornada:'',encuentro:'',fecha:'',hora_partido:'',hora_citacion:'',responsable:'',um:'',jefe_tecnico:'',tel_jefe_tecnico:'',realizador:'',tel_realizador:'',productor:'',tel_productor:'',horario_md1:'',observaciones:''}); setSelectedCams({}); setOperators(initOperators()); setCustomOps({}); setAssignedTo(''); setSaveError(null); setSent(false); setPendingDocs([]); }}>+ Otro servicio</BtnP>}
       </div>
     </div>
   );
@@ -919,6 +919,16 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
               </Field>
             </Card>
           )}
+
+          <Card>
+            <SecTitle>Observaciones</SecTitle>
+            <Textarea
+              value={match.observaciones}
+              onChange={e=>setMatch({...match,observaciones:e.target.value})}
+              placeholder="Observaciones generales del servicio (accesos, logística, instrucciones especiales…)"
+              rows={4}
+            />
+          </Card>
 
           <Card>
             <SecTitle>Resumen del servicio</SecTitle>

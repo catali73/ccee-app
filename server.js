@@ -196,6 +196,8 @@ async function initDB() {
 
   // cam_models: modelos de equipo seleccionados por el coordinador
   await pool.query(`ALTER TABLE servicios ADD COLUMN IF NOT EXISTS cam_models JSONB DEFAULT '{}'::jsonb`)
+  // observaciones libres por servicio
+  await pool.query(`ALTER TABLE servicios ADD COLUMN IF NOT EXISTS observaciones TEXT DEFAULT ''`)
 
   // Tabla de vehículos
   await pool.query(`
@@ -936,8 +938,8 @@ app.post('/api/servicios', requireAuth(['coordinador']), async (req, res) => {
         tipo_servicio, jornada, encuentro, fecha, hora_partido, hora_citacion,
         responsable, um, jefe_tecnico, tel_jefe_tecnico, realizador, tel_realizador,
         productor, tel_productor, horario_md1,
-        operadores, camaras_activas, cam_models, assigned_to, created_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+        operadores, camaras_activas, cam_models, assigned_to, created_by, observaciones
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
       RETURNING id
     `, [
       tipo_servicio,
@@ -948,7 +950,7 @@ app.post('/api/servicios', requireAuth(['coordinador']), async (req, res) => {
       match.productor, match.tel_productor||'', match.horario_md1,
       JSON.stringify(operators), JSON.stringify(selectedCams),
       JSON.stringify(cam_models || {}),
-      assigned_to, req.user.id
+      assigned_to, req.user.id, match.observaciones||''
     ])
     const serviceId = r.rows[0].id
     const vids = Array.isArray(vehiculo_ids) ? vehiculo_ids : []
@@ -1182,6 +1184,17 @@ app.get('/api/servicios/:id/hoja-pdf', requireAuth(), async (req, res) => {
       }
     }
 
+    // ── OBSERVACIONES ──
+    if (sv.observaciones) {
+      sec('Observaciones')
+      checkBreak(40)
+      doc.rect(M, y, CW, 2).fill('#e8e8e8')
+      y += 6
+      doc.fontSize(10).font('Helvetica').fillColor('#222222')
+        .text(sv.observaciones, M + 6, y, { width: CW - 12 })
+      y = doc.y + 14
+    }
+
     // ── CÁMARAS Y MODELOS ──
     if (activeCamIds.length > 0) {
       sec(`Cámaras activas · ${activeCamIds.length}`)
@@ -1349,8 +1362,8 @@ app.put('/api/servicios/:id', requireAuth(['coordinador']), async (req, res) => 
         hora_citacion=$6, responsable=$7, um=$8, jefe_tecnico=$9, tel_jefe_tecnico=$10,
         realizador=$11, tel_realizador=$12, productor=$13, tel_productor=$14,
         horario_md1=$15, operadores=$16, camaras_activas=$17,
-        cam_models=$18, assigned_to=$19
-      WHERE id=$20
+        cam_models=$18, assigned_to=$19, observaciones=$20
+      WHERE id=$21
     `, [
       tipo_servicio,
       match.jornada, match.encuentro, match.fecha || null,
@@ -1360,7 +1373,7 @@ app.put('/api/servicios/:id', requireAuth(['coordinador']), async (req, res) => 
       match.productor, match.tel_productor||'', match.horario_md1,
       JSON.stringify(operators), JSON.stringify(selectedCams),
       JSON.stringify(cam_models || {}),
-      assigned_to, req.params.id
+      assigned_to, match.observaciones||'', req.params.id
     ])
     // Reemplazar vehículos asignados
     const vids = Array.isArray(vehiculo_ids) ? vehiculo_ids : []
