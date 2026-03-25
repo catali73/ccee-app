@@ -9,9 +9,24 @@
     <meta name="theme-color" content="#0A0A0F" />
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { background: #0A0A0F; }
+      html, body { background: #0A0A0F; max-width: 100%; overflow-x: hidden; }
+      /* Responsive header — CSS controls show/hide, no JS dependency */
+      .hdr-desktop { display: flex; align-items: center; gap: 16px; }
+      .hdr-mobile  { display: none; align-items: center; gap: 10px; flex: 1; justify-content: flex-end; }
+      .hdr-dropdown { display: none; }
+      .hdr-dropdown.open { display: block; }
+      @media (max-width: 767px) {
+        .hdr-desktop { display: none; }
+        .hdr-mobile  { display: flex; }
+        /* grids responsive */
+        .grid-4 { grid-template-columns: repeat(2,1fr) !important; }
+        .grid-3 { grid-template-columns: repeat(2,1fr) !important; }
+        .grid-2 { grid-template-columns: 1fr !important; }
+        .grid-5 { grid-template-columns: repeat(3,1fr) !important; }
+        .ops-grid { grid-template-columns: repeat(auto-fill,minmax(140px,1fr)) !important; }
+      }
     </style>
-    <script type="module" crossorigin src="/assets/index-V_qhXVe0.js"></script>
+    <script type="module" crossorigin src="/assets/index-DNEt3Dfv.js"></script>
   </head>
   <body>
     <div id="root"></div>
