@@ -10,6 +10,17 @@ import {
 /* ── helpers ── */
 const fmt = (d) => d ? new Date(d).toLocaleDateString('es-ES') : '—';
 
+/* ── mobile hook ── */
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  return isMobile;
+}
+
 /* ── HOJA DE SERVICIO PDF (descarga directa, igual que usuario) ── */
 async function downloadHojaPDF(servicioId, encuentro) {
   try {
@@ -34,43 +45,64 @@ const initOperators = () => {
 
 /* ── HEADER ────────────────────────────────────────────────── */
 function Header({ user, onLogout, view, setView }) {
+  const isMobile = useIsMobile();
+  const [menuOpen, setMenuOpen] = useState(false);
   const tabs = [
-    { id:'dashboard', label:'Dashboard' },
-    { id:'new-servicio', label:'+ Nuevo servicio' },
-    { id:'users', label:'Usuarios' },
-    { id:'bd', label:'Base de datos' },
-    { id:'analisis', label:'Análisis' },
+    { id:'dashboard', label:'Dashboard', icon:'📊' },
+    { id:'new-servicio', label:'+ Nuevo servicio', icon:'➕' },
+    { id:'users', label:'Usuarios', icon:'👤' },
+    { id:'bd', label:'Base de datos', icon:'🗄️' },
+    { id:'analisis', label:'Análisis', icon:'📈' },
   ];
+  const handleNav = (id) => { setView(id); setMenuOpen(false); };
   return (
     <header style={{background:'#1A1A1A',borderBottom:'3px solid #E8392C',position:'sticky',top:0,zIndex:100}}>
-      <div style={{maxWidth:1100,margin:'0 auto',padding:'0 20px',height:58,display:'flex',alignItems:'center',gap:16}}>
-        {/* Logo CCEE */}
+      <div style={{maxWidth:1100,margin:'0 auto',padding:'0 16px',height:58,display:'flex',alignItems:'center',gap:16}}>
         <div style={{display:'flex',alignItems:'center',gap:12}}>
           <img src="/logo.png" alt="CCEE" style={{height:40,width:40,objectFit:'contain'}} />
-          <div style={{fontSize:9,color:'#C2B9AD',lineHeight:1.2,letterSpacing:'0.14em',textTransform:'uppercase',fontFamily:"'Montserrat',-apple-system,sans-serif"}}>Cámaras Especiales</div>
+          {!isMobile&&<div style={{fontSize:9,color:'#C2B9AD',lineHeight:1.2,letterSpacing:'0.14em',textTransform:'uppercase',fontFamily:"'Montserrat',-apple-system,sans-serif"}}>Cámaras Especiales</div>}
         </div>
         <div style={{flex:1}} />
-        {/* Nav tabs */}
-        <nav style={{display:'flex',gap:2}}>
+        {isMobile?(
+          <>
+            <span style={{fontSize:12,fontWeight:600,color:'#C2B9AD',flex:1,textAlign:'center',fontFamily:"'Montserrat',-apple-system,sans-serif"}}>{tabs.find(t=>t.id===view)?.label||''}</span>
+            <button onClick={()=>setMenuOpen(o=>!o)}
+              style={{width:36,height:36,borderRadius:6,border:'1px solid #444',background:'transparent',color:'#C2B9AD',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center'}}>
+              {menuOpen?'✕':'☰'}
+            </button>
+            <button onClick={onLogout} style={{height:28,fontSize:11,padding:'0 10px',borderRadius:6,border:'1px solid #555',background:'transparent',color:'#C2B9AD',cursor:'pointer',fontFamily:"'Montserrat',-apple-system,sans-serif",fontWeight:500}}>Salir</button>
+          </>
+        ):(
+          <>
+            <nav style={{display:'flex',gap:2}}>
+              {tabs.map(t=>(
+                <button key={t.id} onClick={()=>setView(t.id)}
+                  style={{padding:'0 14px',height:34,borderRadius:6,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:"'Montserrat',-apple-system,sans-serif",border:'none',background:view===t.id?'#E8392C':'transparent',color:view===t.id?'#fff':'#C2B9AD',transition:'all 0.15s'}}
+                  onMouseEnter={e=>{if(view!==t.id)e.currentTarget.style.color='#fff';}}
+                  onMouseLeave={e=>{if(view!==t.id)e.currentTarget.style.color='#C2B9AD';}}>
+                  {t.label}
+                </button>
+              ))}
+            </nav>
+            <div style={{width:1,height:20,background:'#444'}} />
+            <span style={{fontSize:12,color:'#C2B9AD',fontFamily:"'Montserrat',-apple-system,sans-serif",fontWeight:500}}>{user.name}</span>
+            <button onClick={onLogout} style={{height:28,fontSize:11,padding:'0 12px',borderRadius:6,border:'1px solid #555',background:'transparent',color:'#C2B9AD',cursor:'pointer',fontFamily:"'Montserrat',-apple-system,sans-serif",fontWeight:500}}>Salir</button>
+          </>
+        )}
+      </div>
+      {isMobile&&menuOpen&&(
+        <div style={{background:'#1A1A1A',borderTop:'1px solid #333',padding:'8px 0',boxShadow:'0 4px 12px rgba(0,0,0,0.4)'}}>
           {tabs.map(t=>(
-            <button key={t.id} onClick={()=>setView(t.id)}
-              style={{
-                padding:'0 14px',height:34,borderRadius:6,fontSize:12,fontWeight:600,cursor:'pointer',
-                fontFamily:"'Montserrat',-apple-system,sans-serif",border:'none',
-                background:view===t.id?'#E8392C':'transparent',
-                color:view===t.id?'#fff':'#C2B9AD',
-                transition:'all 0.15s',
-              }}
-              onMouseEnter={e=>{if(view!==t.id)e.currentTarget.style.color='#fff';}}
-              onMouseLeave={e=>{if(view!==t.id)e.currentTarget.style.color='#C2B9AD';}}>
-              {t.label}
+            <button key={t.id} onClick={()=>handleNav(t.id)}
+              style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'12px 20px',border:'none',background:view===t.id?'#E8392C':'transparent',cursor:'pointer',fontSize:14,fontWeight:view===t.id?600:500,color:view===t.id?'#fff':'#C2B9AD',textAlign:'left',fontFamily:"'Montserrat',-apple-system,sans-serif"}}>
+              <span>{t.icon}</span>{t.label}
             </button>
           ))}
-        </nav>
-        <div style={{width:1,height:20,background:'#444'}} />
-        <span style={{fontSize:12,color:'#C2B9AD',fontFamily:"'Montserrat',-apple-system,sans-serif",fontWeight:500}}>{user.name}</span>
-        <button onClick={onLogout} style={{height:28,fontSize:11,padding:'0 12px',borderRadius:6,border:'1px solid #555',background:'transparent',color:'#C2B9AD',cursor:'pointer',fontFamily:"'Montserrat',-apple-system,sans-serif",fontWeight:500}}>Salir</button>
-      </div>
+          <div style={{margin:'8px 16px 4px',borderTop:'1px solid #333',paddingTop:8}}>
+            <span style={{fontSize:11,color:'#7A7168',fontFamily:"'Montserrat',-apple-system,sans-serif"}}>{user.name}</span>
+          </div>
+        </div>
+      )}
     </header>
   );
 }
@@ -80,6 +112,7 @@ const STATUS_COLOR = { OK:'#16a34a', G:'#dc2626', L:'#d97706', '—':'#7A7168' }
 const STATUS_BG    = { OK:'#f0fdf4', G:'#fef2f2', L:'#fffbeb', '—':'#EDE8E4' };
 
 function InformeModal({ informe, onClose, onDeleted }) {
+  const isMobile = useIsMobile();
   const [deleting, setDeleting] = useState(false);
 
   const handleDelete = async () => {
@@ -126,7 +159,7 @@ function InformeModal({ informe, onClose, onDeleted }) {
 
           {/* Datos del partido */}
           <div style={{marginBottom:6,fontSize:10,fontWeight:600,color:'#7A7168',textTransform:'uppercase',letterSpacing:'0.08em'}}>Partido</div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:16}}>
+          <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(3,1fr)',gap:8,marginBottom:16}}>
             {[['Jornada',informe.jornada],['Encuentro',informe.encuentro],['Fecha',fmt(informe.fecha)],
               ['Hora partido',informe.hora_partido],['Hora citación',informe.hora_citacion],['Horario citación MD-1',informe.horario_md1]
             ].map(([k,v])=>(
@@ -139,7 +172,7 @@ function InformeModal({ informe, onClose, onDeleted }) {
 
           {/* Equipo técnico */}
           <div style={{marginBottom:6,fontSize:10,fontWeight:600,color:'#7A7168',textTransform:'uppercase',letterSpacing:'0.08em'}}>Equipo técnico</div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:16}}>
+          <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(3,1fr)',gap:8,marginBottom:16}}>
             {[['Responsable CCEE',informe.responsable],['Unidad Móvil',informe.um],['J. Técnico UM',informe.jefe_tecnico],
               ['Realizador',informe.realizador],['Productor',informe.productor]
             ].map(([k,v])=>(
@@ -331,6 +364,7 @@ function DocumentosSection({ servicioId }) {
 
 /* ── DASHBOARD ─────────────────────────────────────────────── */
 function CoordDashboard({ onNewServicio, onManageUsers, onEditServicio }) {
+  const isMobile = useIsMobile();
   const [stats,setStats] = useState(null);
   const [servicios,setServicios] = useState([]);
   const [informes,setInformes] = useState([]);
@@ -368,25 +402,25 @@ function CoordDashboard({ onNewServicio, onManageUsers, onEditServicio }) {
   const pendientes = servicios.filter(s=>s.status==='pendiente');
 
   return (
-    <div style={{maxWidth:1000,margin:'0 auto',padding:'24px 20px 80px'}}>
+    <div style={{maxWidth:1000,margin:'0 auto',padding:'24px 16px 80px'}}>
       {modalInforme&&(
         <InformeModal informe={modalInforme} onClose={()=>setModalInforme(null)} onDeleted={()=>{ setModalInforme(null); load(); }} />
       )}
 
-      <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:24}}>
+      <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:24,flexWrap:'wrap',gap:12}}>
         <div>
           <h1 style={{fontSize:22,fontWeight:600,margin:0,marginBottom:4}}>Dashboard</h1>
           <p style={{fontSize:13,color:'#7A7168',margin:0}}>Coordinación · Temporada 25/26</p>
         </div>
-        <div style={{display:'flex',gap:8}}>
-          <BtnO onClick={onManageUsers}>Gestionar usuarios</BtnO>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          {!isMobile&&<BtnO onClick={onManageUsers}>Gestionar usuarios</BtnO>}
           <BtnP onClick={onNewServicio}>+ Nuevo servicio</BtnP>
         </div>
       </div>
 
       {/* Stats */}
       {stats&&(
-        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}}>
+        <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(4,1fr)',gap:12,marginBottom:20}}>
           {[
             {l:'Informes',v:stats.total,s:'completados'},
             {l:'Servicios pendientes',v:stats.pendientes||pendientes.length,s:'sin informe'},
@@ -413,22 +447,23 @@ function CoordDashboard({ onNewServicio, onManageUsers, onEditServicio }) {
               style={{padding:'12px 16px',borderBottom:i<pendientes.length-1?'1px solid #DDD5CE':'none',background:'#fff',transition:'background 0.1s'}}
               onMouseEnter={e=>e.currentTarget.style.background='#F5F0EC'}
               onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
-              <div style={{display:'flex',alignItems:'center',gap:10}}>
-                <div style={{flex:1,cursor:'pointer'}} onClick={()=>onEditServicio(s.id)}>
+              <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                <div style={{flex:1,minWidth:120,cursor:'pointer'}} onClick={()=>onEditServicio(s.id)}>
                   <div style={{fontSize:13,fontWeight:500}}>{s.encuentro||'—'}</div>
                   <div style={{fontSize:11,color:'#7A7168',marginTop:2}}>
                     <span style={{fontFamily:"'Courier New',monospace"}}>{s.jornada}</span>
                     {' · '}{fmt(s.fecha)}
-                    {' · '}<span style={{fontWeight:500}}>{s.assigned_to_name||'Sin asignar'}</span>
+                    {!isMobile&&<>{' · '}<span style={{fontWeight:500}}>{s.assigned_to_name||'Sin asignar'}</span></>}
                   </div>
                 </div>
-                <Badge style={{background:'#fffbeb',color:'#d97706',borderColor:'#fde68a'}}>⏳ Pendiente</Badge>
+                {!isMobile&&<Badge style={{background:'#fffbeb',color:'#d97706',borderColor:'#fde68a'}}>⏳ Pendiente</Badge>}
                 <button onClick={e=>{e.stopPropagation();downloadHojaPDF(s.id,s.encuentro);}}
                   title="Descargar hoja de servicio"
-                  style={{border:'1px solid #DDD5CE',borderRadius:6,background:'#F5F0EC',padding:'3px 8px',fontSize:11,cursor:'pointer',color:'#5C534D',lineHeight:1.4,flexShrink:0}}>📄</button>
-                <span onClick={()=>onEditServicio(s.id)} style={{color:'#7A7168',fontSize:16,cursor:'pointer'}}>✏</span>
+                  style={{border:'1px solid #DDD5CE',borderRadius:6,background:'#F5F0EC',padding:'5px 10px',fontSize:14,cursor:'pointer',color:'#5C534D',lineHeight:1,flexShrink:0}}>📄</button>
+                <button onClick={e=>{e.stopPropagation();onEditServicio(s.id);}}
+                  style={{border:'1px solid #DDD5CE',borderRadius:6,background:'#F5F0EC',padding:'5px 10px',fontSize:14,cursor:'pointer',color:'#7A7168',lineHeight:1,flexShrink:0}}>✏️</button>
                 <button onClick={e=>{e.stopPropagation();handleDeleteServicio(s.id);}}
-                  style={{border:'1px solid #fecaca',borderRadius:6,background:'#fff5f5',padding:'3px 8px',fontSize:11,cursor:'pointer',color:'#dc2626',lineHeight:1.4,flexShrink:0}}>✕</button>
+                  style={{border:'1px solid #fecaca',borderRadius:6,background:'#fff5f5',padding:'5px 10px',fontSize:14,cursor:'pointer',color:'#dc2626',lineHeight:1,flexShrink:0}}>✕</button>
               </div>
             </div>
           ))}
@@ -478,6 +513,7 @@ function CoordDashboard({ onNewServicio, onManageUsers, onEditServicio }) {
 
 /* ── NEW / EDIT SERVICIO FORM (Steps 1-3 + Asignar) ────────── */
 function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
+  const isMobile = useIsMobile();
   const isEdit = !!servicioId;
   const [step,setStep] = useState(1);
   const STEPS = ["Servicio","Cámaras","Operadores","Asignar"];
@@ -644,7 +680,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
   );
 
   return (
-    <div style={{maxWidth:760,margin:'0 auto',padding:'28px 20px 80px'}}>
+    <div style={{maxWidth:760,margin:'0 auto',padding:isMobile?'16px 12px 80px':'28px 20px 80px'}}>
 
       {/* ── STEP 1 ── */}
       {step===1&&(
@@ -655,7 +691,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
           </div>
           <Card>
             <SecTitle>Tipo de servicio</SecTitle>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:8}}>
+            <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(3,1fr)':'repeat(5,1fr)',gap:8}}>
               {TIPOS_SERVICIO.map(tp=>(
                 <button key={tp.id} onClick={()=>setTipoServicio(tp.id)} style={{padding:'12px 8px',borderRadius:8,border:`1px solid ${tipoServicio===tp.id?'#E8392C':'#DDD5CE'}`,background:tipoServicio===tp.id?'#E8392C':'#fff',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:6,transition:'all 0.15s'}}>
                   <span style={{fontSize:20}}>{tp.icon}</span>
@@ -667,7 +703,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
           <Card>
             <SecTitle>Identificación · {tipoActual?.icon} {tipoActual?.label}</SecTitle>
             {tipoServicio==='liga'?(
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}}>
+              <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:14,marginBottom:14}}>
                 <Field label="Jornada">
                   <Select value={ligaJornada} onChange={e=>{setLigaJornada(e.target.value);setLigaPartido('');}}>
                     <option value="">— Selecciona jornada —</option>
@@ -682,7 +718,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
                 </Field>
               </div>
             ):(
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}}>
+              <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:14,marginBottom:14}}>
                 <Field label={tipoServicio==='programa'?'Nombre del programa':'Competición / Evento'}>
                   <Input placeholder="Descripción del evento" value={match.encuentro} onChange={e=>setMatch({...match,encuentro:e.target.value})} />
                 </Field>
@@ -691,7 +727,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
                 </Field>
               </div>
             )}
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+            <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:14}}>
               <Field label="Fecha"><Input type="date" value={match.fecha} onChange={e=>setMatch({...match,fecha:e.target.value})} /></Field>
               <Field label="Hora partido"><Input type="time" value={match.hora_partido} onChange={e=>setMatch({...match,hora_partido:e.target.value})} /></Field>
               <Field label="Hora citación"><Input placeholder="12:00 HLE" value={match.hora_citacion} onChange={e=>setMatch({...match,hora_citacion:e.target.value})} /></Field>
@@ -700,7 +736,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
           </Card>
           <Card>
             <SecTitle>Equipo técnico</SecTitle>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+            <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:14}}>
               <Field label="Responsable CCEE">
                 <Select value={match.responsable} onChange={e=>setMatch({...match,responsable:e.target.value})}>
                   <option value="">— Seleccionar —</option>
@@ -827,7 +863,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
                         <span style={{fontSize:13}}>{group.icon}</span>
                         <span style={{fontSize:11,fontWeight:600,color:'#7A7168',textTransform:'uppercase',letterSpacing:'0.06em'}}>{group.label}</span>
                       </div>
-                      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(210px,1fr))',gap:12}}>
+                      <div style={{display:'grid',gridTemplateColumns:`repeat(auto-fill,minmax(${isMobile?'140px':'210px'},1fr))`,gap:12}}>
                         {visibleRoles.map(role=>{
                           const isCustom=!!customOps[role.key];
                           return (
@@ -932,7 +968,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
 
           <Card>
             <SecTitle>Resumen del servicio</SecTitle>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:14}}>
+            <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(3,1fr)',gap:10,marginBottom:14}}>
               {[['Encuentro',match.encuentro],['Jornada',match.jornada],['Fecha',match.fecha],['Hora',match.hora_partido],['Responsable',match.responsable],['Cámaras',`${activeCams.length} activas`]].map(([k,v])=>(
                 <div key={k} style={{padding:'10px 12px',background:'#F5F0EC',borderRadius:8,border:'1px solid #DDD5CE'}}>
                   <div style={{fontSize:10,fontWeight:500,color:'#7A7168',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:3}}>{k}</div>
@@ -1002,6 +1038,7 @@ const ROLE_LABELS = { coordinador:'Coordinador', usuario:'Técnico', readonly:'S
 const ROLE_BADGE = { coordinador:'default', usuario:'ok', readonly:'leve' };
 
 function UserManagement({ currentUser }) {
+  const isMobile = useIsMobile();
   const [users,setUsers] = useState([]);
   const [loading,setLoading] = useState(true);
   const [form,setForm] = useState({ email:'', password:'', name:'', role:'usuario' });
@@ -1083,7 +1120,7 @@ function UserManagement({ currentUser }) {
             <SecTitle style={{margin:0,flex:1}}>Editar usuario</SecTitle>
             <button onClick={()=>setEditingUser(null)} style={{background:'none',border:'none',cursor:'pointer',color:'#71717a',fontSize:18}}>✕</button>
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}}>
+          <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:14,marginBottom:14}}>
             <Field label="Nombre completo">
               <Input value={editForm.name} onChange={e=>setEditForm(f=>({...f,name:e.target.value}))} />
             </Field>
@@ -1114,7 +1151,7 @@ function UserManagement({ currentUser }) {
       <Card>
         <SecTitle>Crear nuevo usuario</SecTitle>
         <form onSubmit={createUser}>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}}>
+          <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:14,marginBottom:14}}>
             <Field label="Nombre completo">
               <Input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Nombre Apellido" required />
             </Field>
@@ -1183,6 +1220,7 @@ function UserManagement({ currentUser }) {
 
 /* ── BD VIEW: VEHÍCULOS ────────────────────────────────────── */
 function VehiculosSection() {
+  const isMobile = useIsMobile();
   const [vehiculos,setVehiculos] = useState([]);
   const [editingId,setEditingId] = useState(null);
   const [form,setForm] = useState({referencia:'',matricula:'',modelo:''});
@@ -1220,7 +1258,7 @@ function VehiculosSection() {
 
   const formRow = (
     <div style={{background:'#f8fafc',border:'1px solid #cbd5e1',borderRadius:8,padding:'14px 16px',marginBottom:12}}>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 2fr 2fr',gap:10,marginBottom:10}}>
+      <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 2fr 2fr',gap:10,marginBottom:10}}>
         <Field label="Referencia"><Input value={form.referencia} onChange={e=>setForm(f=>({...f,referencia:e.target.value}))} placeholder="REF-001" /></Field>
         <Field label="Matrícula"><Input value={form.matricula} onChange={e=>setForm(f=>({...f,matricula:e.target.value}))} placeholder="0000-XXX" /></Field>
         <Field label="Modelo"><Input value={form.modelo} onChange={e=>setForm(f=>({...f,modelo:e.target.value}))} placeholder="Marca y modelo" /></Field>
@@ -1246,30 +1284,52 @@ function VehiculosSection() {
         <div style={{fontSize:13,color:'#71717a',padding:'20px 0',textAlign:'center'}}>No hay vehículos registrados.</div>
       )}
       {vehiculos.length>0&&(
-        <div style={{border:'1px solid #e4e4e7',borderRadius:8,overflow:'hidden'}}>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 2fr 2fr auto',gap:0,background:'#f4f4f5',padding:'6px 12px',fontSize:11,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.06em'}}>
-            <span>Referencia</span><span>Matrícula</span><span>Modelo</span><span></span>
-          </div>
-          {vehiculos.map((v,i)=>(
-            <div key={v.id}>
-              {editingId===v.id ? (
-                <div style={{padding:'10px 12px',background:'#f0f9ff',borderTop:i>0?'1px solid #e4e4e7':'none'}}>
-                  {formRow}
-                </div>
-              ) : (
-                <div style={{display:'grid',gridTemplateColumns:'1fr 2fr 2fr auto',gap:0,padding:'9px 12px',borderTop:i>0?'1px solid #e4e4e7':'none',alignItems:'center',background:i%2===0?'#fff':'#fafafa'}}>
-                  <span style={{fontSize:12,fontFamily:"'Geist Mono',monospace"}}>{v.referencia}</span>
-                  <span style={{fontSize:12}}>{v.matricula}</span>
-                  <span style={{fontSize:12,color:'#52525b'}}>{v.modelo}</span>
-                  <div style={{display:'flex',gap:4,justifyContent:'flex-end'}}>
-                    <button onClick={()=>startEdit(v)} style={{padding:'2px 8px',border:'1px solid #e4e4e7',borderRadius:5,background:'#fff',cursor:'pointer',fontSize:11}}>✏️</button>
-                    <button onClick={()=>del(v.id)} style={{padding:'2px 8px',border:'1px solid #fecaca',borderRadius:5,background:'#fef2f2',cursor:'pointer',fontSize:11,color:'#dc2626'}}>✕</button>
+        isMobile?(
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {vehiculos.map(v=>(
+              <div key={v.id}>
+                {editingId===v.id ? formRow : (
+                  <div style={{border:'1px solid #e4e4e7',borderRadius:8,padding:'10px 12px',background:'#fff',display:'flex',alignItems:'center',gap:8}}>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:11,fontFamily:"'Geist Mono',monospace",color:'#71717a',marginBottom:2}}>{v.referencia}</div>
+                      <div style={{fontSize:13,fontWeight:500}}>{v.matricula}</div>
+                      <div style={{fontSize:12,color:'#52525b'}}>{v.modelo}</div>
+                    </div>
+                    <div style={{display:'flex',gap:4}}>
+                      <button onClick={()=>startEdit(v)} style={{padding:'4px 10px',border:'1px solid #e4e4e7',borderRadius:5,background:'#fff',cursor:'pointer',fontSize:13}}>✏️</button>
+                      <button onClick={()=>del(v.id)} style={{padding:'4px 10px',border:'1px solid #fecaca',borderRadius:5,background:'#fef2f2',cursor:'pointer',fontSize:13,color:'#dc2626'}}>✕</button>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+            ))}
+          </div>
+        ):(
+          <div style={{border:'1px solid #e4e4e7',borderRadius:8,overflow:'hidden'}}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 2fr 2fr auto',gap:0,background:'#f4f4f5',padding:'6px 12px',fontSize:11,fontWeight:600,color:'#71717a',textTransform:'uppercase',letterSpacing:'0.06em'}}>
+              <span>Referencia</span><span>Matrícula</span><span>Modelo</span><span></span>
             </div>
-          ))}
-        </div>
+            {vehiculos.map((v,i)=>(
+              <div key={v.id}>
+                {editingId===v.id ? (
+                  <div style={{padding:'10px 12px',background:'#f0f9ff',borderTop:i>0?'1px solid #e4e4e7':'none'}}>
+                    {formRow}
+                  </div>
+                ) : (
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 2fr 2fr auto',gap:0,padding:'9px 12px',borderTop:i>0?'1px solid #e4e4e7':'none',alignItems:'center',background:i%2===0?'#fff':'#fafafa'}}>
+                    <span style={{fontSize:12,fontFamily:"'Geist Mono',monospace"}}>{v.referencia}</span>
+                    <span style={{fontSize:12}}>{v.matricula}</span>
+                    <span style={{fontSize:12,color:'#52525b'}}>{v.modelo}</span>
+                    <div style={{display:'flex',gap:4,justifyContent:'flex-end'}}>
+                      <button onClick={()=>startEdit(v)} style={{padding:'2px 8px',border:'1px solid #e4e4e7',borderRadius:5,background:'#fff',cursor:'pointer',fontSize:11}}>✏️</button>
+                      <button onClick={()=>del(v.id)} style={{padding:'2px 8px',border:'1px solid #fecaca',borderRadius:5,background:'#fef2f2',cursor:'pointer',fontSize:11,color:'#dc2626'}}>✕</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )
       )}
     </Card>
   );
