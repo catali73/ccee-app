@@ -12,11 +12,13 @@ const fmt = (d) => d ? new Date(d).toLocaleDateString('es-ES') : '—';
 
 /* ── mobile hook ── */
 function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
+  const mq = typeof window !== 'undefined' ? window.matchMedia('(max-width: 767px)') : null;
+  const [isMobile, setIsMobile] = useState(() => mq ? mq.matches : false);
   useEffect(() => {
-    const handler = () => setIsMobile(window.innerWidth < 640);
-    window.addEventListener('resize', handler);
-    return () => window.removeEventListener('resize', handler);
+    if (!mq) return;
+    const handler = (e) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
   }, []);
   return isMobile;
 }
@@ -56,7 +58,7 @@ function Header({ user, onLogout, view, setView }) {
   ];
   const handleNav = (id) => { setView(id); setMenuOpen(false); };
   return (
-    <header style={{background:'#1A1A1A',borderBottom:'3px solid #E8392C',position:'sticky',top:0,zIndex:100}}>
+    <header style={{background:'#1A1A1A',borderBottom:'3px solid #E8392C',position:'sticky',top:0,zIndex:100,overflow:'hidden'}}>
       <div style={{maxWidth:1100,margin:'0 auto',padding:'0 16px',height:58,display:'flex',alignItems:'center',gap:16}}>
         <div style={{display:'flex',alignItems:'center',gap:12}}>
           <img src="/logo.png" alt="CCEE" style={{height:40,width:40,objectFit:'contain'}} />
