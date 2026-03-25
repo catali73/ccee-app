@@ -10,15 +10,34 @@ import {
 /* ── helpers ── */
 const fmt = (d) => d ? new Date(d).toLocaleDateString('es-ES') : '—';
 
+/* ── Inject responsive CSS into the document head once ── */
+const RESPONSIVE_CSS = `
+  .hdr-desktop{display:flex!important;align-items:center;gap:16px;flex:1}
+  .hdr-mobile{display:none!important;align-items:center;gap:10px;flex:1;justify-content:flex-end}
+  .hdr-dropdown{display:none!important}
+  .hdr-dropdown.open{display:block!important}
+  @media(max-width:767px){
+    .hdr-desktop{display:none!important}
+    .hdr-mobile{display:flex!important}
+  }
+`;
+(function injectCSS() {
+  if (typeof document === 'undefined') return;
+  if (document.getElementById('ccee-responsive')) return;
+  const s = document.createElement('style');
+  s.id = 'ccee-responsive';
+  s.textContent = RESPONSIVE_CSS;
+  document.head.appendChild(s);
+})();
+
 /* ── mobile hook ── */
 function useIsMobile() {
-  const mq = typeof window !== 'undefined' ? window.matchMedia('(max-width: 767px)') : null;
-  const [isMobile, setIsMobile] = useState(() => mq ? mq.matches : false);
+  const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
-    if (!mq) return;
-    const handler = (e) => setIsMobile(e.matches);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
+    const check = () => setIsMobile(window.innerWidth <= 767);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
   }, []);
   return isMobile;
 }
