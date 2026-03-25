@@ -47,64 +47,65 @@ const initOperators = () => {
 
 /* ── HEADER ────────────────────────────────────────────────── */
 function Header({ user, onLogout, view, setView }) {
-  const isMobile = useIsMobile();
   const [menuOpen, setMenuOpen] = useState(false);
   const tabs = [
     { id:'dashboard', label:'Dashboard', icon:'📊' },
-    { id:'new-servicio', label:'+ Nuevo servicio', icon:'➕' },
+    { id:'new-servicio', label:'+ Nuevo', icon:'➕' },
     { id:'users', label:'Usuarios', icon:'👤' },
     { id:'bd', label:'Base de datos', icon:'🗄️' },
     { id:'analisis', label:'Análisis', icon:'📈' },
   ];
   const handleNav = (id) => { setView(id); setMenuOpen(false); };
   return (
-    <header style={{background:'#1A1A1A',borderBottom:'3px solid #E8392C',position:'sticky',top:0,zIndex:100,overflow:'hidden'}}>
+    <header style={{background:'#1A1A1A',borderBottom:'3px solid #E8392C',position:'sticky',top:0,zIndex:100}}>
       <div style={{maxWidth:1100,margin:'0 auto',padding:'0 16px',height:58,display:'flex',alignItems:'center',gap:16}}>
-        <div style={{display:'flex',alignItems:'center',gap:12}}>
+        {/* Logo — always visible */}
+        <div style={{display:'flex',alignItems:'center',gap:12,flexShrink:0}}>
           <img src="/logo.png" alt="CCEE" style={{height:40,width:40,objectFit:'contain'}} />
-          {!isMobile&&<div style={{fontSize:9,color:'#C2B9AD',lineHeight:1.2,letterSpacing:'0.14em',textTransform:'uppercase',fontFamily:"'Montserrat',-apple-system,sans-serif"}}>Cámaras Especiales</div>}
         </div>
-        <div style={{flex:1}} />
-        {isMobile?(
-          <>
-            <span style={{fontSize:12,fontWeight:600,color:'#C2B9AD',flex:1,textAlign:'center',fontFamily:"'Montserrat',-apple-system,sans-serif"}}>{tabs.find(t=>t.id===view)?.label||''}</span>
-            <button onClick={()=>setMenuOpen(o=>!o)}
-              style={{width:36,height:36,borderRadius:6,border:'1px solid #444',background:'transparent',color:'#C2B9AD',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center'}}>
-              {menuOpen?'✕':'☰'}
-            </button>
-            <button onClick={onLogout} style={{height:28,fontSize:11,padding:'0 10px',borderRadius:6,border:'1px solid #555',background:'transparent',color:'#C2B9AD',cursor:'pointer',fontFamily:"'Montserrat',-apple-system,sans-serif",fontWeight:500}}>Salir</button>
-          </>
-        ):(
-          <>
-            <nav style={{display:'flex',gap:2}}>
-              {tabs.map(t=>(
-                <button key={t.id} onClick={()=>setView(t.id)}
-                  style={{padding:'0 14px',height:34,borderRadius:6,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:"'Montserrat',-apple-system,sans-serif",border:'none',background:view===t.id?'#E8392C':'transparent',color:view===t.id?'#fff':'#C2B9AD',transition:'all 0.15s'}}
-                  onMouseEnter={e=>{if(view!==t.id)e.currentTarget.style.color='#fff';}}
-                  onMouseLeave={e=>{if(view!==t.id)e.currentTarget.style.color='#C2B9AD';}}>
-                  {t.label}
-                </button>
-              ))}
-            </nav>
-            <div style={{width:1,height:20,background:'#444'}} />
-            <span style={{fontSize:12,color:'#C2B9AD',fontFamily:"'Montserrat',-apple-system,sans-serif",fontWeight:500}}>{user.name}</span>
-            <button onClick={onLogout} style={{height:28,fontSize:11,padding:'0 12px',borderRadius:6,border:'1px solid #555',background:'transparent',color:'#C2B9AD',cursor:'pointer',fontFamily:"'Montserrat',-apple-system,sans-serif",fontWeight:500}}>Salir</button>
-          </>
-        )}
+
+        {/* Desktop nav — hidden on mobile via CSS class */}
+        <div className="hdr-desktop" style={{flex:1}}>
+          <nav style={{display:'flex',gap:2}}>
+            {tabs.map(t=>(
+              <button key={t.id} onClick={()=>setView(t.id)}
+                style={{padding:'0 14px',height:34,borderRadius:6,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:"'Montserrat',-apple-system,sans-serif",border:'none',background:view===t.id?'#E8392C':'transparent',color:view===t.id?'#fff':'#C2B9AD',transition:'all 0.15s',whiteSpace:'nowrap'}}
+                onMouseEnter={e=>{if(view!==t.id)e.currentTarget.style.color='#fff';}}
+                onMouseLeave={e=>{if(view!==t.id)e.currentTarget.style.color='#C2B9AD';}}>
+                {t.label}
+              </button>
+            ))}
+          </nav>
+          <div style={{width:1,height:20,background:'#444',flexShrink:0}} />
+          <span style={{fontSize:12,color:'#C2B9AD',fontFamily:"'Montserrat',-apple-system,sans-serif",fontWeight:500,whiteSpace:'nowrap'}}>{user.name}</span>
+          <button onClick={onLogout} style={{height:28,fontSize:11,padding:'0 12px',borderRadius:6,border:'1px solid #555',background:'transparent',color:'#C2B9AD',cursor:'pointer',fontFamily:"'Montserrat',-apple-system,sans-serif",fontWeight:500,whiteSpace:'nowrap'}}>Salir</button>
+        </div>
+
+        {/* Mobile nav — visible only on mobile via CSS class */}
+        <div className="hdr-mobile">
+          <span style={{fontSize:12,fontWeight:600,color:'#C2B9AD',fontFamily:"'Montserrat',-apple-system,sans-serif"}}>{tabs.find(t=>t.id===view)?.label||''}</span>
+          <div style={{flex:1}} />
+          <button onClick={()=>setMenuOpen(o=>!o)}
+            style={{width:36,height:36,borderRadius:6,border:'1px solid #444',background:'transparent',color:'#C2B9AD',cursor:'pointer',fontSize:20,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+            {menuOpen?'✕':'☰'}
+          </button>
+          <button onClick={onLogout} style={{height:28,fontSize:11,padding:'0 10px',borderRadius:6,border:'1px solid #555',background:'transparent',color:'#C2B9AD',cursor:'pointer',fontFamily:"'Montserrat',-apple-system,sans-serif",fontWeight:500,flexShrink:0}}>Salir</button>
+        </div>
       </div>
-      {isMobile&&menuOpen&&(
-        <div style={{background:'#1A1A1A',borderTop:'1px solid #333',padding:'8px 0',boxShadow:'0 4px 12px rgba(0,0,0,0.4)'}}>
-          {tabs.map(t=>(
-            <button key={t.id} onClick={()=>handleNav(t.id)}
-              style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'12px 20px',border:'none',background:view===t.id?'#E8392C':'transparent',cursor:'pointer',fontSize:14,fontWeight:view===t.id?600:500,color:view===t.id?'#fff':'#C2B9AD',textAlign:'left',fontFamily:"'Montserrat',-apple-system,sans-serif"}}>
-              <span>{t.icon}</span>{t.label}
-            </button>
-          ))}
-          <div style={{margin:'8px 16px 4px',borderTop:'1px solid #333',paddingTop:8}}>
-            <span style={{fontSize:11,color:'#7A7168',fontFamily:"'Montserrat',-apple-system,sans-serif"}}>{user.name}</span>
-          </div>
+
+      {/* Mobile dropdown menu */}
+      <div className={`hdr-dropdown${menuOpen?' open':''}`}
+        style={{background:'#1A1A1A',borderTop:'1px solid #333',boxShadow:'0 4px 12px rgba(0,0,0,0.4)'}}>
+        {tabs.map(t=>(
+          <button key={t.id} onClick={()=>handleNav(t.id)}
+            style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'13px 20px',border:'none',background:view===t.id?'#E8392C':'transparent',cursor:'pointer',fontSize:15,fontWeight:view===t.id?600:500,color:view===t.id?'#fff':'#C2B9AD',textAlign:'left',fontFamily:"'Montserrat',-apple-system,sans-serif"}}>
+            <span>{t.icon}</span>{t.label}
+          </button>
+        ))}
+        <div style={{margin:'8px 16px 8px',borderTop:'1px solid #333',paddingTop:8}}>
+          <span style={{fontSize:11,color:'#7A7168',fontFamily:"'Montserrat',-apple-system,sans-serif"}}>{user.name}</span>
         </div>
-      )}
+      </div>
     </header>
   );
 }
