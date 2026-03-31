@@ -74,7 +74,9 @@ function Header({ user, onLogout, view, setView }) {
     { id:'bd', label:'Base de datos', icon:'🗄️' },
     { id:'analisis', label:'Análisis', icon:'📈' },
   ];
-  const tabs = user.role === 'supervisor' ? allTabs : allTabs.filter(t => t.id !== 'analisis');
+  const tabs = user.role === 'supervisor'
+    ? allTabs
+    : allTabs.filter(t => t.id !== 'analisis' && t.id !== 'users');
   const handleNav = (id) => { setView(id); setMenuOpen(false); };
   return (
     <header style={{background:'#1A1A1A',borderBottom:'3px solid #E8392C',position:'sticky',top:0,zIndex:100}}>
@@ -386,7 +388,7 @@ function DocumentosSection({ servicioId }) {
 }
 
 /* ── DASHBOARD ─────────────────────────────────────────────── */
-function CoordDashboard({ onNewServicio, onManageUsers, onEditServicio }) {
+function CoordDashboard({ onNewServicio, onManageUsers, onEditServicio, userRole }) {
   const isMobile = useIsMobile();
   const [stats,setStats] = useState(null);
   const [servicios,setServicios] = useState([]);
@@ -436,7 +438,7 @@ function CoordDashboard({ onNewServicio, onManageUsers, onEditServicio }) {
           <p style={{fontSize:13,color:'#7A7168',margin:0}}>Coordinación · Temporada 25/26</p>
         </div>
         <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-          {!isMobile&&<BtnO onClick={onManageUsers}>Gestionar usuarios</BtnO>}
+          {!isMobile&&userRole==='supervisor'&&<BtnO onClick={onManageUsers}>Gestionar usuarios</BtnO>}
           <BtnP onClick={onNewServicio}>+ Nuevo servicio</BtnP>
         </div>
       </div>
@@ -1862,6 +1864,7 @@ export default function CoordView({ user, onLogout }) {
       {view==='dashboard'&&(
         <CoordDashboard
           onNewServicio={()=>setView('new-servicio')}
+          userRole={user.role}
           onManageUsers={()=>setView('users')}
           onEditServicio={handleEditServicio}
         />
