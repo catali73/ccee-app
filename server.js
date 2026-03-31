@@ -127,7 +127,7 @@ async function initDB() {
       email         VARCHAR(255) UNIQUE NOT NULL,
       password_hash VARCHAR(255) NOT NULL,
       name          VARCHAR(100) NOT NULL,
-      role          VARCHAR(20) NOT NULL CHECK (role IN ('coordinador','usuario','readonly')),
+      role          VARCHAR(20) NOT NULL CHECK (role IN ('coordinador','usuario','readonly','supervisor')),
       active        BOOLEAN DEFAULT true,
       created_at    TIMESTAMP DEFAULT NOW()
     )
@@ -185,7 +185,7 @@ async function initDB() {
       IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name='users_role_check') THEN
         ALTER TABLE users DROP CONSTRAINT users_role_check;
       END IF;
-      ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('coordinador','usuario','readonly','operador'));
+      ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('coordinador','usuario','readonly','operador','supervisor'));
     END $$
   `)
 
@@ -477,11 +477,11 @@ app.get('/api/auth/me', requireAuth(), async (req, res) => {
 // ── USERS ROUTES (solo coordinador) ───────────────────────
 
 // Crear usuario
-app.post('/api/users', requireAuth(['coordinador']), async (req, res) => {
+app.post('/api/users', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const { email, password, name, role } = req.body
     if (!email || !password || !name) return res.status(400).json({ error: 'Faltan campos obligatorios' })
-    if (!['coordinador', 'usuario', 'readonly'].includes(role)) return res.status(400).json({ error: 'Rol inválido' })
+    if (!['supervisor', 'coordinador', 'usuario', 'readonly'].includes(role)) return res.status(400).json({ error: 'Rol inválido' })
 
     const hash = await bcrypt.hash(password, 10)
     const r = await pool.query(
@@ -498,7 +498,7 @@ app.post('/api/users', requireAuth(['coordinador']), async (req, res) => {
 })
 
 // Listar usuarios
-app.get('/api/users', requireAuth(['coordinador']), async (req, res) => {
+app.get('/api/users', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const r = await pool.query(
       'SELECT id, email, name, role, active, created_at FROM users ORDER BY created_at DESC'
@@ -510,7 +510,7 @@ app.get('/api/users', requireAuth(['coordinador']), async (req, res) => {
 })
 
 // Desactivar usuario (soft delete)
-app.delete('/api/users/:id', requireAuth(['coordinador']), async (req, res) => {
+app.delete('/api/users/:id', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     if (parseInt(req.params.id) === req.user.id) {
       return res.status(400).json({ error: 'No puedes desactivarte a ti mismo' })
@@ -523,7 +523,7 @@ app.delete('/api/users/:id', requireAuth(['coordinador']), async (req, res) => {
 })
 
 // Reactivar usuario
-app.patch('/api/users/:id/activate', requireAuth(['coordinador']), async (req, res) => {
+app.patch('/api/users/:id/activate', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     await pool.query('UPDATE users SET active = true WHERE id = $1', [req.params.id])
     res.json({ ok: true })
@@ -533,7 +533,7 @@ app.patch('/api/users/:id/activate', requireAuth(['coordinador']), async (req, r
 })
 
 // Resetear contraseña (coordinador genera contraseña temporal)
-app.post('/api/users/:id/reset-password', requireAuth(['coordinador']), async (req, res) => {
+app.post('/api/users/:id/reset-password', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const tempPass = 'CCEE-' + Math.floor(1000 + Math.random() * 9000)
     const hash = await bcrypt.hash(tempPass, 10)
@@ -559,11 +559,11 @@ app.post('/api/auth/change-password', requireAuth(), async (req, res) => {
 })
 
 // Editar usuario (nombre, email, rol) + restablecer contraseña opcional
-app.put('/api/users/:id', requireAuth(['coordinador']), async (req, res) => {
+app.put('/api/users/:id', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const { name, email, role, new_password } = req.body
     if (!name || !email || !role) return res.status(400).json({ error: 'Faltan campos obligatorios' })
-    if (!['coordinador', 'usuario', 'readonly'].includes(role)) return res.status(400).json({ error: 'Rol inválido' })
+    if (!['supervisor', 'coordinador', 'usuario', 'readonly'].includes(role)) return res.status(400).json({ error: 'Rol inválido' })
     if (new_password) {
       const hash = await bcrypt.hash(new_password, 10)
       await pool.query(
@@ -586,7 +586,7 @@ app.put('/api/users/:id', requireAuth(['coordinador']), async (req, res) => {
 // ── PERSONAL TÉCNICO ROUTES ────────────────────────────────
 
 // Listar personal técnico (coordinador)
-app.get('/api/personal-tecnico', requireAuth(['coordinador']), async (req, res) => {
+app.get('/api/personal-tecnico', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const r = await pool.query('SELECT * FROM personal_tecnico ORDER BY rol, nombre ASC')
     res.json(r.rows)
@@ -596,7 +596,7 @@ app.get('/api/personal-tecnico', requireAuth(['coordinador']), async (req, res) 
 })
 
 // Crear/actualizar personal técnico (coordinador)
-app.post('/api/personal-tecnico', requireAuth(['coordinador']), async (req, res) => {
+app.post('/api/personal-tecnico', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const { rol, nombre, telefono } = req.body
     if (!['jefe_tecnico','realizador','productor'].includes(rol)) return res.status(400).json({ error: 'Rol inválido' })
@@ -612,7 +612,7 @@ app.post('/api/personal-tecnico', requireAuth(['coordinador']), async (req, res)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.put('/api/personal-tecnico/:id', requireAuth(['coordinador']), async (req, res) => {
+app.put('/api/personal-tecnico/:id', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const { nombre, telefono } = req.body
     if (!nombre?.trim()) return res.status(400).json({ error: 'Nombre requerido' })
@@ -624,7 +624,7 @@ app.put('/api/personal-tecnico/:id', requireAuth(['coordinador']), async (req, r
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.delete('/api/personal-tecnico/:id', requireAuth(['coordinador']), async (req, res) => {
+app.delete('/api/personal-tecnico/:id', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     await pool.query('DELETE FROM personal_tecnico WHERE id=$1', [req.params.id])
     res.json({ ok: true })
@@ -642,14 +642,14 @@ async function upsertPersonalTecnico(rol, nombre, telefono) {
 }
 
 // ── VEHÍCULOS ROUTES ──────────────────────────────────────
-app.get('/api/vehiculos', requireAuth(['coordinador']), async (req, res) => {
+app.get('/api/vehiculos', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const r = await pool.query('SELECT * FROM vehiculos WHERE activo=true ORDER BY referencia ASC')
     res.json(r.rows)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.post('/api/vehiculos', requireAuth(['coordinador']), async (req, res) => {
+app.post('/api/vehiculos', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const { referencia, matricula, modelo } = req.body
     const r = await pool.query(
@@ -660,7 +660,7 @@ app.post('/api/vehiculos', requireAuth(['coordinador']), async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.put('/api/vehiculos/:id', requireAuth(['coordinador']), async (req, res) => {
+app.put('/api/vehiculos/:id', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const { referencia, matricula, modelo } = req.body
     await pool.query(
@@ -671,7 +671,7 @@ app.put('/api/vehiculos/:id', requireAuth(['coordinador']), async (req, res) => 
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.delete('/api/vehiculos/:id', requireAuth(['coordinador']), async (req, res) => {
+app.delete('/api/vehiculos/:id', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     await pool.query('UPDATE vehiculos SET activo=false WHERE id=$1', [req.params.id])
     res.json({ ok: true })
@@ -681,7 +681,7 @@ app.delete('/api/vehiculos/:id', requireAuth(['coordinador']), async (req, res) 
 // ── OPERADORES POOL ROUTES ─────────────────────────────────
 
 // Descargar plantilla Excel de operadores de plantilla
-app.get('/api/operadores-pool/export-plantilla', requireAuth(['coordinador']), async (req, res) => {
+app.get('/api/operadores-pool/export-plantilla', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const r = await pool.query(`
       SELECT id, pool, nombre, email
@@ -710,7 +710,7 @@ app.get('/api/operadores-pool/export-plantilla', requireAuth(['coordinador']), a
 })
 
 // Importar emails desde Excel
-app.post('/api/operadores-pool/import-emails', requireAuth(['coordinador']), async (req, res) => {
+app.post('/api/operadores-pool/import-emails', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const chunks = []
     req.on('data', c => chunks.push(c))
@@ -736,7 +736,7 @@ app.post('/api/operadores-pool/import-emails', requireAuth(['coordinador']), asy
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.get('/api/operadores-pool', requireAuth(['coordinador']), async (req, res) => {
+app.get('/api/operadores-pool', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const r = await pool.query(`
       SELECT op.id, op.pool, op.nombre, op.plantilla, op.email, op.user_id,
@@ -750,7 +750,7 @@ app.get('/api/operadores-pool', requireAuth(['coordinador']), async (req, res) =
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.post('/api/operadores-pool', requireAuth(['coordinador']), async (req, res) => {
+app.post('/api/operadores-pool', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const { pool: poolKey, nombre } = req.body
     const r = await pool.query(
@@ -761,7 +761,7 @@ app.post('/api/operadores-pool', requireAuth(['coordinador']), async (req, res) 
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.put('/api/operadores-pool/:id', requireAuth(['coordinador']), async (req, res) => {
+app.put('/api/operadores-pool/:id', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const { nombre, email, plantilla } = req.body
     const fields = []
@@ -776,7 +776,7 @@ app.put('/api/operadores-pool/:id', requireAuth(['coordinador']), async (req, re
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.delete('/api/operadores-pool/:id', requireAuth(['coordinador']), async (req, res) => {
+app.delete('/api/operadores-pool/:id', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     await pool.query('UPDATE operadores_pool SET activo=false WHERE id=$1', [req.params.id])
     res.json({ ok: true })
@@ -784,11 +784,11 @@ app.delete('/api/operadores-pool/:id', requireAuth(['coordinador']), async (req,
 })
 
 // Jerarquía de roles: nunca bajar de rango
-const ROLE_RANK = { coordinador: 3, usuario: 2, operador: 1, readonly: 0 }
+const ROLE_RANK = { supervisor: 4, coordinador: 3, usuario: 2, operador: 1, readonly: 0 }
 const superiorOIgual = (actual, nuevo) => (ROLE_RANK[actual] ?? 0) >= (ROLE_RANK[nuevo] ?? 0)
 
 // Crear cuenta de operador (genera contraseña temporal)
-app.post('/api/operadores-pool/:id/crear-cuenta', requireAuth(['coordinador']), async (req, res) => {
+app.post('/api/operadores-pool/:id/crear-cuenta', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const { id } = req.params
     const op = await pool.query('SELECT * FROM operadores_pool WHERE id=$1', [id])
@@ -831,7 +831,7 @@ app.post('/api/operadores-pool/:id/crear-cuenta', requireAuth(['coordinador']), 
 })
 
 // Desactivar cuenta de operador
-app.delete('/api/operadores-pool/:id/cuenta', requireAuth(['coordinador']), async (req, res) => {
+app.delete('/api/operadores-pool/:id/cuenta', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const op = await pool.query('SELECT user_id FROM operadores_pool WHERE id=$1', [req.params.id])
     if (!op.rows.length || !op.rows[0].user_id) return res.status(404).json({ error: 'Sin cuenta' })
@@ -891,7 +891,7 @@ app.get('/api/mis-servicios/:id', requireAuth(['operador', 'usuario']), async (r
 })
 
 // ── VINCULAR CUENTA EXISTENTE A OPERADOR ────────────────────
-app.post('/api/operadores-pool/:id/vincular-cuenta', requireAuth(['coordinador']), async (req, res) => {
+app.post('/api/operadores-pool/:id/vincular-cuenta', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const { email } = req.body
     if (!email) return res.status(400).json({ error: 'Email requerido' })
@@ -920,14 +920,14 @@ app.post('/api/operadores-pool/:id/vincular-cuenta', requireAuth(['coordinador']
 
 // ── MODELOS CÁMARA ROUTES ──────────────────────────────────
 
-app.get('/api/modelos-camara', requireAuth(['coordinador']), async (req, res) => {
+app.get('/api/modelos-camara', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const r = await pool.query('SELECT id, tipo, modelo FROM modelos_camara WHERE activo=true ORDER BY tipo, modelo')
     res.json(r.rows)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.post('/api/modelos-camara', requireAuth(['coordinador']), async (req, res) => {
+app.post('/api/modelos-camara', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const { tipo, modelo } = req.body
     const r = await pool.query(
@@ -938,7 +938,7 @@ app.post('/api/modelos-camara', requireAuth(['coordinador']), async (req, res) =
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.put('/api/modelos-camara/:id', requireAuth(['coordinador']), async (req, res) => {
+app.put('/api/modelos-camara/:id', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const { modelo } = req.body
     await pool.query('UPDATE modelos_camara SET modelo=$1 WHERE id=$2', [modelo.trim(), req.params.id])
@@ -946,7 +946,7 @@ app.put('/api/modelos-camara/:id', requireAuth(['coordinador']), async (req, res
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.delete('/api/modelos-camara/:id', requireAuth(['coordinador']), async (req, res) => {
+app.delete('/api/modelos-camara/:id', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     await pool.query('UPDATE modelos_camara SET activo=false WHERE id=$1', [req.params.id])
     res.json({ ok: true })
@@ -956,7 +956,7 @@ app.delete('/api/modelos-camara/:id', requireAuth(['coordinador']), async (req, 
 // ── SERVICIOS ROUTES ───────────────────────────────────────
 
 // Crear servicio (coordinador: pasos 1-3 + asignación)
-app.post('/api/servicios', requireAuth(['coordinador']), async (req, res) => {
+app.post('/api/servicios', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const { match, selectedCams, operators, assigned_to, tipo_servicio, cam_models, vehiculo_ids } = req.body
     const r = await pool.query(`
@@ -1002,7 +1002,7 @@ app.post('/api/servicios', requireAuth(['coordinador']), async (req, res) => {
 app.get('/api/servicios', requireAuth(), async (req, res) => {
   try {
     let query, params
-    if (req.user.role === 'coordinador' || req.user.role === 'readonly') {
+    if (req.user.role === 'coordinador' || req.user.role === 'supervisor' || req.user.role === 'readonly') {
       query = `
         SELECT s.*, u.name as assigned_to_name, c.name as created_by_name,
                COALESCE(json_agg(json_build_object('id',v.id,'referencia',v.referencia,'matricula',v.matricula,'modelo',v.modelo))
@@ -1349,7 +1349,7 @@ app.get('/api/informes', requireAuth(), async (req, res) => {
              created_at, servicio_id, submitted_by, status
       FROM informes`
     const params = []
-    if (req.user.role === 'coordinador') {
+    if (req.user.role === 'coordinador' || req.user.role === 'supervisor') {
       query += " WHERE status='enviado'"
     } else {
       query += ' WHERE submitted_by = $1'
@@ -1379,7 +1379,7 @@ app.get('/api/informes/:id', requireAuth(), async (req, res) => {
 })
 
 // Actualizar servicio (coordinador)
-app.put('/api/servicios/:id', requireAuth(['coordinador']), async (req, res) => {
+app.put('/api/servicios/:id', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const { match, selectedCams, operators, assigned_to, tipo_servicio, cam_models, vehiculo_ids } = req.body
     await pool.query(`
@@ -1423,7 +1423,7 @@ app.put('/api/servicios/:id', requireAuth(['coordinador']), async (req, res) => 
 })
 
 // Eliminar servicio (coordinador)
-app.delete('/api/servicios/:id', requireAuth(['coordinador']), async (req, res) => {
+app.delete('/api/servicios/:id', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     await pool.query('DELETE FROM servicios WHERE id = $1', [req.params.id])
     res.json({ ok: true })
@@ -1435,7 +1435,7 @@ app.delete('/api/servicios/:id', requireAuth(['coordinador']), async (req, res) 
 // ── DOCUMENTOS ROUTES ──────────────────────────────────────
 
 // Subir documento a un servicio (coordinador)
-app.post('/api/servicios/:id/documentos', requireAuth(['coordinador']), async (req, res) => {
+app.post('/api/servicios/:id/documentos', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const { descripcion, nombre, tipo, datos, tamano } = req.body
     if (!descripcion || !datos) return res.status(400).json({ error: 'Faltan campos obligatorios' })
@@ -1469,7 +1469,7 @@ app.get('/api/documentos/:id', requireAuth(), async (req, res) => {
 })
 
 // Eliminar documento (coordinador)
-app.delete('/api/documentos/:id', requireAuth(['coordinador']), async (req, res) => {
+app.delete('/api/documentos/:id', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     await pool.query('DELETE FROM documentos WHERE id=$1', [req.params.id])
     res.json({ ok: true })
@@ -1477,7 +1477,7 @@ app.delete('/api/documentos/:id', requireAuth(['coordinador']), async (req, res)
 })
 
 // Eliminar informe (coordinador · resetea el servicio a pendiente)
-app.delete('/api/informes/:id', requireAuth(['coordinador']), async (req, res) => {
+app.delete('/api/informes/:id', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const r = await pool.query('SELECT servicio_id FROM informes WHERE id = $1', [req.params.id])
     if (r.rows.length === 0) return res.status(404).json({ error: 'Informe no encontrado' })
@@ -1493,7 +1493,7 @@ app.delete('/api/informes/:id', requireAuth(['coordinador']), async (req, res) =
 })
 
 // Stats para dashboard (solo coordinador)
-app.get('/api/stats', requireAuth(['coordinador']), async (req, res) => {
+app.get('/api/stats', requireAuth(['coordinador','supervisor']), async (req, res) => {
   try {
     const total = await pool.query('SELECT COUNT(*) FROM informes')
     const porJornada = await pool.query(`
@@ -1521,7 +1521,7 @@ app.get('/api/stats', requireAuth(['coordinador']), async (req, res) => {
 // ── ANALISIS ROUTES ─────────────────────────────────────────
 
 // Obtener todos los informes enviados para análisis (coordinador)
-app.get('/api/analisis', requireAuth(['coordinador']), async (req, res) => {
+app.get('/api/analisis', requireAuth(['supervisor']), async (req, res) => {
   try {
     const r = await pool.query(`
       SELECT i.*, u.name as submitted_by_name, s.cam_models, s.tipo_servicio,
@@ -1554,7 +1554,7 @@ const CAM_BLOCK_MAP = {
 const camBlock = id => CAM_BLOCK_MAP[id] || CAMERA_LABELS[id] || id
 
 // Exportar informes a Excel (coordinador)
-app.post('/api/analisis/export', requireAuth(['coordinador']), async (req, res) => {
+app.post('/api/analisis/export', requireAuth(['supervisor']), async (req, res) => {
   try {
     const { ids } = req.body
     let query
@@ -1686,7 +1686,7 @@ app.post('/api/analisis/export', requireAuth(['coordinador']), async (req, res) 
 })
 
 // ── EXPORTAR INCIDENCIAS ─────────────────────────────────────────────────────
-app.post('/api/export/incidencias', requireAuth(['coordinador', 'readonly']), async (req, res) => {
+app.post('/api/export/incidencias', requireAuth(['supervisor', 'readonly']), async (req, res) => {
   try {
     const { ids } = req.body
     let query, params = []
@@ -1737,7 +1737,7 @@ app.post('/api/export/incidencias', requireAuth(['coordinador', 'readonly']), as
 })
 
 // ── INFORME INCIDENCIAS PDF ───────────────────────────────────────────────────
-app.post('/api/export/incidencias-pdf', requireAuth(['coordinador', 'readonly']), async (req, res) => {
+app.post('/api/export/incidencias-pdf', requireAuth(['supervisor', 'readonly']), async (req, res) => {
   try {
     const { ids, titulo } = req.body
     let query, params = []

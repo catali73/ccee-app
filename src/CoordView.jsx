@@ -67,13 +67,14 @@ const initOperators = () => {
 /* ── HEADER ────────────────────────────────────────────────── */
 function Header({ user, onLogout, view, setView }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const tabs = [
+  const allTabs = [
     { id:'dashboard', label:'Dashboard', icon:'📊' },
     { id:'new-servicio', label:'+ Nuevo', icon:'➕' },
     { id:'users', label:'Usuarios', icon:'👤' },
     { id:'bd', label:'Base de datos', icon:'🗄️' },
     { id:'analisis', label:'Análisis', icon:'📈' },
   ];
+  const tabs = user.role === 'supervisor' ? allTabs : allTabs.filter(t => t.id !== 'analisis');
   const handleNav = (id) => { setView(id); setMenuOpen(false); };
   return (
     <header style={{background:'#1A1A1A',borderBottom:'3px solid #E8392C',position:'sticky',top:0,zIndex:100}}>
@@ -1056,8 +1057,8 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
 }
 
 /* ── USER MANAGEMENT ───────────────────────────────────────── */
-const ROLE_LABELS = { coordinador:'Coordinador', usuario:'Técnico', readonly:'Solo lectura' };
-const ROLE_BADGE = { coordinador:'default', usuario:'ok', readonly:'leve' };
+const ROLE_LABELS = { supervisor:'Supervisor', coordinador:'Coordinador', usuario:'Técnico', readonly:'Solo lectura' };
+const ROLE_BADGE = { supervisor:'grave', coordinador:'default', usuario:'ok', readonly:'leve' };
 
 function UserManagement({ currentUser }) {
   const isMobile = useIsMobile();
@@ -1153,6 +1154,7 @@ function UserManagement({ currentUser }) {
               <Select value={editForm.role} onChange={e=>setEditForm(f=>({...f,role:e.target.value}))}>
                 <option value="usuario">Técnico</option>
                 <option value="coordinador">Coordinador</option>
+                <option value="supervisor">Supervisor</option>
                 <option value="readonly">Solo lectura</option>
               </Select>
             </Field>
@@ -1187,6 +1189,7 @@ function UserManagement({ currentUser }) {
               <Select value={form.role} onChange={e=>setForm({...form,role:e.target.value})}>
                 <option value="usuario">Técnico</option>
                 <option value="coordinador">Coordinador</option>
+                <option value="supervisor">Supervisor</option>
                 <option value="readonly">Solo lectura</option>
               </Select>
             </Field>

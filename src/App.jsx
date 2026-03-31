@@ -802,7 +802,7 @@ export default function App() {
 
   return (
     <Suspense fallback={<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,color:'#7A7168'}}>Cargando...</div>}>
-      {user.role === 'coordinador'
+      {user.role === 'coordinador' || user.role === 'supervisor'
         ? <CoordView user={user} onLogout={handleLogout} />
         : user.role === 'operador'
           ? <OperadorView user={user} onLogout={handleLogout} />
