@@ -194,6 +194,9 @@ async function initDB() {
   await pool.query(`ALTER TABLE operadores_pool ADD COLUMN IF NOT EXISTS plantilla BOOLEAN NOT NULL DEFAULT false`)
   await pool.query(`ALTER TABLE operadores_pool ADD COLUMN IF NOT EXISTS user_id   INTEGER REFERENCES users(id)`)
 
+  // Promover lcatala@mediapro.tv a supervisor
+  await pool.query(`UPDATE users SET role='supervisor' WHERE email='lcatala@mediapro.tv' AND role='coordinador'`)
+
   // cam_models: modelos de equipo seleccionados por el coordinador
   await pool.query(`ALTER TABLE servicios ADD COLUMN IF NOT EXISTS cam_models JSONB DEFAULT '{}'::jsonb`)
   // observaciones libres por servicio
