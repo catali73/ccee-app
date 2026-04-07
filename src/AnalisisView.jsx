@@ -161,7 +161,7 @@ function Heatmap({ data, jornadas }) {
   const maxVal = Math.max(...data.flatMap(r => jornadas.map(j => (r.jornadas[j]?.total || 0))), 1);
   const cellStyle = cell => {
     if (!cell || !cell.total) return { bg: '#F5F0EC', color: '#C2B9AD', fw: 400 };
-    if (cell.graves > 0) return { bg: '#fef2f2', color: '#dc2626', fw: 700 };
+    if (cell.graves > 0) return { bg: '#ef4444', color: '#fff', fw: 700 };
     const t = cell.total / maxVal;
     return t < 0.5
       ? { bg: '#fef9c3', color: '#92400e', fw: 600 }
