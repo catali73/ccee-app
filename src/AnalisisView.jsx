@@ -158,8 +158,15 @@ function HBar({ label, val, max, color }) {
 /* ── Heatmap ── */
 function Heatmap({ data, jornadas }) {
   if (!data.length) return null;
-  const maxVal = Math.max(...data.flatMap(r => jornadas.map(j => r.jornadas[j] || 0)), 1);
-  const cellColor = v => { if (!v) return '#F5F0EC'; const t = v/maxVal; return t < 0.33 ? '#fef9c3' : t < 0.66 ? '#fdba74' : '#ef4444'; };
+  const maxVal = Math.max(...data.flatMap(r => jornadas.map(j => (r.jornadas[j]?.total || 0))), 1);
+  const cellStyle = cell => {
+    if (!cell || !cell.total) return { bg: '#F5F0EC', color: '#C2B9AD', fw: 400 };
+    if (cell.graves > 0) return { bg: '#fef2f2', color: '#dc2626', fw: 700 };
+    const t = cell.total / maxVal;
+    return t < 0.5
+      ? { bg: '#fef9c3', color: '#92400e', fw: 600 }
+      : { bg: '#fdba74', color: '#92400e', fw: 700 };
+  };
   return (
     <div style={{ overflowX: 'auto' }}>
       <table style={{ borderCollapse: 'collapse', fontSize: 11 }}>
@@ -173,8 +180,8 @@ function Heatmap({ data, jornadas }) {
           {data.map(row => (
             <tr key={row.id}>
               <td style={{ padding: '5px 10px', fontSize: 11, whiteSpace: 'nowrap', borderBottom: '1px solid #EDE8E4' }}>{row.icon} {row.label}</td>
-              {jornadas.map(j => { const v = row.jornadas[j] || 0; return (
-                <td key={j} style={{ padding: '5px 8px', textAlign: 'center', background: cellColor(v), borderBottom: '1px solid #EDE8E4', fontSize: 11, fontWeight: v ? 600 : 400, color: v ? '#1A1A1A' : '#C2B9AD' }}>{v || '—'}</td>
+              {jornadas.map(j => { const cell = row.jornadas[j]; const s = cellStyle(cell); return (
+                <td key={j} style={{ padding: '5px 8px', textAlign: 'center', background: s.bg, borderBottom: '1px solid #EDE8E4', fontSize: 11, fontWeight: s.fw, color: s.color }}>{cell?.total || '—'}</td>
               ); })}
             </tr>
           ))}
@@ -445,9 +452,13 @@ export default function AnalisisView() {
       CAM_ORDER.forEach(camId => {
         if (!(inf.camaras_activas||{})[camId]) return;
         const b = CAM_TO_BLOCK[camId]; if (!b) return;
-        const inc = Object.values((camData[camId]||{}).items||{}).filter(v=>v==='G'||v==='L').length;
+        const items = Object.values((camData[camId]||{}).items||{});
+        const g = items.filter(v=>v==='G').length;
+        const l = items.filter(v=>v==='L').length;
+        if (g + l === 0) return;
         if (!map[b.id]) map[b.id] = { id:b.id, label:b.label, icon:b.icon, idx:CAM_IDX[b.cams[0]]??99, jornadas:{} };
-        map[b.id].jornadas[j] = (map[b.id].jornadas[j]||0) + inc;
+        const prev = map[b.id].jornadas[j] || { total:0, graves:0, leves:0 };
+        map[b.id].jornadas[j] = { total: prev.total+g+l, graves: prev.graves+g, leves: prev.leves+l };
       });
     });
     return Object.values(map).sort((a,b)=>a.idx-b.idx);
