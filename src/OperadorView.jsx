@@ -118,7 +118,7 @@ function ServicioCard({ servicio, nombreOperador, onClick }) {
       </div>
       <div style={{display:'flex',gap:12,alignItems:'center',fontSize:12,color:'#6b7280'}}>
         <span>⏰ KO {fmtHora(servicio.hora_partido)}</span>
-        {servicio.hora_citacion && <span>· Cit. {servicio.hora_citacion}</span>}
+        {servicio.hora_montaje_um && <span>· Mont. {servicio.hora_montaje_um}</span>}
       </div>
       {rolInfo && (
         <div style={{marginTop:6,display:'inline-flex',alignItems:'center',gap:4,
@@ -198,7 +198,7 @@ function ServicioDetalle({ servicioId, nombreOperador, onBack }) {
         <div style={{display:'flex',gap:16,fontSize:12,color:'#C2B9AD',flexWrap:'wrap'}}>
           <span>📅 {fmtFecha(s.fecha)}</span>
           <span>⏰ KO {fmtHora(s.hora_partido)}</span>
-          {s.hora_citacion && <span>🔔 Cit. {s.hora_citacion}</span>}
+          {s.hora_montaje_um && <span>🔔 Mont. {s.hora_montaje_um}</span>}
         </div>
         {rolInfo && (
           <div style={{marginTop:10,display:'inline-flex',padding:'3px 10px',borderRadius:10,
@@ -214,7 +214,7 @@ function ServicioDetalle({ servicioId, nombreOperador, onBack }) {
           <div style={{fontSize:12,fontWeight:700,color:'#374151',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Datos del partido</div>
           {row('Responsable', s.responsable)}
           {row('Unidad Móvil', s.um)}
-          {row('Hora citación', s.hora_citacion)}
+          {row('Hora Montaje UM', s.hora_montaje_um)}
           {row('Jefe Técnico', s.jefe_tecnico)}
           {row('Realizador', s.realizador)}
           {row('Productor', s.productor)}

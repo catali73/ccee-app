@@ -86,7 +86,7 @@ function EventoDetalle({ servicioId, nombreOperador, onBack }) {
         <div style={{display:'flex',gap:16,fontSize:12,color:'#C2B9AD',flexWrap:'wrap'}}>
           <span>📅 {fmt(s.fecha)}</span>
           <span>⏰ KO {s.hora_partido || '—'}</span>
-          {s.hora_citacion && <span>🔔 Cit. {s.hora_citacion}</span>}
+          {s.hora_montaje_um && <span>🔔 Mont. {s.hora_montaje_um}</span>}
         </div>
         {rolInfo && (
           <div style={{marginTop:10,display:'inline-flex',padding:'3px 12px',borderRadius:10,
@@ -102,7 +102,7 @@ function EventoDetalle({ servicioId, nombreOperador, onBack }) {
           <div style={{fontSize:11,fontWeight:700,color:'#7A7168',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Datos del evento</div>
           {row('Responsable', s.responsable)}
           {row('Unidad Móvil', s.um)}
-          {row('Hora citación', s.hora_citacion)}
+          {row('Hora Montaje UM', s.hora_montaje_um)}
           {row('Jefe Técnico', s.jefe_tecnico)}
           {row('Realizador', s.realizador)}
           {row('Productor', s.productor)}
@@ -253,7 +253,7 @@ export default function MisEventosTab({ user }) {
             </div>
             <div style={{fontSize:12,color:'#7A7168',marginBottom:rolMostrado?6:0}}>
               ⏰ KO {e.hora_partido||'—'}
-              {e.hora_citacion && ` · Cit. ${e.hora_citacion}`}
+              {e.hora_montaje_um && ` · Mont. ${e.hora_montaje_um}`}
             </div>
             {rolMostrado && (
               <span style={{

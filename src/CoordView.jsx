@@ -186,7 +186,7 @@ function InformeModal({ informe, onClose, onDeleted }) {
           <div style={{marginBottom:6,fontSize:10,fontWeight:600,color:'#7A7168',textTransform:'uppercase',letterSpacing:'0.08em'}}>Partido</div>
           <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(3,1fr)',gap:8,marginBottom:16}}>
             {[['Jornada',informe.jornada],['Encuentro',informe.encuentro],['Fecha',fmt(informe.fecha)],
-              ['Hora partido',informe.hora_partido],['Hora citación',informe.hora_citacion],['Horario citación MD-1',informe.horario_md1]
+              ['Hora partido',informe.hora_partido],['Hora Montaje UM',informe.hora_montaje_um],['Horario Montaje UM MD-1',informe.horario_md1]
             ].map(([k,v])=>(
               <div key={k} style={{padding:'8px 10px',background:'#F5F0EC',borderRadius:8,border:'1px solid #DDD5CE'}}>
                 <div style={{fontSize:9,fontWeight:600,color:'#7A7168',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:2}}>{k}</div>
@@ -547,13 +547,13 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
   const [match,setMatch] = useState(initialData ? {
     jornada:initialData.jornada||'', encuentro:initialData.encuentro||'',
     fecha:initialData.fecha?initialData.fecha.slice(0,10):'',
-    hora_partido:initialData.hora_partido||'', hora_citacion:initialData.hora_citacion||'',
+    hora_partido:initialData.hora_partido||'', hora_montaje_um:initialData.hora_montaje_um||'',
     responsable:initialData.responsable||'', um:initialData.um||'',
     jefe_tecnico:initialData.jefe_tecnico||'', tel_jefe_tecnico:initialData.tel_jefe_tecnico||'',
     realizador:initialData.realizador||'', tel_realizador:initialData.tel_realizador||'',
     productor:initialData.productor||'', tel_productor:initialData.tel_productor||'',
     horario_md1:initialData.horario_md1||'', observaciones:initialData.observaciones||'',
-  } : {jornada:"",encuentro:"",fecha:"",hora_partido:"",hora_citacion:"",responsable:"",um:"",jefe_tecnico:"",tel_jefe_tecnico:"",realizador:"",tel_realizador:"",productor:"",tel_productor:"",horario_md1:"",observaciones:""});
+  } : {jornada:"",encuentro:"",fecha:"",hora_partido:"",hora_montaje_um:"",responsable:"",um:"",jefe_tecnico:"",tel_jefe_tecnico:"",realizador:"",tel_realizador:"",productor:"",tel_productor:"",horario_md1:"",observaciones:""});
   const [ligaJornada,setLigaJornada] = useState(initialData?.tipo_servicio==='liga'?initialData.jornada||'':"");
   const [ligaPartido,setLigaPartido] = useState(initialData?.tipo_servicio==='liga'?initialData.encuentro||'':"");
   const [selectedCams,setSelectedCams] = useState(initialData?.camaras_activas||{});
@@ -699,7 +699,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
       <div style={{fontSize:13,color:'#7A7168'}}>{match.encuentro} · {match.jornada}</div>
       <div style={{display:'flex',gap:8,marginTop:12}}>
         <BtnO onClick={onCancel}>Ver dashboard</BtnO>
-        {!isEdit&&<BtnP onClick={()=>{ setStep(1); setTipoServicio('liga'); setLigaJornada(''); setLigaPartido(''); setMatch({jornada:'',encuentro:'',fecha:'',hora_partido:'',hora_citacion:'',responsable:'',um:'',jefe_tecnico:'',tel_jefe_tecnico:'',realizador:'',tel_realizador:'',productor:'',tel_productor:'',horario_md1:'',observaciones:''}); setSelectedCams({}); setOperators(initOperators()); setCustomOps({}); setAssignedTo(''); setSaveError(null); setSent(false); setPendingDocs([]); }}>+ Otro servicio</BtnP>}
+        {!isEdit&&<BtnP onClick={()=>{ setStep(1); setTipoServicio('liga'); setLigaJornada(''); setLigaPartido(''); setMatch({jornada:'',encuentro:'',fecha:'',hora_partido:'',hora_montaje_um:'',responsable:'',um:'',jefe_tecnico:'',tel_jefe_tecnico:'',realizador:'',tel_realizador:'',productor:'',tel_productor:'',horario_md1:'',observaciones:''}); setSelectedCams({}); setOperators(initOperators()); setCustomOps({}); setAssignedTo(''); setSaveError(null); setSent(false); setPendingDocs([]); }}>+ Otro servicio</BtnP>}
       </div>
     </div>
   );
@@ -755,8 +755,8 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
             <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:14}}>
               <Field label="Fecha"><Input type="date" value={match.fecha} onChange={e=>setMatch({...match,fecha:e.target.value})} /></Field>
               <Field label="Hora partido"><Input type="time" value={match.hora_partido} onChange={e=>setMatch({...match,hora_partido:e.target.value})} /></Field>
-              <Field label="Hora citación"><Input placeholder="12:00 HLE" value={match.hora_citacion} onChange={e=>setMatch({...match,hora_citacion:e.target.value})} /></Field>
-              <Field label="Horario citación MD-1"><Input placeholder="10:00 a 22:00" value={match.horario_md1} onChange={e=>setMatch({...match,horario_md1:e.target.value})} /></Field>
+              <Field label="Hora Montaje UM"><Input placeholder="12:00 HLE" value={match.hora_montaje_um} onChange={e=>setMatch({...match,hora_montaje_um:e.target.value})} /></Field>
+              <Field label="Horario Montaje UM MD-1"><Input placeholder="10:00 a 22:00" value={match.horario_md1} onChange={e=>setMatch({...match,horario_md1:e.target.value})} /></Field>
             </div>
           </Card>
           <Card>

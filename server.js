@@ -103,7 +103,7 @@ async function initDB() {
       encuentro VARCHAR(100),
       fecha DATE,
       hora_partido VARCHAR(10),
-      hora_citacion VARCHAR(20),
+      hora_montaje_um VARCHAR(20),
       responsable VARCHAR(100),
       um VARCHAR(50),
       jefe_tecnico VARCHAR(100),
@@ -142,7 +142,7 @@ async function initDB() {
       encuentro       VARCHAR(100),
       fecha           DATE,
       hora_partido    VARCHAR(10),
-      hora_citacion   VARCHAR(20),
+      hora_montaje_um   VARCHAR(20),
       responsable     VARCHAR(100),
       um              VARCHAR(50),
       jefe_tecnico    VARCHAR(100),
@@ -426,6 +426,13 @@ async function initDB() {
     }
   } catch (e) { console.error('⚠ Seed modelos_camara falló:', e.message) }
 
+  // Migración: renombrar hora_citacion → hora_montaje_um en tablas existentes
+  for (const tbl of ['informes', 'servicios']) {
+    try {
+      await pool.query(`ALTER TABLE ${tbl} RENAME COLUMN hora_citacion TO hora_montaje_um`)
+      console.log(`✓ Migración: ${tbl}.hora_citacion → hora_montaje_um`)
+    } catch (_) { /* columna ya renombrada o no existe */ }
+  }
   console.log('✓ Base de datos lista')
 
   // Bootstrap: crear coordinador inicial si no hay usuarios
@@ -860,7 +867,7 @@ app.get('/api/mis-servicios', requireAuth(['operador', 'usuario']), async (req, 
     const nombre = opRow.rows[0].nombre
 
     const r = await pool.query(`
-      SELECT s.id, s.jornada, s.encuentro, s.fecha, s.hora_partido, s.hora_citacion,
+      SELECT s.id, s.jornada, s.encuentro, s.fecha, s.hora_partido, s.hora_montaje_um,
              s.responsable, s.jefe_tecnico, s.realizador, s.productor,
              s.um, s.tipo_servicio, s.operadores, s.status
       FROM servicios s
@@ -964,7 +971,7 @@ app.post('/api/servicios', requireAuth(['coordinador','supervisor']), async (req
     const { match, selectedCams, operators, assigned_to, tipo_servicio, cam_models, vehiculo_ids } = req.body
     const r = await pool.query(`
       INSERT INTO servicios (
-        tipo_servicio, jornada, encuentro, fecha, hora_partido, hora_citacion,
+        tipo_servicio, jornada, encuentro, fecha, hora_partido, hora_montaje_um,
         responsable, um, jefe_tecnico, tel_jefe_tecnico, realizador, tel_realizador,
         productor, tel_productor, horario_md1,
         operadores, camaras_activas, cam_models, assigned_to, created_by, observaciones
@@ -973,7 +980,7 @@ app.post('/api/servicios', requireAuth(['coordinador','supervisor']), async (req
     `, [
       tipo_servicio,
       match.jornada, match.encuentro, match.fecha || null,
-      match.hora_partido, match.hora_citacion,
+      match.hora_partido, match.hora_montaje_um,
       match.responsable, match.um, match.jefe_tecnico, match.tel_jefe_tecnico||'',
       match.realizador, match.tel_realizador||'',
       match.productor, match.tel_productor||'', match.horario_md1,
@@ -1188,8 +1195,8 @@ app.get('/api/servicios/:id/hoja-pdf', requireAuth(), async (req, res) => {
     sec('Datos del servicio')
     grid([
       ['Jornada', sv.jornada], ['Encuentro', sv.encuentro], ['Fecha', fmtD(sv.fecha)],
-      ['Hora partido', sv.hora_partido], ['Hora citación', sv.hora_citacion],
-      ['Horario citación MD-1', sv.horario_md1],
+      ['Hora partido', sv.hora_partido], ['Hora Montaje UM', sv.hora_montaje_um],
+      ['Horario Montaje UM MD-1', sv.horario_md1],
     ])
 
     // ── EQUIPO TÉCNICO ──
@@ -1313,7 +1320,7 @@ app.post('/api/informes', requireAuth(['usuario']), async (req, res) => {
       // Crear nuevo informe
       const result = await pool.query(`
         INSERT INTO informes (
-          jornada, encuentro, fecha, hora_partido, hora_citacion,
+          jornada, encuentro, fecha, hora_partido, hora_montaje_um,
           responsable, um, jefe_tecnico, realizador, productor, horario_md1,
           operadores, camaras_activas, logistica, cam_data,
           incidencias_graves, incidencias_leves,
@@ -1321,7 +1328,7 @@ app.post('/api/informes', requireAuth(['usuario']), async (req, res) => {
         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
         RETURNING id
       `, [
-        s.jornada, s.encuentro, s.fecha, s.hora_partido, s.hora_citacion,
+        s.jornada, s.encuentro, s.fecha, s.hora_partido, s.hora_montaje_um,
         s.responsable, s.um, s.jefe_tecnico, s.realizador, s.productor, s.horario_md1,
         s.operadores, s.camaras_activas,
         JSON.stringify(logistica), JSON.stringify(camData),
@@ -1388,7 +1395,7 @@ app.put('/api/servicios/:id', requireAuth(['coordinador','supervisor']), async (
     await pool.query(`
       UPDATE servicios SET
         tipo_servicio=$1, jornada=$2, encuentro=$3, fecha=$4, hora_partido=$5,
-        hora_citacion=$6, responsable=$7, um=$8, jefe_tecnico=$9, tel_jefe_tecnico=$10,
+        hora_montaje_um=$6, responsable=$7, um=$8, jefe_tecnico=$9, tel_jefe_tecnico=$10,
         realizador=$11, tel_realizador=$12, productor=$13, tel_productor=$14,
         horario_md1=$15, operadores=$16, camaras_activas=$17,
         cam_models=$18, assigned_to=$19, observaciones=$20
@@ -1396,7 +1403,7 @@ app.put('/api/servicios/:id', requireAuth(['coordinador','supervisor']), async (
     `, [
       tipo_servicio,
       match.jornada, match.encuentro, match.fecha || null,
-      match.hora_partido, match.hora_citacion,
+      match.hora_partido, match.hora_montaje_um,
       match.responsable, match.um, match.jefe_tecnico, match.tel_jefe_tecnico||'',
       match.realizador, match.tel_realizador||'',
       match.productor, match.tel_productor||'', match.horario_md1,
