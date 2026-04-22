@@ -1196,7 +1196,7 @@ app.get('/api/servicios/:id/hoja-pdf', requireAuth(), async (req, res) => {
     grid([
       ['Jornada', sv.jornada], ['Encuentro', sv.encuentro], ['Fecha', fmtD(sv.fecha)],
       ['Hora partido', sv.hora_partido], ['Hora Montaje UM', sv.hora_montaje_um],
-      ['Horario Montaje UM MD-1', sv.horario_md1],
+      ['Hora montaje MD-1', sv.horario_md1],
     ])
 
     // ── EQUIPO TÉCNICO ──

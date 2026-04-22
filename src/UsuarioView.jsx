@@ -126,7 +126,7 @@ function _obsolete(servicio) {
   grid([
     ['Jornada',servicio.jornada],['Encuentro',servicio.encuentro],['Fecha',fmtD(servicio.fecha)],
     ['Hora partido',servicio.hora_partido],['Hora Montaje UM',servicio.hora_montaje_um],
-    ['Horario Montaje UM MD-1',servicio.horario_md1],
+    ['Hora montaje MD-1',servicio.horario_md1],
   ]);
 
   // ── Equipo técnico ──
@@ -557,7 +557,7 @@ function FillReport({ servicioId, draftInformeId, onBack }) {
               {[
                 ['Jornada',servicio.jornada],['Encuentro',servicio.encuentro],
                 ['Fecha',fmt(servicio.fecha)],['Hora partido',servicio.hora_partido||'—'],
-                ['Hora Montaje UM',servicio.hora_montaje_um||'—'],['Horario Montaje UM MD-1',servicio.horario_md1||'—'],
+                ['Hora Montaje UM',servicio.hora_montaje_um||'—'],['Hora montaje MD-1',servicio.horario_md1||'—'],
                 ['Responsable CCEE',servicio.responsable||'—'],['Unidad Móvil',servicio.um||'—'],
                 ['J. Técnico UM',servicio.jefe_tecnico||'—'],
                 ...(servicio.tel_jefe_tecnico?[['Tel. J. Técnico',servicio.tel_jefe_tecnico]]:[]),

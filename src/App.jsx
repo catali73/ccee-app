@@ -702,7 +702,7 @@ tr:nth-child(even) td{background:#f8fafc}
 <div class="content">
 <h2>Datos del partido</h2>
 <div class="grid">
-  ${[['Jornada',informe.jornada],['Encuentro',informe.encuentro],['Fecha',fmtD(informe.fecha)],['Hora partido',informe.hora_partido],['Hora Montaje UM',informe.hora_montaje_um],['Horario Montaje UM MD-1',informe.horario_md1]].map(([k,v])=>cell(k,v)).join('')}
+  ${[['Jornada',informe.jornada],['Encuentro',informe.encuentro],['Fecha',fmtD(informe.fecha)],['Hora partido',informe.hora_partido],['Hora Montaje UM',informe.hora_montaje_um],['Hora montaje MD-1',informe.horario_md1]].map(([k,v])=>cell(k,v)).join('')}
 </div>
 <h2>Equipo técnico</h2>
 <div class="grid">

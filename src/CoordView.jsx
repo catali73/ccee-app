@@ -186,7 +186,7 @@ function InformeModal({ informe, onClose, onDeleted }) {
           <div style={{marginBottom:6,fontSize:10,fontWeight:600,color:'#7A7168',textTransform:'uppercase',letterSpacing:'0.08em'}}>Partido</div>
           <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(3,1fr)',gap:8,marginBottom:16}}>
             {[['Jornada',informe.jornada],['Encuentro',informe.encuentro],['Fecha',fmt(informe.fecha)],
-              ['Hora partido',informe.hora_partido],['Hora Montaje UM',informe.hora_montaje_um],['Horario Montaje UM MD-1',informe.horario_md1]
+              ['Hora partido',informe.hora_partido],['Hora Montaje UM',informe.hora_montaje_um],['Hora montaje MD-1',informe.horario_md1]
             ].map(([k,v])=>(
               <div key={k} style={{padding:'8px 10px',background:'#F5F0EC',borderRadius:8,border:'1px solid #DDD5CE'}}>
                 <div style={{fontSize:9,fontWeight:600,color:'#7A7168',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:2}}>{k}</div>
@@ -756,7 +756,7 @@ function NewServicioForm({ onCancel, onSaved, servicioId, initialData }) {
               <Field label="Fecha"><Input type="date" value={match.fecha} onChange={e=>setMatch({...match,fecha:e.target.value})} /></Field>
               <Field label="Hora partido"><Input type="time" value={match.hora_partido} onChange={e=>setMatch({...match,hora_partido:e.target.value})} /></Field>
               <Field label="Hora Montaje UM"><Input placeholder="12:00 HLE" value={match.hora_montaje_um} onChange={e=>setMatch({...match,hora_montaje_um:e.target.value})} /></Field>
-              <Field label="Horario Montaje UM MD-1"><Input placeholder="10:00 a 22:00" value={match.horario_md1} onChange={e=>setMatch({...match,horario_md1:e.target.value})} /></Field>
+              <Field label="Hora montaje MD-1"><Input placeholder="10:00 a 22:00" value={match.horario_md1} onChange={e=>setMatch({...match,horario_md1:e.target.value})} /></Field>
             </div>
           </Card>
           <Card>
